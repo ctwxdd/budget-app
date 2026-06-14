@@ -77,7 +77,7 @@ export function ExpenseFilterBar({ filters, onChange, selectionMode = false, sel
       {chips.length > 0 && <div className="flex gap-2 overflow-x-auto pb-1">{chips.map((chip) => <button key={`${chip.key}-${chip.label}`} className="shrink-0" onClick={() => clearChip(chip)}><Badge variant="secondary">{chip.label} <X className="ml-1 inline h-3 w-3" /></Badge></button>)}</div>}
     </div>
     <Dialog open={open} onOpenChange={setOpen} title="Filters" description="Narrow expenses without crowding your phone screen." mobileBottomSheet>
-      <div className="space-y-4"><FilterFields filters={filters} onChange={onChange} /><div className="sticky bottom-0 -mx-5 -mb-5 border-t bg-card p-4 md:-mx-7 md:-mb-7"><Button className="w-full" onClick={() => setOpen(false)}>Show results</Button></div></div>
+      <div className="space-y-4"><FilterFields filters={filters} onChange={onChange} /><div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl md:-mx-7 md:-mb-8 md:pb-4"><Button className="w-full" onClick={() => setOpen(false)}>Show results</Button></div></div>
     </Dialog>
   </>
 }

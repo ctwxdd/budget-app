@@ -35,7 +35,7 @@ function BottomNav({ onAdd }: { onAdd: () => void }) {
   const right = mobileNav.slice(2)
   const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex h-full min-h-[44px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-bold transition ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5" /><span className="leading-none">{item.label}</span></NavLink>
   return <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden">
-    <div className="relative mx-auto h-[68px] max-w-md border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl">
+    <div className="relative mx-auto h-[68px] w-full border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl">
       <div className="flex h-full items-stretch justify-between px-2">
         {left.map(renderItem)}
         <div className="h-full w-16 shrink-0" aria-hidden />
@@ -62,7 +62,7 @@ export function AppLayout() {
         <div className="flex min-w-0 items-center gap-2 md:gap-3"><span className="grid h-9 w-9 place-items-center rounded-2xl bg-coral/10 text-lg md:hidden">{page.emoji}</span><div className="hidden min-w-0 md:block"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">{page.emoji} {page.pageLabel}</p><h1 className="truncate font-display text-2xl font-extrabold">{page.pageLabel}</h1></div></div><h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 font-display text-lg font-extrabold md:hidden">{page.pageLabel}</h1>
         <div className="flex items-center gap-1.5 md:gap-2"><Button size="sm" className="hidden md:inline-flex" onClick={() => setExpenseOpen(true)}><Plus className="h-4 w-4" />Add expense</Button><Button variant="ghost" size="icon" onClick={cycleTheme} aria-label="Toggle theme">{theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}</Button><button title={user?.email} className="grid h-10 w-10 place-items-center rounded-full bg-coral text-sm font-bold text-foreground ring-1 ring-coral/20 shadow-lift dark:text-white">{(user?.email || user?.name || 'U').slice(0, 1).toUpperCase()}</button><Button variant="outline" size="sm" className="hidden md:inline-flex" onClick={logout}>Sign out</Button></div>
       </header>
-      <main className="relative p-4 pb-24 md:p-8"><div className="soft-blob right-10 top-10 hidden h-56 w-56 bg-coral/20 md:block" /><ErrorBoundary resetKey={location.pathname}><Outlet context={{ openExpenseDialog: () => setExpenseOpen(true) }} /></ErrorBoundary></main>
+      <main className="relative p-4 pb-28 md:p-8"><div className="soft-blob right-10 top-10 hidden h-56 w-56 bg-coral/20 md:block" /><ErrorBoundary resetKey={location.pathname}><Outlet context={{ openExpenseDialog: () => setExpenseOpen(true) }} /></ErrorBoundary></main>
     </div>
     <BottomNav onAdd={() => setExpenseOpen(true)} />
     <ExpenseDialog open={expenseOpen} onOpenChange={setExpenseOpen} />

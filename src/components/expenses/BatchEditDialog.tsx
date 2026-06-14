@@ -83,7 +83,7 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
         <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} disabled={!applyDate} />
       </div>
 
-      <div className="sticky bottom-0 -mx-5 -mb-5 flex flex-col-reverse gap-2 border-t bg-card p-4 sm:-mx-7 sm:-mb-7 sm:flex-row sm:justify-end">
+      <div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:-mx-7 sm:-mb-8 sm:flex-row sm:justify-end sm:pb-4">
         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
         <Button type="submit" disabled={batchUpdate.isPending}>{batchUpdate.isPending ? 'Saving...' : 'Save changes'}</Button>
       </div>

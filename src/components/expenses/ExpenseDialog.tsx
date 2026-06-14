@@ -114,7 +114,7 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
   }
 
   const giftcardPurchase = form.category === 'Giftcard'
-  return <Dialog open={open} onOpenChange={onOpenChange} title={expense ? 'Edit expense' : 'Add expense'} description="Write directly to the Expense tab in Google Sheets." mobileBottomSheet>
+  return <Dialog open={open} onOpenChange={onOpenChange} title={expense ? 'Edit expense' : 'Add expense'} description="Saved directly to your Google Sheet" mobileBottomSheet>
     <form onSubmit={submit} className="grid gap-5 sm:grid-cols-2 pb-2">
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Date<Input type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Amount<Input type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} /></label>
@@ -150,7 +150,7 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
             : <DatalistInput id={`payment-options-${paymentType}`} value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} options={paymentType === 'card' ? (cardPaymentMethods.length ? cardPaymentMethods : filteredPaymentMethods) : filteredPaymentMethods} placeholder={paymentType === 'card' ? 'Choose or type a card' : 'Cash, Venmo, Zelle…'} />}
         </div>
       </div>
-      <div className="sticky bottom-0 z-10 -mx-5 -mb-5 mt-4 flex flex-col-reverse gap-2 border-t border-border/70 bg-card p-4 shadow-[0_-14px_28px_-24px_rgba(31,41,55,0.45)] sm:col-span-2 sm:-mx-7 sm:-mb-7 sm:mt-6 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>
+      <div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] mt-4 flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_-14px_28px_-24px_rgba(31,41,55,0.45)] backdrop-blur-xl sm:col-span-2 sm:-mx-7 sm:-mb-8 sm:flex-row sm:justify-end sm:pb-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>
     </form>
   </Dialog>
 }
