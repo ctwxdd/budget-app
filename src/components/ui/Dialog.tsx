@@ -21,6 +21,8 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
   const sheetRef = React.useRef<HTMLDivElement>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const dragStart = React.useRef<{ y: number; t: number } | null>(null)
+  const touchStart = React.useRef<{ x: number; y: number; lastY: number; t: number; scrollable: boolean } | null>(null)
+  const dragYRef = React.useRef(0)
   const [dragY, setDragY] = React.useState(0)
   const [isDragging, setIsDragging] = React.useState(false)
 
@@ -33,7 +35,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
     return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = originalOverflow }
   }, [open, onOpenChange])
 
-  React.useEffect(() => { if (open) { setDragY(0); setIsDragging(false); dragStart.current = null } }, [open])
+  React.useEffect(() => { if (open) { dragYRef.current = 0; setDragY(0); setIsDragging(false); dragStart.current = null } }, [open])
 
   if (!open) return null
 
@@ -48,6 +50,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
   const isInteractive = (target: EventTarget | null) => target instanceof Element && Boolean(target.closest('button, input, select, textarea, a, [role="combobox"], [role="option"]'))
 
   const startSheetDrag = (event: React.PointerEvent<HTMLElement>, allowFromScroll = false) => {
+    if (event.pointerType !== 'mouse') return
     if (isInteractive(event.target)) return
     if (allowFromScroll && (scrollRef.current?.scrollTop ?? 0) > 0) return
     startDrag(event.clientY, event.pointerId, event.currentTarget)
@@ -56,7 +59,8 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
   const onPointerMove = (event: React.PointerEvent) => {
     if (!isDragging || !dragStart.current) return
     const delta = event.clientY - dragStart.current.y
-    setDragY(Math.max(0, delta))
+    dragYRef.current = Math.max(0, delta)
+    setDragY(dragYRef.current)
   }
 
   const endDrag = (clientY: number) => {
@@ -70,8 +74,61 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
     if (delta > sheetHeight * SWIPE_CLOSE_RATIO || velocity > SWIPE_CLOSE_VELOCITY) {
       onOpenChange(false)
     } else {
+      dragYRef.current = 0
       setDragY(0)
     }
+  }
+
+  const onSheetTouchStart = (event: React.TouchEvent) => {
+    if (!mobileBottomSheet || event.touches.length !== 1 || window.matchMedia('(min-width: 768px)').matches) return
+    const touch = event.touches[0]
+    touchStart.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      lastY: touch.clientY,
+      t: Date.now(),
+      scrollable: event.target instanceof Element && Boolean(event.target.closest('[data-dialog-scroll]')),
+    }
+  }
+
+  const onSheetTouchMove = (event: React.TouchEvent) => {
+    const start = touchStart.current
+    if (!start || event.touches.length !== 1) return
+    const touch = event.touches[0]
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+    if (Math.abs(deltaX) > Math.abs(deltaY)) return
+
+    const scrollTop = scrollRef.current?.scrollTop ?? 0
+    if (start.scrollable && deltaY < 0) return
+    if (start.scrollable && scrollTop > 0) {
+      start.y = touch.clientY
+      start.lastY = touch.clientY
+      start.t = Date.now()
+      return
+    }
+    if (!start.scrollable && deltaY < 0) {
+      event.preventDefault()
+      if (scrollRef.current) scrollRef.current.scrollTop += start.lastY - touch.clientY
+      start.lastY = touch.clientY
+      return
+    }
+    if (deltaY <= 0) return
+
+    event.preventDefault()
+    if (!dragStart.current) {
+      dragStart.current = { y: start.y, t: start.t }
+      setIsDragging(true)
+    }
+    dragYRef.current = deltaY
+    setDragY(deltaY)
+  }
+
+  const onSheetTouchEnd = () => {
+    const start = touchStart.current
+    touchStart.current = null
+    if (!start || !dragStart.current) return
+    endDrag(start.y + dragYRef.current)
   }
 
   const overlayOpacity = Math.max(0.25, 1 - dragY / 600)
@@ -94,10 +151,14 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
         className,
       )}
       style={mobileBottomSheet ? { transform: `translateY(${dragY}px)`, transition: isDragging ? 'none' : 'transform 260ms cubic-bezier(0.32, 0.72, 0, 1)' } : undefined}
+      onTouchStart={onSheetTouchStart}
+      onTouchMove={onSheetTouchMove}
+      onTouchEnd={onSheetTouchEnd}
+      onTouchCancel={onSheetTouchEnd}
     >
       {mobileBottomSheet && <div
         className="flex shrink-0 cursor-grab touch-none justify-center pb-1 pt-2.5 active:cursor-grabbing md:hidden"
-        onPointerDown={(event) => { event.preventDefault(); startDrag(event.clientY, event.pointerId, event.currentTarget) }}
+        onPointerDown={(event) => { if (event.pointerType === 'mouse') { event.preventDefault(); startDrag(event.clientY, event.pointerId, event.currentTarget) } }}
         onPointerMove={onPointerMove}
         onPointerUp={(event) => endDrag(event.clientY)}
         onPointerCancel={(event) => endDrag(event.clientY)}
@@ -119,8 +180,9 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
       </div>
       <div
         ref={scrollRef}
+        data-dialog-scroll
         className={cn(
-          'flex-1 overflow-y-auto overscroll-contain px-5 pt-4 md:px-7 md:pt-6',
+          'flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 pt-4 md:px-7 md:pt-6',
           mobileBottomSheet ? 'pb-[calc(env(safe-area-inset-bottom)+1.5rem)] md:pb-8' : 'pb-6 md:pb-8',
         )}
         onPointerDown={(event) => startSheetDrag(event, true)}
