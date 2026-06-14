@@ -1,9 +1,10 @@
 import * as React from 'react'
+import { ArrowRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { ExpenseFilters } from '../components/expenses/ExpenseTable'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Sector, Tooltip, XAxis, YAxis } from 'recharts'
 import type { PieSectorShapeProps } from 'recharts'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Select, Tabs } from '../components/ui'
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Select, Tabs } from '../components/ui'
 import { ExpenseFilterBar, applyExpenseFilters, defaultFilters } from '../components/expenses/ExpenseTable'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { QueryError } from '../components/layout/QueryError'
@@ -36,7 +37,7 @@ export function AnalyticsPage() {
   const yearOptionsA = [currentYear, ...years].filter((v, i, a) => a.indexOf(v) === i)
   const yearOptionsB = [currentYear - 1, ...years].filter((v, i, a) => a.indexOf(v) === i)
   return <div className="space-y-5 md:space-y-6"><ExpenseFilterBar filters={filters} onChange={setFilters} mobileSticky={false} desktopSticky={false} /><Tabs value={tab} onChange={setTab} tabs={[
-    { value: 'category', label: 'By Category', content: tab === 'category' ? <Card className="overflow-visible"><CardHeader><CardTitle>Spending by category</CardTitle><CardDescription>Tap to focus. Double-tap to see matching expenses.</CardDescription></CardHeader><CardContent>{category.length ? <CategoryBreakdown rows={category} onOpenExpenses={(categoryName) => {
+    { value: 'category', label: 'By Category', content: tab === 'category' ? <Card className="overflow-visible"><CardHeader><CardTitle>Spending by category</CardTitle><CardDescription>Tap a category to focus, then view its matching expenses.</CardDescription></CardHeader><CardContent>{category.length ? <CategoryBreakdown rows={category} onOpenExpenses={(categoryName) => {
       const params = new URLSearchParams({ category: categoryName, preset: filters.preset, from: 'analytics' })
       if (filters.start) params.set('start', filters.start)
       if (filters.end) params.set('end', filters.end)
@@ -73,55 +74,51 @@ function DonutSector({ isActive, cx = 0, cy = 0, midAngle = 0, innerRadius = 0, 
 
 function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; total: number }[]; onOpenExpenses: (category: string) => void }) {
   const [selectedIndex, setSelectedIndex] = React.useState(0)
-  const lastTap = React.useRef<{ index: number; time: number } | null>(null)
   React.useEffect(() => { if (selectedIndex >= rows.length) setSelectedIndex(0) }, [rows.length, selectedIndex])
   const total = rows.reduce((sum, row) => sum + row.total, 0)
   const selected = rows[selectedIndex] || rows[0]
   const Icon = categoryIcon(selected.name)
   const color = categoryColor(selected.name)
   const percentage = total ? (selected.total / total) * 100 : 0
-  const selectCategory = (index: number) => {
-    const now = Date.now()
-    const previous = lastTap.current
-    setSelectedIndex(index)
-    if (previous?.index === index && now - previous.time < 420) {
-      lastTap.current = null
-      onOpenExpenses(rows[index].name)
-      return
-    }
-    lastTap.current = { index, time: now }
-  }
 
   return <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-    <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto h-64 w-full max-w-sm rounded-3xl bg-card/95 shadow-[0_14px_26px_-24px_hsl(var(--foreground)/0.45)] backdrop-blur-xl md:top-24 md:h-80">
-      <ResponsiveContainer>
-        <PieChart accessibilityLayer={false}>
-          <Pie
-            data={rows}
-            dataKey="total"
-            nameKey="name"
-            outerRadius="78%"
-            innerRadius="54%"
-            paddingAngle={1.5}
-            cornerRadius={4}
-            isAnimationActive="auto"
-            shape={(props, index) => <DonutSector {...props} isActive={index === selectedIndex} />}
-            onClick={(_, index) => selectCategory(index)}
-          >
-            {rows.map((_, index) => <Cell key={index} fill={chartPalette[index % chartPalette.length]} />)}
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="pointer-events-none absolute inset-0 grid place-items-center">
-        <div className="flex max-w-32 flex-col items-center text-center">
-          <span className="mb-1.5 grid h-9 w-9 place-items-center rounded-full" style={{ backgroundColor: color.bg, color: color.text }}>{Icon ? <Icon className="h-[18px] w-[18px]" strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}</span>
-          <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
-          <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
-          <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
+    <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto w-full max-w-sm rounded-3xl bg-card/95 pb-3 shadow-[0_14px_26px_-24px_hsl(var(--foreground)/0.45)] backdrop-blur-xl md:top-24 md:pb-4">
+      <div className="relative h-56 md:h-72">
+        <ResponsiveContainer>
+          <PieChart accessibilityLayer={false}>
+            <Pie
+              data={rows}
+              dataKey="total"
+              nameKey="name"
+              outerRadius="78%"
+              innerRadius="54%"
+              paddingAngle={1.5}
+              cornerRadius={4}
+              isAnimationActive="auto"
+              shape={(props, index) => <DonutSector {...props} isActive={index === selectedIndex} />}
+              onClick={(_, index) => setSelectedIndex(index)}
+            >
+              {rows.map((_, index) => <Cell key={index} fill={chartPalette[index % chartPalette.length]} />)}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <div className="flex max-w-32 flex-col items-center text-center">
+            <span className="mb-1.5 grid h-9 w-9 place-items-center rounded-full" style={{ backgroundColor: color.bg, color: color.text }}>{Icon ? <Icon className="h-[18px] w-[18px]" strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}</span>
+            <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
+            <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
+            <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
+          </div>
         </div>
       </div>
+      <div className="px-3 md:px-4">
+        <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => onOpenExpenses(selected.name)}>
+          View filtered expenses
+          <ArrowRight className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
-    <RankedList rows={rows} selectedIndex={selectedIndex} onSelect={selectCategory} />
+    <RankedList rows={rows} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
   </div>
 }
 
