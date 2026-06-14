@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, CreditCard, Gift, Home, List, LogOut, Menu, Moon, Plus, RefreshCw, Settings, Sun, X } from 'lucide-react'
+import { BarChart3, CreditCard, Gift, Home, List, LogOut, Menu, Moon, Plus, Settings, Sun, X } from 'lucide-react'
 import { SHEET_ID_KEY } from '../../lib/defaults'
 import { useAuth } from '../../lib/auth'
 import { useTheme } from '../../hooks/useTheme'
@@ -46,16 +46,46 @@ function BottomNav({ onAdd }: { onAdd: () => void }) {
   </nav>
 }
 
+const SPOKE_COLORS = ['coral', 'peach', 'mint', 'butter', 'sky', 'lavender', 'rose', 'sage']
+const SPOKE_COUNT = SPOKE_COLORS.length
+
+const BUNDLE_ASSET_RE = /\/assets\/index-[\w-]+\.(?:js|css)/g
+let cachedBundleSignature: string | null = null
+function currentBundleSignature() {
+  if (cachedBundleSignature !== null) return cachedBundleSignature
+  const scripts = Array.from(document.scripts).map((s) => s.getAttribute('src') || '').filter((s) => BUNDLE_ASSET_RE.test(s)).map((s) => s.match(BUNDLE_ASSET_RE)?.[0]).filter(Boolean) as string[]
+  const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map((l) => (l as HTMLLinkElement).href || '').filter((s) => BUNDLE_ASSET_RE.test(s)).map((s) => s.match(BUNDLE_ASSET_RE)?.[0]).filter(Boolean) as string[]
+  BUNDLE_ASSET_RE.lastIndex = 0
+  cachedBundleSignature = [...scripts, ...styles].sort().join('|')
+  return cachedBundleSignature
+}
+async function checkForBundleUpdate(): Promise<boolean> {
+  try {
+    const res = await fetch(`/index.html?_pwa=${Date.now()}`, { cache: 'no-store', credentials: 'same-origin' })
+    if (!res.ok) return false
+    const html = await res.text()
+    const matches = html.match(BUNDLE_ASSET_RE) || []
+    BUNDLE_ASSET_RE.lastIndex = 0
+    if (matches.length === 0) return false
+    const remoteSig = Array.from(new Set(matches)).sort().join('|')
+    const localSig = currentBundleSignature()
+    return remoteSig !== '' && localSig !== '' && remoteSig !== localSig
+  } catch {
+    return false
+  }
+}
+
 function PullToRefresh() {
   const queryClient = useQueryClient()
-  const [phase, setPhase] = React.useState<'idle' | 'pulling' | 'refreshing'>('idle')
+  const [phase, setPhase] = React.useState<'idle' | 'pulling' | 'refreshing' | 'returning'>('idle')
   const [distance, setDistance] = React.useState(0)
-  const phaseRef = React.useRef<'idle' | 'pulling' | 'refreshing'>('idle')
+  const phaseRef = React.useRef<'idle' | 'pulling' | 'refreshing' | 'returning'>('idle')
   const distanceRef = React.useRef(0)
   const startY = React.useRef<number | null>(null)
   const activeRef = React.useRef(false)
+  const finishTimerRef = React.useRef<number | null>(null)
   const threshold = 64
-  const holdDistance = 56
+  const holdDistance = 60
   const maxDistance = 110
   const activationSlop = 8
 
@@ -79,11 +109,8 @@ function PullToRefresh() {
       if (pulling) root.dataset.pulling = 'true'
       else delete root.dataset.pulling
     }
-
-    const resetTouch = () => {
-      startY.current = null
-      activeRef.current = false
-      setPullingAttr(false)
+    const clearFinishTimer = () => {
+      if (finishTimerRef.current) { window.clearTimeout(finishTimerRef.current); finishTimerRef.current = null }
     }
 
     const onTouchStart = (event: TouchEvent) => {
@@ -96,13 +123,12 @@ function PullToRefresh() {
     }
     const onTouchMove = (event: TouchEvent) => {
       if (startY.current === null || phaseRef.current === 'refreshing') return
-      if (window.scrollY > 0) { resetTouch(); return }
+      if (window.scrollY > 0) { startY.current = null; activeRef.current = false; setPullingAttr(false); return }
       const delta = event.touches[0].clientY - startY.current
       if (delta <= activationSlop) {
         if (activeRef.current) {
           activeRef.current = false
           setPullingAttr(false)
-          setActiveAttr(false)
           setPhase('idle')
           setPull(0)
         }
@@ -110,6 +136,7 @@ function PullToRefresh() {
       }
       if (!activeRef.current) {
         activeRef.current = true
+        clearFinishTimer()
         setPullingAttr(true)
         setActiveAttr(true)
         setPhase('pulling')
@@ -128,18 +155,27 @@ function PullToRefresh() {
       if (currentDistance >= threshold) {
         setPhase('refreshing')
         setPull(holdDistance)
-        const finish = () => {
-          setPhase('idle')
-          setPull(0)
-          window.setTimeout(() => setActiveAttr(false), 460)
-        }
-        void queryClient.refetchQueries({ type: 'active' }).finally(() => {
-          window.setTimeout(finish, 240)
+        const tasks: Promise<unknown>[] = [
+          queryClient.refetchQueries({ type: 'active' }),
+          checkForBundleUpdate().then((hasUpdate) => { if (hasUpdate) window.location.reload() }),
+        ]
+        void Promise.allSettled(tasks).finally(() => {
+          finishTimerRef.current = window.setTimeout(() => {
+            setPhase('returning')
+            setPull(0)
+            finishTimerRef.current = window.setTimeout(() => {
+              setPhase('idle')
+              setActiveAttr(false)
+            }, 600)
+          }, 220)
         })
       } else {
-        setPhase('idle')
+        setPhase('returning')
         setPull(0)
-        window.setTimeout(() => { if (phaseRef.current === 'idle') setActiveAttr(false) }, 460)
+        finishTimerRef.current = window.setTimeout(() => {
+          setPhase('idle')
+          setActiveAttr(false)
+        }, 520)
       }
     }
 
@@ -148,6 +184,7 @@ function PullToRefresh() {
     window.addEventListener('touchend', onTouchEnd, { passive: true })
     window.addEventListener('touchcancel', onTouchEnd, { passive: true })
     return () => {
+      clearFinishTimer()
       window.removeEventListener('touchstart', onTouchStart)
       window.removeEventListener('touchmove', onTouchMove)
       window.removeEventListener('touchend', onTouchEnd)
@@ -158,13 +195,55 @@ function PullToRefresh() {
     }
   }, [queryClient])
 
-  if (phase !== 'refreshing') return null
-  return <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[60] flex justify-center" style={{ transition: 'opacity 180ms ease' }}>
-    <div className="flex items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-2 text-xs font-semibold text-muted-foreground shadow-lift backdrop-blur-xl">
-      <RefreshCw className="h-4 w-4 animate-spin text-coral" />
-      Refreshing…
+  if (phase === 'idle') return null
+  const progress = phase === 'refreshing' ? 1 : Math.min(1, distance / threshold)
+  const reveal = progress * (SPOKE_COUNT + 0.4)
+  return <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+1rem)] z-[60] flex justify-center">
+    <div className={`relative h-6 w-6 ${phase === 'refreshing' ? 'animate-spoke-spin' : ''}`}>
+      {SPOKE_COLORS.map((color, i) => {
+        const angle = (i * 360) / SPOKE_COUNT
+        let opacity = 0
+        let delay = 0
+        if (phase === 'refreshing') {
+          opacity = 1 - (i / SPOKE_COUNT) * 0.78
+        } else if (phase === 'returning') {
+          opacity = 0
+          delay = i * 42
+        } else {
+          opacity = Math.max(0, Math.min(1, reveal - i))
+        }
+        return <span key={color}
+          className="absolute left-1/2 top-1/2 block h-[7px] w-[2.5px] rounded-full"
+          style={{
+            backgroundColor: `hsl(var(--${color}))`,
+            transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-7px)`,
+            opacity,
+            transition: `opacity ${phase === 'returning' ? 220 : 140}ms ease ${delay}ms`,
+          }}
+        />
+      })}
     </div>
   </div>
+}
+
+function useBundleUpdateOnFocus() {
+  React.useEffect(() => {
+    let lastCheck = 0
+    const maybeCheck = async () => {
+      if (document.hidden) return
+      const now = Date.now()
+      if (now - lastCheck < 30_000) return
+      lastCheck = now
+      if (await checkForBundleUpdate()) window.location.reload()
+    }
+    void maybeCheck()
+    document.addEventListener('visibilitychange', maybeCheck)
+    window.addEventListener('focus', maybeCheck)
+    return () => {
+      document.removeEventListener('visibilitychange', maybeCheck)
+      window.removeEventListener('focus', maybeCheck)
+    }
+  }, [])
 }
 
 function MobileMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -228,6 +307,7 @@ export function AppLayout() {
   const page = nav.find((item) => item.to === location.pathname) ?? nav[0]
   const cycleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
   const logout = () => { signOut(); localStorage.removeItem(SHEET_ID_KEY); navigate('/login') }
+  useBundleUpdateOnFocus()
   return <div className="min-h-[100dvh] bg-background text-foreground [overflow-x:hidden] [overflow-x:clip]">
     <PullToRefresh />
     <div className="pull-refresh-content">
