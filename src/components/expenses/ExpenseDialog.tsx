@@ -24,6 +24,57 @@ function DatalistInput({ id, value, onChange, options, placeholder }: { id: stri
   return <><Input list={id} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} /><datalist id={id}>{options.map((option) => <option key={option} value={option} />)}</datalist></>
 }
 
+function StringAutosuggest({ value, onChange, options, placeholder }: { value: string; onChange: (value: string) => void; options: string[]; placeholder?: string }) {
+  const [focused, setFocused] = React.useState(false)
+  const [highlight, setHighlight] = React.useState(-1)
+  const blurTimerRef = React.useRef<number | null>(null)
+  const query = value.trim().toLocaleLowerCase()
+  const filtered = React.useMemo(() => {
+    if (!options.length) return [] as string[]
+    if (!query) return options.slice(0, 6)
+    const matches = options.filter((option) => {
+      const display = option.toLocaleLowerCase()
+      return display.includes(query) && display !== query
+    })
+    return matches.slice(0, 6)
+  }, [options, query])
+
+  React.useEffect(() => { setHighlight(-1) }, [value, focused])
+  React.useEffect(() => () => { if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current) }, [])
+
+  const pick = (option: string) => { onChange(option); setFocused(false) }
+  const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
+    if (!filtered.length || !focused) return
+    if (event.key === 'ArrowDown') { event.preventDefault(); setHighlight((h) => (h + 1) % filtered.length) }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); setHighlight((h) => (h <= 0 ? filtered.length - 1 : h - 1)) }
+    else if (event.key === 'Enter' && highlight >= 0) { event.preventDefault(); pick(filtered[highlight]) }
+    else if (event.key === 'Escape') { setFocused(false) }
+  }
+  const open = focused && filtered.length > 0
+  return <div className="relative">
+    <Input
+      value={value}
+      onChange={(event) => { onChange(event.target.value); setFocused(true) }}
+      onFocus={() => { if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current); setFocused(true) }}
+      onBlur={() => { blurTimerRef.current = window.setTimeout(() => setFocused(false), 150) }}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      autoComplete="off"
+    />
+    {open && <div className="absolute left-0 right-0 top-full z-20 mt-1.5 max-h-60 overflow-auto rounded-2xl border border-border bg-card p-1 shadow-lift">
+      {filtered.map((option, index) => <button
+        key={option}
+        type="button"
+        className={cn('flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition', index === highlight ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/70')}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => pick(option)}
+      >
+        <span className="truncate font-medium text-foreground">{option}</span>
+      </button>)}
+    </div>}
+  </div>
+}
+
 function isoDaysAgo(days: number) {
   const date = new Date()
   date.setHours(0, 0, 0, 0)
@@ -179,6 +230,15 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   }, [open, expense, giftcards.merchants])
 
   const vendors = React.useMemo(() => Array.from(new Set(giftcards.cards.map((card) => card.vendor).filter(Boolean))).sort(), [giftcards.cards])
+  const giftcardSources = React.useMemo(() => {
+    const set = new Set<string>()
+    for (const item of expensesQuery.data || []) {
+      if (item.category !== 'Giftcard') continue
+      const parsed = parseGiftcardDescription(item.description)
+      if (parsed?.source) set.add(parsed.source)
+    }
+    return Array.from(set).sort()
+  }, [expensesQuery.data])
   const activeMerchants = React.useMemo(() => [...giftcards.merchants].filter((merchant) => merchant.active && merchant.balance > 0.005).sort((a, b) => b.balance - a.balance || a.merchant.localeCompare(b.merchant)), [giftcards.merchants])
   const merchantOptions = React.useMemo(() => {
     const selected = giftcards.merchants.find((merchant) => merchant.merchant === selectedMerchant)
@@ -242,7 +302,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="block">Description</span>
         {giftcardPurchase
-          ? <GiftcardComposer parts={giftcardParts} structured={giftcardStructured} vendors={vendors} rawDescription={form.description} paidAmount={Number(form.amount) || 0} onRawChange={(description) => setForm({ ...form, description })} onStructuredChange={setGiftcardStructured} onChange={setGiftcardParts} />
+          ? <GiftcardComposer parts={giftcardParts} structured={giftcardStructured} vendors={vendors} sources={giftcardSources} rawDescription={form.description} paidAmount={Number(form.amount) || 0} onRawChange={(description) => setForm({ ...form, description })} onStructuredChange={setGiftcardStructured} onChange={setGiftcardParts} />
           : <DescriptionAutosuggest value={form.description} onChange={(description) => setForm({ ...form, description })} suggestions={descriptionSuggestions} currentCategory={form.category} placeholder="Groceries, rent, coffee..." />}
       </div>
       <div className="min-h-6 sm:col-span-2">
@@ -305,15 +365,15 @@ function CategoryCombobox({ value, onChange, options, placeholder = 'Choose or t
   </div>
 }
 
-function GiftcardComposer({ parts, structured, vendors, rawDescription, paidAmount, onChange, onRawChange, onStructuredChange }: { parts: GiftcardDescriptionParts; structured: boolean; vendors: string[]; rawDescription: string; paidAmount: number; onChange: (parts: GiftcardDescriptionParts) => void; onRawChange: (description: string) => void; onStructuredChange: (structured: boolean) => void }) {
+function GiftcardComposer({ parts, structured, vendors, sources, rawDescription, paidAmount, onChange, onRawChange, onStructuredChange }: { parts: GiftcardDescriptionParts; structured: boolean; vendors: string[]; sources: string[]; rawDescription: string; paidAmount: number; onChange: (parts: GiftcardDescriptionParts) => void; onRawChange: (description: string) => void; onStructuredChange: (structured: boolean) => void }) {
   if (!structured) return <div className="space-y-2"><Input value={rawDescription} onChange={(event) => onRawChange(event.target.value)} placeholder="Giftcard description" /><Button type="button" variant="outline" size="sm" onClick={() => { onChange(parseGiftcardDescription(rawDescription) || emptyGiftcardParts()); onStructuredChange(true) }}>Switch to structured</Button></div>
   const faceNumber = Number(parts.face)
   const savings = Number.isFinite(faceNumber) && faceNumber > 0 && paidAmount > 0 ? faceNumber - paidAmount : 0
   return <div className="space-y-2">
     <div className="grid gap-3 sm:grid-cols-3">
-      <label className="block space-y-1 sm:col-span-3"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vendor</span><DatalistInput id="giftcard-vendors" value={parts.vendor} onChange={(vendor) => onChange({ ...parts, vendor })} options={vendors} placeholder="e.g. H&M GC" /></label>
+      <label className="block space-y-1 sm:col-span-3"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vendor</span><StringAutosuggest value={parts.vendor} onChange={(vendor) => onChange({ ...parts, vendor })} options={vendors} placeholder="e.g. H&M GC" /></label>
       <label className="block space-y-1"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Face value <span className="font-normal normal-case text-muted-foreground/70">· optional</span></span><Input inputMode="decimal" type="number" min="0" step="0.01" value={parts.face} onChange={(event) => onChange({ ...parts, face: event.target.value })} placeholder="e.g. 50" /></label>
-      <label className="block space-y-1 sm:col-span-2"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Source <span className="font-normal normal-case text-muted-foreground/70">· optional</span></span><Input value={parts.source} onChange={(event) => onChange({ ...parts, source: event.target.value })} placeholder="e.g. Office Depot" /></label>
+      <label className="block space-y-1 sm:col-span-2"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Source <span className="font-normal normal-case text-muted-foreground/70">· optional</span></span><StringAutosuggest value={parts.source} onChange={(source) => onChange({ ...parts, source })} options={sources} placeholder="e.g. Office Depot" /></label>
     </div>
     {savings > 0.005 && <p className="px-1 text-xs font-semibold text-emerald-600 dark:text-mint">You'll bank {currency.format(savings)} ({((savings / faceNumber) * 100).toFixed(0)}% off face).</p>}
   </div>
