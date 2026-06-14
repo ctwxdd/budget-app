@@ -4,8 +4,8 @@
   "description": "A cozy personal budget and expense tracker.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fff9f6",
-  "theme_color": "#ff6254",
+  "background_color": "#faf6f4",
+  "theme_color": "#faf6f4",
   "icons": [
     {
       "src": "/icon-192.png",

@@ -4,10 +4,10 @@ import type { ColorTheme, Theme } from '../lib/types'
 
 const THEME_CHANGE_EVENT = 'budget-theme-change'
 const themeColors: Record<ColorTheme, { light: string; dark: string }> = {
-  chamomile: { light: '#f15b52', dark: '#241a2f' },
-  sea: { light: '#168c91', dark: '#13282c' },
-  'milk-tea': { light: '#a96f45', dark: '#261c17' },
-  lavender: { light: '#8267b8', dark: '#21182b' },
+  chamomile: { light: '#faf6f4', dark: '#241a2f' },
+  sea: { light: '#f2f8f8', dark: '#13282c' },
+  'milk-tea': { light: '#f8f3eb', dark: '#261c17' },
+  lavender: { light: '#f8f5fa', dark: '#21182b' },
 }
 
 function readColorTheme(): ColorTheme {
@@ -18,7 +18,17 @@ function readColorTheme(): ColorTheme {
 function updateBrowserColor() {
   const colorTheme = (document.documentElement.dataset.colorTheme as ColorTheme) || 'chamomile'
   const mode = document.documentElement.classList.contains('dark') ? 'dark' : 'light'
-  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', (themeColors[colorTheme] || themeColors.chamomile)[mode])
+  const color = (themeColors[colorTheme] || themeColors.chamomile)[mode]
+  document.documentElement.style.colorScheme = mode
+  document.documentElement.style.backgroundColor = color
+  document.body?.style.setProperty('background-color', color)
+
+  // Replacing the node makes installed iOS web apps re-evaluate the status-bar color.
+  const current = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+  const next = document.createElement('meta')
+  next.name = 'theme-color'
+  next.content = color
+  current?.replaceWith(next)
 }
 
 function applyTheme(theme: Theme) {
