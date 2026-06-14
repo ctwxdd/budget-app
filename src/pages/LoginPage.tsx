@@ -4,14 +4,26 @@ import { useAuth } from '../lib/auth'
 import { SHEET_ID_KEY } from '../lib/defaults'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui'
 import { LoveNoteIcon } from '../components/LoveNoteIcon'
+import { useToast } from '../components/ui/Toast'
 
 export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const { toast } = useToast()
   const missingClientId = !import.meta.env.VITE_GOOGLE_CLIENT_ID
   const onLogin = async () => {
-    await login()
+    try {
+      await login()
+    } catch (error) {
+      if (error instanceof Error && error.message === 'SHEETS_SCOPE_MISSING') {
+        toast({ title: 'Sheets permission was not granted', description: 'You signed in, but you need to allow the Google Sheets permission. Continuing to setup so you can grant it.', variant: 'destructive', duration: 6000 })
+        navigate('/setup', { replace: true })
+        return
+      }
+      // User closed the picker; let them try again.
+      return
+    }
     const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname
     const hasSheet = Boolean(localStorage.getItem(SHEET_ID_KEY))
     navigate(from || (hasSheet ? '/' : '/setup'), { replace: true })
