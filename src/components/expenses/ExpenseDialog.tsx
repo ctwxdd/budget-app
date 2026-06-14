@@ -107,8 +107,12 @@ type DescriptionSuggestion = { display: string; count: number; sameCategory: num
 function buildDescriptionSuggestions(expenses: Expense[], category: string): DescriptionSuggestion[] {
   const counts = new Map<string, DescriptionSuggestion>()
   for (const expense of expenses) {
-    const base = splitDescriptionNote(expense.description).base.trim()
+    let base = splitDescriptionNote(expense.description).base.trim()
     if (!base) continue
+    if (expense.category === 'Giftcard') {
+      const parsed = parseGiftcardDescription(expense.description)
+      if (parsed?.vendor) base = parsed.vendor
+    }
     const key = base.toLocaleLowerCase()
     const entry = counts.get(key) || { display: base, count: 0, sameCategory: 0, lastDate: '' }
     entry.count += 1
@@ -366,15 +370,19 @@ function CategoryCombobox({ value, onChange, options, placeholder = 'Choose or t
 }
 
 function GiftcardComposer({ parts, structured, vendors, sources, rawDescription, paidAmount, onChange, onRawChange, onStructuredChange }: { parts: GiftcardDescriptionParts; structured: boolean; vendors: string[]; sources: string[]; rawDescription: string; paidAmount: number; onChange: (parts: GiftcardDescriptionParts) => void; onRawChange: (description: string) => void; onStructuredChange: (structured: boolean) => void }) {
+  const hasOptional = Boolean(parts.face.trim() || parts.source.trim())
+  const [showOptional, setShowOptional] = React.useState(hasOptional)
+  React.useEffect(() => { if (hasOptional) setShowOptional(true) }, [hasOptional])
   if (!structured) return <div className="space-y-2"><Input value={rawDescription} onChange={(event) => onRawChange(event.target.value)} placeholder="Giftcard description" /><Button type="button" variant="outline" size="sm" onClick={() => { onChange(parseGiftcardDescription(rawDescription) || emptyGiftcardParts()); onStructuredChange(true) }}>Switch to structured</Button></div>
   const faceNumber = Number(parts.face)
   const savings = Number.isFinite(faceNumber) && faceNumber > 0 && paidAmount > 0 ? faceNumber - paidAmount : 0
   return <div className="space-y-2">
-    <div className="grid gap-3 sm:grid-cols-3">
-      <label className="block space-y-1 sm:col-span-3"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vendor</span><StringAutosuggest value={parts.vendor} onChange={(vendor) => onChange({ ...parts, vendor })} options={vendors} placeholder="e.g. H&M GC" /></label>
+    <label className="block space-y-1"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vendor</span><StringAutosuggest value={parts.vendor} onChange={(vendor) => onChange({ ...parts, vendor })} options={vendors} placeholder="e.g. H&M GC" /></label>
+    {!showOptional && <button type="button" onClick={() => setShowOptional(true)} className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-coral transition motion-safe:active:scale-[0.97] hover:bg-coral/10">+ Add face value or source</button>}
+    {showOptional && <div className="grid gap-3 sm:grid-cols-3">
       <label className="block space-y-1"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Face value <span className="font-normal normal-case text-muted-foreground/70">· optional</span></span><Input inputMode="decimal" type="number" min="0" step="0.01" value={parts.face} onChange={(event) => onChange({ ...parts, face: event.target.value })} placeholder="e.g. 50" /></label>
       <label className="block space-y-1 sm:col-span-2"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Source <span className="font-normal normal-case text-muted-foreground/70">· optional</span></span><StringAutosuggest value={parts.source} onChange={(source) => onChange({ ...parts, source })} options={sources} placeholder="e.g. Office Depot" /></label>
-    </div>
+    </div>}
     {savings > 0.005 && <p className="px-1 text-xs font-semibold text-emerald-600 dark:text-mint">You'll bank {currency.format(savings)} ({((savings / faceNumber) * 100).toFixed(0)}% off face).</p>}
   </div>
 }

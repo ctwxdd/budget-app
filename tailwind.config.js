@@ -34,6 +34,12 @@ export default {
         soft: '0 4px 20px -4px rgba(255, 142, 114, 0.15), 0 18px 45px -28px rgba(42, 36, 56, 0.28)',
         lift: '0 18px 40px -18px rgba(255, 142, 114, 0.45)',
       },
+      keyframes: {
+        'toast-pop': { '0%': { opacity: '0', transform: 'translateY(8px) scale(0.96)' }, '100%': { opacity: '1', transform: 'translateY(0) scale(1)' } },
+      },
+      animation: {
+        'toast-pop': 'toast-pop 200ms cubic-bezier(0.22, 1, 0.36, 1)',
+      },
     },
   },
   plugins: [],
