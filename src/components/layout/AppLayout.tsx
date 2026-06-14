@@ -55,7 +55,7 @@ export function AppLayout() {
   const page = nav.find((item) => item.to === location.pathname) ?? nav[0]
   const cycleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
   const logout = () => { signOut(); localStorage.removeItem(SHEET_ID_KEY); navigate('/login') }
-  return <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
+  return <div className="min-h-screen bg-background text-foreground [overflow-x:hidden] [overflow-x:clip]">
     <div className="fixed inset-y-0 left-0 hidden md:block"><Sidebar /></div>
     <div className="md:pl-72">
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between relative border-b border-border/70 bg-background/85 px-3 backdrop-blur-xl md:h-20 md:px-8">

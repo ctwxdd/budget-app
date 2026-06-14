@@ -139,18 +139,18 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
               const specificCard = merchant && form.paymentMethod !== merchant ? form.paymentMethod : ''
               setSelectedMerchant(merchant)
               setSelectedGiftcardCard(specificCard || 'auto')
+            } else if (item.type === 'cash') {
+              setForm({ ...form, paymentMethod: 'Cash' })
             } else if (previousType !== item.type && classifyPaymentMethod(form.paymentMethod) !== item.type) {
               setForm({ ...form, paymentMethod: '' })
             }
           }} title={item.label}><span>{item.emoji}</span><span className="hidden min-[420px]:inline">{item.label}</span></button>)}
         </div>
-        <div className="pt-1">
+        {paymentType !== 'cash' && <div className="pt-1">
           {paymentType === 'giftcard'
             ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
-            : paymentType === 'card'
-              ? <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={managedCards.cards.filter((card) => card.active && card.name)} fallback={filteredPaymentMethods} />
-              : <DatalistInput id={`payment-options-${paymentType}`} value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} options={filteredPaymentMethods} placeholder="Cash, Venmo, Zelle…" />}
-        </div>
+            : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={managedCards.cards.filter((card) => card.active && card.name)} fallback={filteredPaymentMethods} />}
+        </div>}
       </div>
       <div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] mt-4 flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_-14px_28px_-24px_rgba(31,41,55,0.45)] backdrop-blur-xl sm:col-span-2 sm:-mx-7 sm:-mb-8 sm:flex-row sm:justify-end sm:pb-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>
     </form>
