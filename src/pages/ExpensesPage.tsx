@@ -65,7 +65,7 @@ export function ExpensesPage() {
     <ExpenseFilterBar filters={filters} onChange={setFilters} selectionMode={selectionMode} selectedCount={selectedIds.size} onEnterSelectionMode={() => enterSelectionMode()} onCancelSelection={clearSelection} />
     <ExpenseTable expenses={filtered} onEdit={setEditing} selectedIds={selectedIds} selectionMode={selectionMode} onToggleSelected={toggleSelected} onSelectMany={selectMany} onEnterSelectionMode={enterSelectionMode} />
     {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} onClear={clearSelection} onEdit={() => setBatchEditOpen(true)} onDelete={deleteSelected} deleting={batchDelete.isPending} />}
-    <ExpenseDialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)} expense={editing} />
+    {editing && <ExpenseDialog open onOpenChange={(open) => !open && setEditing(null)} expense={editing} />}
     <BatchEditDialog open={batchEditOpen} onOpenChange={setBatchEditOpen} expenses={selectedExpenses} onSaved={clearSelection} />
   </div>
 }

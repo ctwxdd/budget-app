@@ -2,7 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { DEFAULT_CATEGORIES, DEFAULT_PAYMENT_METHODS, SHEET_ID_KEY } from '../lib/defaults'
 import { expenseToRow, parseExpenseRows } from '../lib/parse'
 import { appendRow, batchUpdateExpenseFields, deleteRow, deleteRows, getSheet, getSheetMeta, isRateLimitError, updateRow } from '../lib/sheets'
+import { clearLocalCache, readLocalCache, writeLocalCache } from '../lib/localCache'
 import type { Expense } from '../lib/types'
+
+const LOCAL_CACHE_AGE = 5 * 60 * 1000
+const expensesCacheKey = (sheetId: string) => `expenses.${sheetId}`
+const giftcardsCacheKey = (sheetId: string) => `giftcards.${sheetId}`
 
 export function getStoredSheetId() {
   return localStorage.getItem(SHEET_ID_KEY) || ''
@@ -19,11 +24,18 @@ export function useSheetMeta() {
 
 export function useExpenses() {
   const sheetId = useSheetId()
+  const cached = readLocalCache<Expense[]>(expensesCacheKey(sheetId), LOCAL_CACHE_AGE)
   return useQuery({
     queryKey: ['expenses', sheetId],
-    queryFn: async () => parseExpenseRows((await getSheet(sheetId, 'Expense!A2:F')).values || []),
+    queryFn: async () => {
+      const expenses = parseExpenseRows((await getSheet(sheetId, 'Expense!A2:F')).values || [])
+      writeLocalCache(expensesCacheKey(sheetId), expenses)
+      return expenses
+    },
     enabled: Boolean(sheetId),
-    staleTime: 30_000,
+    initialData: cached?.data,
+    initialDataUpdatedAt: cached?.savedAt,
+    staleTime: LOCAL_CACHE_AGE,
     refetchOnWindowFocus: false,
     retry: (failureCount, error) => isRateLimitError(error) ? failureCount < 2 : failureCount < 1,
     retryDelay: (attempt, error) => isRateLimitError(error) ? Math.min(4000, 1200 * (attempt + 1)) : 1000,
@@ -36,6 +48,7 @@ export function useAddExpense() {
   return useMutation({
     mutationFn: (expense: Omit<Expense, 'rowIndex'>) => appendRow(sheetId, 'Expense!A:F', expenseToRow(expense)),
     onSuccess: () => {
+      clearLocalCache(expensesCacheKey(sheetId), giftcardsCacheKey(sheetId))
       queryClient.invalidateQueries({ queryKey: ['expenses', sheetId] })
       queryClient.invalidateQueries({ queryKey: ['giftcards', sheetId] })
     },
@@ -48,6 +61,7 @@ export function useUpdateExpense() {
   return useMutation({
     mutationFn: (expense: Expense) => updateRow(sheetId, `Expense!A${expense.rowIndex}:F${expense.rowIndex}`, expenseToRow(expense)),
     onSuccess: () => {
+      clearLocalCache(expensesCacheKey(sheetId), giftcardsCacheKey(sheetId))
       queryClient.invalidateQueries({ queryKey: ['expenses', sheetId] })
       queryClient.invalidateQueries({ queryKey: ['giftcards', sheetId] })
     },
@@ -65,6 +79,7 @@ export function useDeleteExpense() {
       return deleteRow(sheetId, sheetGid, expense.rowIndex - 1)
     },
     onSuccess: () => {
+      clearLocalCache(expensesCacheKey(sheetId), giftcardsCacheKey(sheetId))
       queryClient.invalidateQueries({ queryKey: ['expenses', sheetId] })
       queryClient.invalidateQueries({ queryKey: ['giftcards', sheetId] })
     },
@@ -82,6 +97,7 @@ export function useBatchDeleteExpenses() {
       return deleteRows(sheetId, sheetGid, expenses.map((expense) => expense.rowIndex))
     },
     onSuccess: () => {
+      clearLocalCache(expensesCacheKey(sheetId), giftcardsCacheKey(sheetId))
       queryClient.invalidateQueries({ queryKey: ['expenses', sheetId] })
       queryClient.invalidateQueries({ queryKey: ['giftcards', sheetId] })
     },
@@ -95,6 +111,7 @@ export function useBatchUpdateExpenses() {
     mutationFn: (updates: Array<{ rowIndex: number; updates: Partial<Pick<Expense, 'date' | 'amount' | 'description' | 'category' | 'paymentMethod' | 'reimbursement'>> }>) =>
       batchUpdateExpenseFields(sheetId, 'Expense', updates),
     onSuccess: () => {
+      clearLocalCache(expensesCacheKey(sheetId), giftcardsCacheKey(sheetId))
       queryClient.invalidateQueries({ queryKey: ['expenses', sheetId] })
       queryClient.invalidateQueries({ queryKey: ['giftcards', sheetId] })
     },

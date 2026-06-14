@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { getSheet } from '../lib/sheets'
+import { getSheets, isRateLimitError } from '../lib/sheets'
 import { parseCurrency } from '../lib/giftcards'
+import { readLocalCache, writeLocalCache } from '../lib/localCache'
 import { useSheetId } from './useExpenses'
 
 export type GiftcardRow = {
@@ -28,6 +29,7 @@ export type MerchantRow = {
 type GiftcardsData = { cards: GiftcardRow[]; merchants: MerchantRow[]; tabMissing: boolean }
 const emptyCards: GiftcardRow[] = []
 const emptyMerchants: MerchantRow[] = []
+const LOCAL_CACHE_AGE = 5 * 60 * 1000
 
 function isMissingGiftcardTab(error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
@@ -81,21 +83,27 @@ function parseMerchants(rows: string[][] = []): MerchantRow[] {
 
 export function useGiftcards() {
   const spreadsheetId = useSheetId()
+  const cacheKey = `giftcards.${spreadsheetId}`
+  const cached = readLocalCache<GiftcardsData>(cacheKey, LOCAL_CACHE_AGE)
   const query = useQuery<GiftcardsData>({
     queryKey: ['giftcards', spreadsheetId],
     queryFn: async () => {
       try {
-        const [cards, merchants] = await Promise.all([
-          getSheet(spreadsheetId, 'Giftcard!A2:J1000'),
-          getSheet(spreadsheetId, 'Giftcard!L2:Q1000'),
-        ])
-        return { cards: parseCards(cards.values || []), merchants: parseMerchants(merchants.values || []), tabMissing: false }
+        const [cards = {}, merchants = {}] = await getSheets(spreadsheetId, ['Giftcard!A2:J1000', 'Giftcard!L2:Q1000'])
+        const data = { cards: parseCards(cards.values || []), merchants: parseMerchants(merchants.values || []), tabMissing: false }
+        writeLocalCache(cacheKey, data)
+        return data
       } catch (error) {
         if (isMissingGiftcardTab(error)) return { cards: [], merchants: [], tabMissing: true }
         throw error
       }
     },
     enabled: Boolean(spreadsheetId),
+    initialData: cached?.data,
+    initialDataUpdatedAt: cached?.savedAt,
+    staleTime: LOCAL_CACHE_AGE,
+    refetchOnWindowFocus: false,
+    retry: (failureCount, error) => isRateLimitError(error) ? failureCount < 2 : failureCount < 1,
   })
 
   return {

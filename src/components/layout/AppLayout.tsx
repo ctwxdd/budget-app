@@ -185,6 +185,6 @@ export function AppLayout() {
     </div>
     <MobileMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} />
     <BottomNav onAdd={() => setExpenseOpen(true)} />
-    <ExpenseDialog open={expenseOpen} onOpenChange={setExpenseOpen} />
+    {expenseOpen && <ExpenseDialog open onOpenChange={setExpenseOpen} />}
   </div>
 }

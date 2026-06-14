@@ -55,6 +55,13 @@ export async function getSheet(sheetId: string, range: string): Promise<{ values
   return sheetsFetch(`${base(sheetId)}/values/${encodeURIComponent(range)}`)
 }
 
+export async function getSheets(sheetId: string, ranges: string[]): Promise<Array<{ values?: string[][] }>> {
+  const params = new URLSearchParams()
+  ranges.forEach((range) => params.append('ranges', range))
+  const response = await sheetsFetch<{ valueRanges?: Array<{ values?: string[][] }> }>(`${base(sheetId)}/values:batchGet?${params}`)
+  return response.valueRanges || []
+}
+
 export async function appendRow(sheetId: string, range: string, row: unknown[]) {
   return sheetsFetch<{ tableRange?: string; updates?: { updatedRange?: string } }>(`${base(sheetId)}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
     method: 'POST',
