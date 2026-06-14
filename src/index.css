@@ -302,9 +302,9 @@
 @media (display-mode: standalone) and (max-width: 767px) {
   .mobile-bottom-items { transform: translateY(6px); }
   .mobile-bottom-add { margin-top: 6px; }
-  .pull-refresh-content {
+  html[data-pull-active='true'] .pull-refresh-content {
     transform: translateY(var(--pull-distance, 0px));
-    transition: transform 420ms cubic-bezier(0.22, 1.25, 0.36, 1);
+    transition: transform 480ms cubic-bezier(0.22, 1.2, 0.36, 1);
     will-change: transform;
   }
   html[data-pulling='true'] .pull-refresh-content { transition: none; }

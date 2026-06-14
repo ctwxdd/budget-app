@@ -48,51 +48,98 @@ function BottomNav({ onAdd }: { onAdd: () => void }) {
 
 function PullToRefresh() {
   const queryClient = useQueryClient()
+  const [phase, setPhase] = React.useState<'idle' | 'pulling' | 'refreshing'>('idle')
   const [distance, setDistance] = React.useState(0)
-  const [refreshing, setRefreshing] = React.useState(false)
-  const startY = React.useRef<number | null>(null)
+  const phaseRef = React.useRef<'idle' | 'pulling' | 'refreshing'>('idle')
   const distanceRef = React.useRef(0)
-  const refreshingRef = React.useRef(false)
+  const startY = React.useRef<number | null>(null)
+  const activeRef = React.useRef(false)
   const threshold = 64
+  const holdDistance = 56
+  const maxDistance = 110
+  const activationSlop = 8
+
+  React.useEffect(() => { phaseRef.current = phase }, [phase])
 
   React.useEffect(() => {
     const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true
     if (!standalone) return
 
+    const root = document.documentElement
+    const setPull = (px: number) => {
+      distanceRef.current = px
+      root.style.setProperty('--pull-distance', `${px}px`)
+      setDistance(px)
+    }
+    const setActiveAttr = (active: boolean) => {
+      if (active) root.dataset.pullActive = 'true'
+      else delete root.dataset.pullActive
+    }
+    const setPullingAttr = (pulling: boolean) => {
+      if (pulling) root.dataset.pulling = 'true'
+      else delete root.dataset.pulling
+    }
+
+    const resetTouch = () => {
+      startY.current = null
+      activeRef.current = false
+      setPullingAttr(false)
+    }
+
     const onTouchStart = (event: TouchEvent) => {
-      if (refreshingRef.current || event.touches.length !== 1 || window.scrollY > 0 || document.body.style.overflow === 'hidden') return
+      if (phaseRef.current === 'refreshing') return
+      if (event.touches.length !== 1) return
+      if (window.scrollY > 0) return
+      if (document.body.style.overflow === 'hidden') return
       startY.current = event.touches[0].clientY
-      document.documentElement.dataset.pulling = 'true'
+      activeRef.current = false
     }
     const onTouchMove = (event: TouchEvent) => {
-      if (startY.current === null || window.scrollY > 0) return
+      if (startY.current === null || phaseRef.current === 'refreshing') return
+      if (window.scrollY > 0) { resetTouch(); return }
       const delta = event.touches[0].clientY - startY.current
-      if (delta <= 0) { distanceRef.current = 0; setDistance(0); return }
+      if (delta <= activationSlop) {
+        if (activeRef.current) {
+          activeRef.current = false
+          setPullingAttr(false)
+          setActiveAttr(false)
+          setPhase('idle')
+          setPull(0)
+        }
+        return
+      }
+      if (!activeRef.current) {
+        activeRef.current = true
+        setPullingAttr(true)
+        setActiveAttr(true)
+        setPhase('pulling')
+      }
       event.preventDefault()
-      distanceRef.current = Math.min(82, delta * 0.45)
-      setDistance(distanceRef.current)
-      document.documentElement.style.setProperty('--pull-distance', `${distanceRef.current}px`)
+      const eased = Math.min(maxDistance, (delta - activationSlop) * 0.5)
+      setPull(eased)
     }
     const onTouchEnd = () => {
-      if (startY.current === null) return
+      const wasActive = activeRef.current
+      const currentDistance = distanceRef.current
       startY.current = null
-      delete document.documentElement.dataset.pulling
-      if (distanceRef.current >= threshold) {
-        refreshingRef.current = true
-        setRefreshing(true)
-        distanceRef.current = 0
-        setDistance(0)
-        document.documentElement.style.setProperty('--pull-distance', '0px')
+      activeRef.current = false
+      setPullingAttr(false)
+      if (!wasActive) return
+      if (currentDistance >= threshold) {
+        setPhase('refreshing')
+        setPull(holdDistance)
+        const finish = () => {
+          setPhase('idle')
+          setPull(0)
+          window.setTimeout(() => setActiveAttr(false), 460)
+        }
         void queryClient.refetchQueries({ type: 'active' }).finally(() => {
-          window.setTimeout(() => {
-            refreshingRef.current = false
-            setRefreshing(false)
-          }, 420)
+          window.setTimeout(finish, 240)
         })
       } else {
-        distanceRef.current = 0
-        setDistance(0)
-        document.documentElement.style.setProperty('--pull-distance', '0px')
+        setPhase('idle')
+        setPull(0)
+        window.setTimeout(() => { if (phaseRef.current === 'idle') setActiveAttr(false) }, 460)
       }
     }
 
@@ -105,16 +152,20 @@ function PullToRefresh() {
       window.removeEventListener('touchmove', onTouchMove)
       window.removeEventListener('touchend', onTouchEnd)
       window.removeEventListener('touchcancel', onTouchEnd)
-      delete document.documentElement.dataset.pulling
-      document.documentElement.style.removeProperty('--pull-distance')
+      setPullingAttr(false)
+      setActiveAttr(false)
+      root.style.removeProperty('--pull-distance')
     }
   }, [queryClient])
 
-  if (!distance && !refreshing) return null
-  return <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[60] flex justify-center" style={{ transform: `translateY(${Math.max(0, distance - 48)}px)` }}>
+  if (phase === 'idle' && distance === 0) return null
+  const progress = Math.min(1, distance / threshold)
+  const ready = distance >= threshold
+  const showSpinner = phase === 'refreshing'
+  return <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[60] flex justify-center" style={{ transform: `translateY(${Math.max(-48, distance - 56)}px)`, opacity: Math.min(1, 0.4 + progress * 0.6), transition: phase === 'idle' ? 'transform 420ms cubic-bezier(0.22, 1.25, 0.36, 1), opacity 220ms ease' : 'opacity 180ms ease' }}>
     <div className="flex items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-2 text-xs font-semibold text-muted-foreground shadow-lift backdrop-blur-xl">
-      <RefreshCw className={`h-4 w-4 text-coral ${refreshing ? 'animate-spin' : distance >= threshold ? 'rotate-180' : ''}`} />
-      {refreshing ? 'Refreshing...' : distance >= threshold ? 'Release to refresh' : 'Pull to refresh'}
+      <RefreshCw className={`h-4 w-4 text-coral ${showSpinner ? 'animate-spin' : ''}`} style={showSpinner ? undefined : { transform: `rotate(${progress * 180}deg)`, transition: 'transform 120ms ease-out' }} />
+      {showSpinner ? 'Refreshing…' : ready ? 'Release to refresh' : 'Pull to refresh'}
     </div>
   </div>
 }
