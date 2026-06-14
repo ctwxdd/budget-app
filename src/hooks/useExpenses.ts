@@ -4,6 +4,7 @@ import { DEFAULT_CATEGORIES, DEFAULT_PAYMENT_METHODS, SHEET_ID_KEY } from '../li
 import { expenseToRow, parseExpenseRows } from '../lib/parse'
 import { appendRow, batchUpdateExpenseFields, deleteRow, deleteRows, getSheet, getSheetMeta, isRateLimitError, updateRow } from '../lib/sheets'
 import { clearLocalCache, readLocalCache, writeLocalCache } from '../lib/localCache'
+import { rememberSheet } from '../lib/recentSheets'
 import type { Expense } from '../lib/types'
 
 const LOCAL_CACHE_AGE = 5 * 60 * 1000
@@ -20,7 +21,11 @@ export function useSheetId() {
 
 export function useSheetMeta() {
   const sheetId = useSheetId()
-  return useQuery({ queryKey: ['sheetMeta', sheetId], queryFn: () => getSheetMeta(sheetId), enabled: Boolean(sheetId), staleTime: 1000 * 60 * 10 })
+  const query = useQuery({ queryKey: ['sheetMeta', sheetId], queryFn: () => getSheetMeta(sheetId), enabled: Boolean(sheetId), staleTime: 1000 * 60 * 10 })
+  React.useEffect(() => {
+    if (sheetId && query.data?.title) rememberSheet(sheetId, query.data.title)
+  }, [sheetId, query.data?.title])
+  return query
 }
 
 export function useExpenses() {

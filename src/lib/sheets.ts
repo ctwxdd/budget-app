@@ -147,8 +147,8 @@ export async function clearRange(sheetId: string, range: string) {
 }
 
 export async function getSheetMeta(sheetId: string): Promise<SheetMeta> {
-  const response = await sheetsFetch<{ sheets: { properties: { title: string; sheetId: number } }[] }>(`${base(sheetId)}?fields=sheets.properties(title,sheetId)`)
-  return { sheets: response.sheets.map((sheet) => ({ title: sheet.properties.title, sheetId: sheet.properties.sheetId })) }
+  const response = await sheetsFetch<{ properties?: { title?: string }; sheets: { properties: { title: string; sheetId: number } }[] }>(`${base(sheetId)}?fields=properties.title,sheets.properties(title,sheetId)`)
+  return { title: response.properties?.title || '', sheets: response.sheets.map((sheet) => ({ title: sheet.properties.title, sheetId: sheet.properties.sheetId })) }
 }
 
 export async function deleteRow(sheetId: string, sheetGid: number, rowIndex: number) {
@@ -204,4 +204,156 @@ export async function updateCard(sheetId: string, card: CardSheetRow) {
 
 export async function deleteCard(sheetId: string, sheetGid: number, rowIndex: number) {
   return deleteRow(sheetId, sheetGid, rowIndex - 1)
+}
+
+// --- New spreadsheet bootstrap ----------------------------------------------
+
+const EXPENSE_GID = 1
+const CARDS_GID = 2
+const GIFTCARD_GID = 3
+
+const EXPENSE_HEADERS = ['Date', 'Expense', 'Description', 'Category', 'Payment Method', 'Reimbursement']
+const GIFTCARD_HEADERS_LEFT = ['Card', 'Date', 'Paid', 'Face', 'Vendor', 'Direct', 'Pool', 'Cum Before', 'FIFO', 'Balance']
+const GIFTCARD_HEADERS_RIGHT = ['Merchant', 'Cards', 'Purchased', 'Spent', 'Balance', 'Active']
+
+function headerCell(text: string) {
+  return {
+    userEnteredValue: { stringValue: text },
+    userEnteredFormat: {
+      backgroundColorStyle: { rgbColor: { red: 0.96, green: 0.58, blue: 0.52 } },
+      textFormat: { bold: true, foregroundColorStyle: { rgbColor: { red: 1, green: 1, blue: 1 } } },
+      horizontalAlignment: 'CENTER',
+      verticalAlignment: 'MIDDLE',
+      padding: { top: 4, bottom: 4, left: 8, right: 8 },
+    },
+  }
+}
+
+function headerRow(headers: string[]) {
+  return { values: headers.map((header) => headerCell(header)) }
+}
+
+function buildSheet(sheetId: number, title: string, columnCount: number, headerData: Array<{ startColumn: number; headers: string[] }>) {
+  return {
+    properties: { sheetId, title, gridProperties: { rowCount: 1000, columnCount, frozenRowCount: 1 } },
+    data: headerData.map(({ startColumn, headers }) => ({ startRow: 0, startColumn, rowData: [headerRow(headers)] })),
+    protectedRanges: [{
+      range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+      description: 'Header row — do not edit; the app relies on these column names.',
+      warningOnly: true,
+    }],
+  }
+}
+
+function listValidation(sheetGid: number, columnIndex: number, values: string[], strict = false) {
+  return {
+    setDataValidation: {
+      range: { sheetId: sheetGid, startRowIndex: 1, startColumnIndex: columnIndex, endColumnIndex: columnIndex + 1 },
+      rule: {
+        condition: { type: 'ONE_OF_LIST', values: values.filter(Boolean).map((value) => ({ userEnteredValue: value })) },
+        showCustomUi: true,
+        strict,
+      },
+    },
+  }
+}
+
+function dateValidation(sheetGid: number, columnIndex: number) {
+  return {
+    setDataValidation: {
+      range: { sheetId: sheetGid, startRowIndex: 1, startColumnIndex: columnIndex, endColumnIndex: columnIndex + 1 },
+      rule: { condition: { type: 'DATE_IS_VALID' }, strict: false, showCustomUi: true },
+    },
+  }
+}
+
+function nonNegativeNumberValidation(sheetGid: number, columnIndex: number) {
+  return {
+    setDataValidation: {
+      range: { sheetId: sheetGid, startRowIndex: 1, startColumnIndex: columnIndex, endColumnIndex: columnIndex + 1 },
+      rule: { condition: { type: 'NUMBER_GREATER_THAN_EQ', values: [{ userEnteredValue: '0' }] }, strict: false, showCustomUi: true },
+    },
+  }
+}
+
+function booleanCheckbox(sheetGid: number, columnIndex: number) {
+  return {
+    setDataValidation: {
+      range: { sheetId: sheetGid, startRowIndex: 1, startColumnIndex: columnIndex, endColumnIndex: columnIndex + 1 },
+      rule: { condition: { type: 'BOOLEAN' }, strict: true, showCustomUi: true },
+    },
+  }
+}
+
+function dateFormat(sheetGid: number, columnIndex: number) {
+  return {
+    repeatCell: {
+      range: { sheetId: sheetGid, startRowIndex: 1, startColumnIndex: columnIndex, endColumnIndex: columnIndex + 1 },
+      cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+      fields: 'userEnteredFormat.numberFormat',
+    },
+  }
+}
+
+function currencyFormat(sheetGid: number, columnIndex: number) {
+  return {
+    repeatCell: {
+      range: { sheetId: sheetGid, startRowIndex: 1, startColumnIndex: columnIndex, endColumnIndex: columnIndex + 1 },
+      cell: { userEnteredFormat: { numberFormat: { type: 'CURRENCY', pattern: '"$"#,##0.00' } } },
+      fields: 'userEnteredFormat.numberFormat',
+    },
+  }
+}
+
+export async function createSpreadsheet({ title, categories, paymentMethods, reimbursements }: { title: string; categories: string[]; paymentMethods: string[]; reimbursements: string[] }) {
+  const created = await sheetsFetch<{ spreadsheetId: string; properties: { title: string }; spreadsheetUrl: string }>(`https://sheets.googleapis.com/v4/spreadsheets`, {
+    method: 'POST',
+    body: JSON.stringify({
+      properties: { title, locale: 'en_US' },
+      sheets: [
+        buildSheet(EXPENSE_GID, 'Expense', EXPENSE_HEADERS.length, [{ startColumn: 0, headers: EXPENSE_HEADERS }]),
+        buildSheet(CARDS_GID, 'Cards', cardsHeaders.length, [{ startColumn: 0, headers: cardsHeaders }]),
+        buildSheet(GIFTCARD_GID, 'Giftcard', 17, [
+          { startColumn: 0, headers: GIFTCARD_HEADERS_LEFT },
+          { startColumn: 11, headers: GIFTCARD_HEADERS_RIGHT },
+        ]),
+      ],
+    }),
+  })
+
+  await sheetsFetch(`${base(created.spreadsheetId)}:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      requests: [
+        // Expense formatting + validation
+        dateFormat(EXPENSE_GID, 0),
+        currencyFormat(EXPENSE_GID, 1),
+        dateValidation(EXPENSE_GID, 0),
+        nonNegativeNumberValidation(EXPENSE_GID, 1),
+        listValidation(EXPENSE_GID, 3, categories),
+        listValidation(EXPENSE_GID, 4, paymentMethods),
+        listValidation(EXPENSE_GID, 5, reimbursements),
+        // Cards: Active as checkbox
+        booleanCheckbox(CARDS_GID, 3),
+        // Giftcard: date + currency formats, non-negative validation
+        dateFormat(GIFTCARD_GID, 1),
+        currencyFormat(GIFTCARD_GID, 2),
+        currencyFormat(GIFTCARD_GID, 3),
+        currencyFormat(GIFTCARD_GID, 5),
+        currencyFormat(GIFTCARD_GID, 6),
+        currencyFormat(GIFTCARD_GID, 7),
+        currencyFormat(GIFTCARD_GID, 8),
+        currencyFormat(GIFTCARD_GID, 9),
+        currencyFormat(GIFTCARD_GID, 13),
+        currencyFormat(GIFTCARD_GID, 14),
+        currencyFormat(GIFTCARD_GID, 15),
+        dateValidation(GIFTCARD_GID, 1),
+        nonNegativeNumberValidation(GIFTCARD_GID, 2),
+        nonNegativeNumberValidation(GIFTCARD_GID, 3),
+        booleanCheckbox(GIFTCARD_GID, 16),
+      ],
+    }),
+  })
+
+  return { spreadsheetId: created.spreadsheetId, title: created.properties.title, url: created.spreadsheetUrl }
 }

@@ -9,6 +9,7 @@ export type Expense = {
 }
 
 export type SheetMeta = {
+  title: string
   sheets: { title: string; sheetId: number }[]
 }
 
