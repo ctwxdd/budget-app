@@ -152,7 +152,7 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
             } else if (previousType !== item.type && classifyPaymentMethod(form.paymentMethod) !== item.type) {
               setForm({ ...form, paymentMethod: '' })
             }
-          }} title={item.label}><span>{item.emoji}</span><span className="hidden min-[420px]:inline">{item.label}</span></button>)}
+          }} title={item.label}><span>{item.emoji}</span><span>{item.label}</span></button>)}
         </div>
         {paymentType !== 'cash' && <div className="pt-2">
           {paymentType === 'giftcard'
