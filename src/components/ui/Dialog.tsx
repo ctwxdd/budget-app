@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { Button } from './Button'
@@ -158,7 +159,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
 
   const overlayOpacity = Math.max(0.25, 1 - dragY / 600)
 
-  return <div className={cn('fixed inset-0 z-50 flex', mobileBottomSheet ? 'items-end justify-center md:items-center md:p-4' : 'items-center justify-center p-4')}>
+  return createPortal(<div className={cn('fixed inset-0 z-50 flex', mobileBottomSheet ? 'items-end justify-center md:items-center md:p-4' : 'items-center justify-center p-4')}>
     <button
       className="absolute inset-0 bg-foreground/40 backdrop-blur-sm animate-overlay-in"
       style={isDragging ? { opacity: overlayOpacity, transition: 'none' } : undefined}
@@ -219,5 +220,5 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
       </div>
       {footer && <div className="shrink-0 border-t border-border/70 bg-card/95 px-5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-14px_28px_-24px_rgba(31,41,55,0.45)] backdrop-blur-xl md:px-7 md:pb-5 md:pt-4">{footer}</div>}
     </div>
-  </div>
+  </div>, document.body)
 }
