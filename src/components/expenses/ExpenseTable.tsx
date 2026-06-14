@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowDownUp, Check, Copy, Filter, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
+import { ArrowDownUp, Check, Copy, Filter, MoreHorizontal, Pencil, Search, Trash2, X } from 'lucide-react'
 import type { DatePreset, Expense } from '../../lib/types'
 import { categoryColor, categoryIcon, categoryName, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
 import { cn } from '../../lib/utils'
@@ -56,13 +56,13 @@ export function applyExpenseFilters(expenses: Expense[], filters: ExpenseFilters
   })
 }
 
-function FilterFields({ filters, onChange }: { filters: ExpenseFilters; onChange: (filters: ExpenseFilters) => void }) {
+function FilterFields({ filters, onChange, showSearch = true }: { filters: ExpenseFilters; onChange: (filters: ExpenseFilters) => void; showSearch?: boolean }) {
   const categories = useCategories()
   const payments = usePaymentMethods()
   return <div className="grid gap-3 lg:grid-cols-5">
     <Select value={filters.preset} onChange={(event) => onChange({ ...filters, preset: event.target.value as DatePreset })}><option value="thisMonth">This month</option><option value="lastMonth">Last month</option><option value="thisYear">This year</option><option value="all">All</option><option value="custom">Custom</option></Select>
-    {filters.preset === 'custom' ? <div className="grid grid-cols-2 gap-2 lg:col-span-2"><Input type="date" value={filters.start} onChange={(event) => onChange({ ...filters, start: event.target.value })} /><Input type="date" value={filters.end} onChange={(event) => onChange({ ...filters, end: event.target.value })} /></div> : <Input className="lg:col-span-2" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} />}
-    {filters.preset === 'custom' && <Input className="lg:col-span-2" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} />}
+    {filters.preset === 'custom' ? <div className="grid grid-cols-2 gap-2 lg:col-span-2"><Input type="date" value={filters.start} onChange={(event) => onChange({ ...filters, start: event.target.value })} /><Input type="date" value={filters.end} onChange={(event) => onChange({ ...filters, end: event.target.value })} /></div> : showSearch ? <Input className="lg:col-span-2" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} /> : <div className="hidden lg:col-span-2" />}
+    {filters.preset === 'custom' && showSearch && <Input className="lg:col-span-2" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} />}
     <div className="lg:col-span-2"><MultiSelect label="Categories" values={filters.categories} options={categories} onChange={(categories) => onChange({ ...filters, categories })} /></div>
     <div className="lg:col-span-2"><MultiSelect label="Payment methods" values={filters.payments} options={payments} onChange={(payments) => onChange({ ...filters, payments })} /></div>
   </div>
@@ -70,7 +70,6 @@ function FilterFields({ filters, onChange }: { filters: ExpenseFilters; onChange
 
 function filterChips(filters: ExpenseFilters) {
   const chips: { key: FilterKey; label: string; value?: string }[] = []
-  if (filters.search) chips.push({ key: 'search', label: `Search: ${filters.search}` })
   if (filters.preset === 'custom') chips.push({ key: 'preset', label: `Custom: ${filters.start || '…'}–${filters.end || '…'}` })
   filters.categories.forEach((value) => chips.push({ key: 'categories', label: value, value }))
   filters.payments.forEach((value) => chips.push({ key: 'payments', label: value, value }))
@@ -94,10 +93,15 @@ export function ExpenseFilterBar({ filters, onChange, selectionMode = false, sel
         <Button type="button" variant="outline" onClick={() => setOpen(true)}><Filter className="h-4 w-4" />Filters</Button>
         {onEnterSelectionMode && <Button type="button" variant={selectionMode ? 'secondary' : 'outline'} onClick={selectionMode ? onCancelSelection : onEnterSelectionMode}>{selectionMode ? 'Cancel' : 'Select'}{selectedCount > 0 && selectionMode ? ` (${selectedCount})` : ''}</Button>}
       </div>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input className="pl-9 pr-10" type="search" inputMode="search" enterKeyHint="search" aria-label="Search expense descriptions" placeholder="Search expenses..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} />
+        {filters.search && <button type="button" aria-label="Clear search" onClick={() => onChange({ ...filters, search: '' })} className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><X className="h-4 w-4" /></button>}
+      </div>
       {chips.length > 0 && <div className="flex gap-2 overflow-x-auto pb-1">{chips.map((chip) => <button key={`${chip.key}-${chip.label}`} className="shrink-0" onClick={() => clearChip(chip)}><Badge variant="secondary">{chip.label} <X className="ml-1 inline h-3 w-3" /></Badge></button>)}</div>}
     </div>
     <Dialog open={open} onOpenChange={setOpen} title="Filters" description="Narrow expenses without crowding your phone screen." mobileBottomSheet>
-      <div className="space-y-4"><FilterFields filters={filters} onChange={onChange} /><div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl md:-mx-7 md:-mb-8 md:pb-4"><Button className="w-full" onClick={() => setOpen(false)}>Show results</Button></div></div>
+      <div className="space-y-4"><FilterFields filters={filters} onChange={onChange} showSearch={false} /><div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl md:-mx-7 md:-mb-8 md:pb-4"><Button className="w-full" onClick={() => setOpen(false)}>Show results</Button></div></div>
     </Dialog>
   </>
 }
