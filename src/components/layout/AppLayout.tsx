@@ -84,19 +84,22 @@ function PullToRefresh() {
   const startY = React.useRef<number | null>(null)
   const activeRef = React.useRef(false)
   const finishTimerRef = React.useRef<number | null>(null)
+  const safetyTimerRef = React.useRef<number | null>(null)
   const returnRafRef = React.useRef<number | null>(null)
   const threshold = 64
   const holdDistance = 60
   const maxDistance = 110
   const activationSlop = 8
 
-  React.useEffect(() => { phaseRef.current = phase }, [phase])
-
   React.useEffect(() => {
     const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true
     if (!standalone) return
 
     const root = document.documentElement
+    const commitPhase = (next: typeof phase) => {
+      phaseRef.current = next
+      setPhase(next)
+    }
     const setPull = (px: number) => {
       distanceRef.current = px
       root.style.setProperty('--pull-distance', `${px}px`)
@@ -117,17 +120,36 @@ function PullToRefresh() {
     const clearFinishTimer = () => {
       if (finishTimerRef.current) { window.clearTimeout(finishTimerRef.current); finishTimerRef.current = null }
     }
+    const clearSafetyTimer = () => {
+      if (safetyTimerRef.current) { window.clearTimeout(safetyTimerRef.current); safetyTimerRef.current = null }
+    }
     const cancelReturnRaf = () => {
       if (returnRafRef.current) { cancelAnimationFrame(returnRafRef.current); returnRafRef.current = null }
     }
+    const finalizeIdle = () => {
+      cancelReturnRaf()
+      clearFinishTimer()
+      clearSafetyTimer()
+      setPullingAttr(false)
+      setReturningAttr(false)
+      setPull(0)
+      commitPhase('idle')
+      setActiveAttr(false)
+    }
+    const armSafetyTimer = (ms: number) => {
+      clearSafetyTimer()
+      safetyTimerRef.current = window.setTimeout(() => { finalizeIdle() }, ms)
+    }
+    const withTimeout = <T,>(p: Promise<T>, ms: number) => Promise.race([
+      p,
+      new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error('pull-refresh timeout')), ms)),
+    ])
     const animateReturn = (durationMs: number) => {
       cancelReturnRaf()
       const start = performance.now()
       const startDist = distanceRef.current
-      if (startDist <= 0) {
-        setReturningAttr(false)
-        setPhase('idle')
-        setActiveAttr(false)
+      if (startDist <= 0.5) {
+        finalizeIdle()
         return
       }
       setReturningAttr(true)
@@ -140,10 +162,7 @@ function PullToRefresh() {
         if (t < 1) {
           returnRafRef.current = requestAnimationFrame(tick)
         } else {
-          cancelReturnRaf()
-          setReturningAttr(false)
-          setPhase('idle')
-          setActiveAttr(false)
+          finalizeIdle()
         }
       }
       returnRafRef.current = requestAnimationFrame(tick)
@@ -165,7 +184,7 @@ function PullToRefresh() {
         if (activeRef.current) {
           activeRef.current = false
           setPullingAttr(false)
-          setPhase('idle')
+          commitPhase('idle')
           setPull(0)
         }
         return
@@ -173,11 +192,12 @@ function PullToRefresh() {
       if (!activeRef.current) {
         activeRef.current = true
         clearFinishTimer()
+        clearSafetyTimer()
         cancelReturnRaf()
         setReturningAttr(false)
         setPullingAttr(true)
         setActiveAttr(true)
-        setPhase('pulling')
+        commitPhase('pulling')
       }
       event.preventDefault()
       const eased = Math.min(maxDistance, (delta - activationSlop) * 0.5)
@@ -191,20 +211,24 @@ function PullToRefresh() {
       setPullingAttr(false)
       if (!wasActive) return
       if (currentDistance >= threshold) {
-        setPhase('refreshing')
+        commitPhase('refreshing')
         setPull(holdDistance)
+        armSafetyTimer(10_000)
         const tasks: Promise<unknown>[] = [
-          queryClient.refetchQueries({ type: 'active' }),
-          checkForBundleUpdate().then((hasUpdate) => { if (hasUpdate) window.location.reload() }),
+          withTimeout(queryClient.refetchQueries({ type: 'active' }), 7000).catch(() => undefined),
+          withTimeout(checkForBundleUpdate(), 4000).then((hasUpdate) => { if (hasUpdate) window.location.reload() }).catch(() => undefined),
         ]
         void Promise.allSettled(tasks).finally(() => {
+          if (phaseRef.current !== 'refreshing') return
+          clearFinishTimer()
           finishTimerRef.current = window.setTimeout(() => {
-            setPhase('returning')
+            if (phaseRef.current !== 'refreshing') return
+            commitPhase('returning')
             animateReturn(520)
           }, 200)
         })
       } else {
-        setPhase('returning')
+        commitPhase('returning')
         animateReturn(420)
       }
     }
@@ -215,6 +239,7 @@ function PullToRefresh() {
     window.addEventListener('touchcancel', onTouchEnd, { passive: true })
     return () => {
       clearFinishTimer()
+      clearSafetyTimer()
       cancelReturnRaf()
       window.removeEventListener('touchstart', onTouchStart)
       window.removeEventListener('touchmove', onTouchMove)
