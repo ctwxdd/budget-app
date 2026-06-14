@@ -84,6 +84,7 @@ function PullToRefresh() {
   const startY = React.useRef<number | null>(null)
   const activeRef = React.useRef(false)
   const finishTimerRef = React.useRef<number | null>(null)
+  const returnRafRef = React.useRef<number | null>(null)
   const threshold = 64
   const holdDistance = 60
   const maxDistance = 110
@@ -109,8 +110,43 @@ function PullToRefresh() {
       if (pulling) root.dataset.pulling = 'true'
       else delete root.dataset.pulling
     }
+    const setReturningAttr = (returning: boolean) => {
+      if (returning) root.dataset.returning = 'true'
+      else delete root.dataset.returning
+    }
     const clearFinishTimer = () => {
       if (finishTimerRef.current) { window.clearTimeout(finishTimerRef.current); finishTimerRef.current = null }
+    }
+    const cancelReturnRaf = () => {
+      if (returnRafRef.current) { cancelAnimationFrame(returnRafRef.current); returnRafRef.current = null }
+    }
+    const animateReturn = (durationMs: number) => {
+      cancelReturnRaf()
+      const start = performance.now()
+      const startDist = distanceRef.current
+      if (startDist <= 0) {
+        setReturningAttr(false)
+        setPhase('idle')
+        setActiveAttr(false)
+        return
+      }
+      setReturningAttr(true)
+      const tick = (now: number) => {
+        if (phaseRef.current !== 'returning') { cancelReturnRaf(); return }
+        const t = Math.min(1, (now - start) / durationMs)
+        const eased = 1 - Math.pow(1 - t, 3)
+        const d = startDist * (1 - eased)
+        setPull(d)
+        if (t < 1) {
+          returnRafRef.current = requestAnimationFrame(tick)
+        } else {
+          cancelReturnRaf()
+          setReturningAttr(false)
+          setPhase('idle')
+          setActiveAttr(false)
+        }
+      }
+      returnRafRef.current = requestAnimationFrame(tick)
     }
 
     const onTouchStart = (event: TouchEvent) => {
@@ -137,6 +173,8 @@ function PullToRefresh() {
       if (!activeRef.current) {
         activeRef.current = true
         clearFinishTimer()
+        cancelReturnRaf()
+        setReturningAttr(false)
         setPullingAttr(true)
         setActiveAttr(true)
         setPhase('pulling')
@@ -162,20 +200,12 @@ function PullToRefresh() {
         void Promise.allSettled(tasks).finally(() => {
           finishTimerRef.current = window.setTimeout(() => {
             setPhase('returning')
-            setPull(0)
-            finishTimerRef.current = window.setTimeout(() => {
-              setPhase('idle')
-              setActiveAttr(false)
-            }, 600)
-          }, 220)
+            animateReturn(520)
+          }, 200)
         })
       } else {
         setPhase('returning')
-        setPull(0)
-        finishTimerRef.current = window.setTimeout(() => {
-          setPhase('idle')
-          setActiveAttr(false)
-        }, 520)
+        animateReturn(420)
       }
     }
 
@@ -185,11 +215,13 @@ function PullToRefresh() {
     window.addEventListener('touchcancel', onTouchEnd, { passive: true })
     return () => {
       clearFinishTimer()
+      cancelReturnRaf()
       window.removeEventListener('touchstart', onTouchStart)
       window.removeEventListener('touchmove', onTouchMove)
       window.removeEventListener('touchend', onTouchEnd)
       window.removeEventListener('touchcancel', onTouchEnd)
       setPullingAttr(false)
+      setReturningAttr(false)
       setActiveAttr(false)
       root.style.removeProperty('--pull-distance')
     }
@@ -202,23 +234,13 @@ function PullToRefresh() {
     <div className={`relative h-6 w-6 ${phase === 'refreshing' ? 'animate-spoke-spin' : ''}`}>
       {SPOKE_COLORS.map((color, i) => {
         const angle = (i * 360) / SPOKE_COUNT
-        let opacity = 0
-        let delay = 0
-        if (phase === 'refreshing') {
-          opacity = 1 - (i / SPOKE_COUNT) * 0.78
-        } else if (phase === 'returning') {
-          opacity = 0
-          delay = i * 42
-        } else {
-          opacity = Math.max(0, Math.min(1, reveal - i))
-        }
+        const opacity = phase === 'refreshing' ? 1 - (i / SPOKE_COUNT) * 0.78 : Math.max(0, Math.min(1, reveal - i))
         return <span key={color}
           className="absolute left-1/2 top-1/2 block h-[7px] w-[2.5px] rounded-full"
           style={{
             backgroundColor: `hsl(var(--${color}))`,
             transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-7px)`,
             opacity,
-            transition: `opacity ${phase === 'returning' ? 220 : 140}ms ease ${delay}ms`,
           }}
         />
       })}

@@ -307,7 +307,8 @@
     transition: transform 480ms cubic-bezier(0.22, 1.2, 0.36, 1);
     will-change: transform;
   }
-  html[data-pulling='true'] .pull-refresh-content { transition: none; }
+  html[data-pulling='true'] .pull-refresh-content,
+  html[data-returning='true'] .pull-refresh-content { transition: none; }
 }
 
 @layer utilities {
