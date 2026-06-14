@@ -40,6 +40,81 @@
     --rose: 330 81% 71%;
     --sage: 140 29% 67%;
   }
+  :root[data-color-theme='sea'] {
+    --background: 186 32% 96%;
+    --foreground: 194 34% 18%;
+    --card: 180 30% 99%;
+    --card-foreground: 194 34% 18%;
+    --primary: 183 73% 33%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 184 40% 91%;
+    --secondary-foreground: 194 34% 18%;
+    --muted: 186 24% 92%;
+    --muted-foreground: 194 12% 43%;
+    --accent: 180 46% 89%;
+    --accent-foreground: 184 74% 27%;
+    --border: 185 25% 84%;
+    --input: 185 25% 84%;
+    --ring: 183 73% 33%;
+    --coral: 184 62% 42%;
+    --peach: 174 52% 58%;
+    --mint: 156 55% 48%;
+    --butter: 45 83% 66%;
+    --sky: 195 70% 66%;
+    --lavender: 226 54% 76%;
+    --rose: 336 52% 70%;
+    --sage: 157 30% 62%;
+  }
+  :root[data-color-theme='milk-tea'] {
+    --background: 34 38% 95%;
+    --foreground: 25 28% 20%;
+    --card: 38 45% 98%;
+    --card-foreground: 25 28% 20%;
+    --primary: 25 42% 45%;
+    --primary-foreground: 38 60% 98%;
+    --secondary: 34 46% 89%;
+    --secondary-foreground: 25 28% 20%;
+    --muted: 32 28% 90%;
+    --muted-foreground: 26 14% 43%;
+    --accent: 31 52% 87%;
+    --accent-foreground: 24 45% 35%;
+    --border: 31 24% 82%;
+    --input: 31 24% 82%;
+    --ring: 25 42% 45%;
+    --coral: 25 48% 50%;
+    --peach: 30 54% 63%;
+    --mint: 116 27% 52%;
+    --butter: 43 67% 65%;
+    --sky: 194 37% 69%;
+    --lavender: 271 32% 74%;
+    --rose: 342 40% 69%;
+    --sage: 102 22% 58%;
+  }
+  :root[data-color-theme='lavender'] {
+    --background: 270 34% 97%;
+    --foreground: 260 28% 20%;
+    --card: 280 40% 99%;
+    --card-foreground: 260 28% 20%;
+    --primary: 258 36% 56%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 270 48% 92%;
+    --secondary-foreground: 260 28% 20%;
+    --muted: 270 28% 92%;
+    --muted-foreground: 260 12% 45%;
+    --accent: 285 43% 91%;
+    --accent-foreground: 268 42% 40%;
+    --border: 270 25% 85%;
+    --input: 270 25% 85%;
+    --ring: 258 36% 56%;
+    --coral: 264 43% 58%;
+    --peach: 283 45% 67%;
+    --mint: 158 44% 55%;
+    --butter: 47 76% 68%;
+    --sky: 213 61% 72%;
+    --lavender: 258 58% 72%;
+    --rose: 326 50% 69%;
+    --sage: 132 26% 65%;
+  }
   .dark {
     --background: 257 25% 12%;
     --foreground: 24 33% 96%;
@@ -58,6 +133,63 @@
     --border: 258 18% 26%;
     --input: 258 18% 26%;
     --ring: 354 78% 56%;
+  }
+  .dark[data-color-theme='sea'] {
+    --background: 194 33% 11%;
+    --foreground: 182 34% 94%;
+    --card: 193 29% 15%;
+    --card-foreground: 182 34% 94%;
+    --primary: 179 55% 54%;
+    --primary-foreground: 194 45% 11%;
+    --secondary: 192 25% 21%;
+    --secondary-foreground: 182 34% 94%;
+    --muted: 192 22% 21%;
+    --muted-foreground: 184 16% 72%;
+    --accent: 188 30% 25%;
+    --accent-foreground: 177 58% 78%;
+    --border: 191 20% 27%;
+    --input: 191 20% 27%;
+    --ring: 179 55% 54%;
+    --coral: 179 55% 54%;
+    --peach: 171 46% 58%;
+  }
+  .dark[data-color-theme='milk-tea'] {
+    --background: 27 24% 12%;
+    --foreground: 36 38% 94%;
+    --card: 27 22% 16%;
+    --card-foreground: 36 38% 94%;
+    --primary: 30 46% 62%;
+    --primary-foreground: 26 30% 12%;
+    --secondary: 28 21% 22%;
+    --secondary-foreground: 36 38% 94%;
+    --muted: 28 18% 22%;
+    --muted-foreground: 33 18% 72%;
+    --accent: 29 27% 26%;
+    --accent-foreground: 34 55% 79%;
+    --border: 28 17% 28%;
+    --input: 28 17% 28%;
+    --ring: 30 46% 62%;
+    --coral: 28 48% 61%;
+    --peach: 34 48% 67%;
+  }
+  .dark[data-color-theme='lavender'] {
+    --background: 260 27% 12%;
+    --foreground: 276 35% 95%;
+    --card: 261 25% 16%;
+    --card-foreground: 276 35% 95%;
+    --primary: 263 53% 68%;
+    --primary-foreground: 260 33% 12%;
+    --secondary: 263 22% 22%;
+    --secondary-foreground: 276 35% 95%;
+    --muted: 263 20% 22%;
+    --muted-foreground: 269 18% 74%;
+    --accent: 271 28% 27%;
+    --accent-foreground: 278 57% 84%;
+    --border: 263 18% 28%;
+    --input: 263 18% 28%;
+    --ring: 263 53% 68%;
+    --coral: 263 53% 68%;
+    --peach: 285 43% 68%;
   }
   * { @apply border-border; }
   body { @apply bg-background text-foreground antialiased; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
@@ -96,4 +228,13 @@
   .animate-sheet-up { animation: sheet-slide-up 320ms cubic-bezier(0.32, 0.72, 0, 1); }
   .animate-dialog-in { animation: dialog-pop-in 220ms cubic-bezier(0.16, 1, 0.3, 1); }
   .animate-overlay-in { animation: overlay-fade-in 240ms ease-out; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }

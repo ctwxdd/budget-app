@@ -82,10 +82,12 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
     startDrag(event.clientY, event.pointerId, event.currentTarget)
   }
 
+  const resistedDrag = (delta: number) => delta >= 0 ? delta : -Math.min(30, Math.pow(-delta, 0.72) * 1.45)
+
   const onPointerMove = (event: React.PointerEvent) => {
     if (!isDragging || !dragStart.current) return
     const delta = event.clientY - dragStart.current.y
-    dragYRef.current = Math.max(0, delta)
+    dragYRef.current = resistedDrag(delta)
     setDragY(dragYRef.current)
   }
 
@@ -107,6 +109,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
 
   const onSheetTouchStart = (event: React.TouchEvent) => {
     if (!mobileBottomSheet || event.touches.length !== 1 || window.matchMedia('(min-width: 768px)').matches) return
+    if (isInteractive(event.target)) return
     const touch = event.touches[0]
     touchStart.current = {
       x: touch.clientX,
@@ -133,10 +136,15 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
       start.t = Date.now()
       return
     }
-    if (!start.scrollable && deltaY < 0) {
+    if (!start.scrollable) {
       event.preventDefault()
-      if (scrollRef.current) scrollRef.current.scrollTop += start.lastY - touch.clientY
       start.lastY = touch.clientY
+      if (!dragStart.current) {
+        dragStart.current = { y: start.y, t: start.t }
+        setIsDragging(true)
+      }
+      dragYRef.current = resistedDrag(deltaY)
+      setDragY(dragYRef.current)
       return
     }
     if (deltaY <= 0) return
@@ -148,13 +156,14 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
     }
     dragYRef.current = deltaY
     setDragY(deltaY)
+    start.lastY = touch.clientY
   }
 
   const onSheetTouchEnd = () => {
     const start = touchStart.current
     touchStart.current = null
     if (!start || !dragStart.current) return
-    endDrag(start.y + dragYRef.current)
+    endDrag(start.lastY)
   }
 
   const overlayOpacity = Math.max(0.25, 1 - dragY / 600)
@@ -176,7 +185,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
         mobileBottomSheet ? 'animate-sheet-up md:animate-dialog-in' : 'animate-dialog-in',
         className,
       )}
-      style={mobileBottomSheet ? { transform: `translateY(${dragY}px)`, transition: isDragging ? 'none' : 'transform 260ms cubic-bezier(0.32, 0.72, 0, 1)' } : undefined}
+      style={mobileBottomSheet ? { transform: `translateY(${dragY}px)`, transition: isDragging ? 'none' : 'transform 420ms cubic-bezier(0.22, 1.3, 0.36, 1)', willChange: 'transform' } : undefined}
       onTouchStart={onSheetTouchStart}
       onTouchMove={onSheetTouchMove}
       onTouchEnd={onSheetTouchEnd}
