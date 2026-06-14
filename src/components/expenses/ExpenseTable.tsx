@@ -7,6 +7,7 @@ import { cn } from '../../lib/utils'
 import { Badge, Button, Card, Dialog, Input, Select } from '../ui'
 import { useCategories, useDeleteExpense, usePaymentMethods, useSheetId } from '../../hooks/useExpenses'
 import { useToast } from '../ui/Toast'
+import { haptic } from '../../lib/haptics'
 
 export type ExpenseFilters = { preset: DatePreset; start: string; end: string; categories: string[]; payments: string[]; reimbursement: string; search: string }
 export const defaultFilters: ExpenseFilters = { preset: 'thisMonth', start: '', end: '', categories: [], payments: [], reimbursement: 'All', search: '' }
@@ -129,6 +130,7 @@ function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, selected, selecti
     longPressFiredRef.current = false
     timerRef.current = window.setTimeout(() => {
       longPressFiredRef.current = true
+      haptic('heavy')
       setOpen(false)
       onEnterSelectionMode(expense)
     }, 500)
@@ -144,6 +146,7 @@ function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, selected, selecti
       longPressFiredRef.current = false
       return
     }
+    haptic('selection')
     if (selectionMode) onToggleSelected(expense)
     else onEdit(expense)
   }
