@@ -2,7 +2,7 @@ import * as React from 'react'
 import { format } from 'date-fns'
 import type { Expense } from '../../lib/types'
 import { Button, Dialog, Input, Select } from '../ui'
-import { useAddExpense, useCategories, usePaymentMethods, useUpdateExpense } from '../../hooks/useExpenses'
+import { useAddExpense, useCategories, useExpenses, usePaymentMethods, useUpdateExpense } from '../../hooks/useExpenses'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../../hooks/useGiftcards'
 import { useCards } from '../../hooks/useCards'
 import type { CardRow } from '../../hooks/useCards'
@@ -24,9 +24,90 @@ function DatalistInput({ id, value, onChange, options, placeholder }: { id: stri
   return <><Input list={id} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} /><datalist id={id}>{options.map((option) => <option key={option} value={option} />)}</datalist></>
 }
 
+type DescriptionSuggestion = { display: string; count: number; sameCategory: number; lastDate: string }
+
+function buildDescriptionSuggestions(expenses: Expense[], category: string): DescriptionSuggestion[] {
+  const counts = new Map<string, DescriptionSuggestion>()
+  for (const expense of expenses) {
+    const base = splitDescriptionNote(expense.description).base.trim()
+    if (!base) continue
+    const key = base.toLocaleLowerCase()
+    const entry = counts.get(key) || { display: base, count: 0, sameCategory: 0, lastDate: '' }
+    entry.count += 1
+    if (category && expense.category === category) entry.sameCategory += 1
+    if (expense.date > entry.lastDate) { entry.lastDate = expense.date; entry.display = base }
+    counts.set(key, entry)
+  }
+  return Array.from(counts.values()).sort((a, b) => {
+    if (b.sameCategory !== a.sameCategory) return b.sameCategory - a.sameCategory
+    if (b.count !== a.count) return b.count - a.count
+    return b.lastDate.localeCompare(a.lastDate)
+  })
+}
+
+function DescriptionAutosuggest({ value, onChange, suggestions, placeholder, currentCategory }: { value: string; onChange: (value: string) => void; suggestions: DescriptionSuggestion[]; placeholder?: string; currentCategory: string }) {
+  const [focused, setFocused] = React.useState(false)
+  const [highlight, setHighlight] = React.useState(-1)
+  const blurTimerRef = React.useRef<number | null>(null)
+  const query = value.trim().toLocaleLowerCase()
+  const filtered = React.useMemo(() => {
+    if (!suggestions.length) return [] as DescriptionSuggestion[]
+    if (!query) return suggestions.slice(0, 6)
+    const matches = suggestions.filter((s) => {
+      const display = s.display.toLocaleLowerCase()
+      return display.includes(query) && display !== query
+    })
+    return matches.slice(0, 6)
+  }, [suggestions, query])
+
+  React.useEffect(() => { setHighlight(-1) }, [value, focused])
+  React.useEffect(() => () => { if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current) }, [])
+
+  const pick = (suggestion: DescriptionSuggestion) => {
+    onChange(suggestion.display)
+    setFocused(false)
+  }
+  const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
+    if (!filtered.length || !focused) return
+    if (event.key === 'ArrowDown') { event.preventDefault(); setHighlight((h) => (h + 1) % filtered.length) }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); setHighlight((h) => (h <= 0 ? filtered.length - 1 : h - 1)) }
+    else if (event.key === 'Enter' && highlight >= 0) { event.preventDefault(); pick(filtered[highlight]) }
+    else if (event.key === 'Escape') { setFocused(false) }
+  }
+  const open = focused && filtered.length > 0
+  return <div className="relative">
+    <Input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onFocus={() => { if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current); setFocused(true) }}
+      onBlur={() => { blurTimerRef.current = window.setTimeout(() => setFocused(false), 150) }}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      autoComplete="off"
+      enterKeyHint="done"
+    />
+    {open && <div className="absolute left-0 right-0 top-full z-20 mt-1.5 max-h-60 overflow-auto rounded-2xl border border-border bg-card p-1 shadow-lift">
+      {filtered.map((suggestion, index) => <button
+        key={suggestion.display}
+        type="button"
+        className={cn('flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition', index === highlight ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/70')}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => pick(suggestion)}
+      >
+        <span className="truncate font-medium text-foreground">{suggestion.display}</span>
+        <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+          {suggestion.sameCategory > 0 && currentCategory && <span className="rounded-full bg-coral/15 px-1.5 py-0.5 text-coral">{currentCategory}</span>}
+          <span>×{suggestion.count}</span>
+        </span>
+      </button>)}
+    </div>}
+  </div>
+}
+
 export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; onOpenChange: (open: boolean) => void; expense?: Expense | null }) {
   const categories = useCategories()
   const paymentMethods = usePaymentMethods()
+  const expensesQuery = useExpenses()
   const giftcards = useGiftcards()
   const managedCards = useCards()
   const addExpense = useAddExpense()
@@ -115,6 +196,7 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
 
   const giftcardPurchase = form.category === 'Giftcard'
   const formId = React.useId()
+  const descriptionSuggestions = React.useMemo(() => buildDescriptionSuggestions(expensesQuery.data || [], form.category), [expensesQuery.data, form.category])
   return <Dialog
     open={open}
     onOpenChange={onOpenChange}
@@ -130,7 +212,7 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
         <span className="block">Description</span>
         {giftcardPurchase
           ? <GiftcardComposer parts={giftcardParts} structured={giftcardStructured} vendors={vendors} rawDescription={form.description} onRawChange={(description) => setForm({ ...form, description })} onStructuredChange={setGiftcardStructured} onChange={setGiftcardParts} />
-          : <Input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Groceries, rent, coffee..." />}
+          : <DescriptionAutosuggest value={form.description} onChange={(description) => setForm({ ...form, description })} suggestions={descriptionSuggestions} currentCategory={form.category} placeholder="Groceries, rent, coffee..." />}
       </div>
       <div className="min-h-6 sm:col-span-2">
         {noteOpen ? <label className="block space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Note</span><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label> : <Button type="button" variant="ghost" size="sm" className="h-6 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
