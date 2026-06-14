@@ -9,6 +9,14 @@
     overflow-x: hidden;
     overflow-x: clip;
     touch-action: pan-x pan-y;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  input, textarea, [contenteditable='true'] {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
   }
   html { background: hsl(var(--background)); }
   body { min-height: 100dvh; }
