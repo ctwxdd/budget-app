@@ -77,7 +77,7 @@ function filterChips(filters: ExpenseFilters) {
   return chips
 }
 
-export function ExpenseFilterBar({ filters, onChange, selectionMode = false, selectedCount = 0, onEnterSelectionMode, onCancelSelection }: { filters: ExpenseFilters; onChange: (filters: ExpenseFilters) => void; selectionMode?: boolean; selectedCount?: number; onEnterSelectionMode?: () => void; onCancelSelection?: () => void }) {
+export function ExpenseFilterBar({ filters, onChange, selectionMode = false, selectedCount = 0, onEnterSelectionMode, onCancelSelection, mobileSticky = true, desktopSticky = true }: { filters: ExpenseFilters; onChange: (filters: ExpenseFilters) => void; selectionMode?: boolean; selectedCount?: number; onEnterSelectionMode?: () => void; onCancelSelection?: () => void; mobileSticky?: boolean; desktopSticky?: boolean }) {
   const [open, setOpen] = React.useState(false)
   const chips = filterChips(filters)
   const clearChip = (chip: { key: FilterKey; value?: string }) => {
@@ -87,8 +87,8 @@ export function ExpenseFilterBar({ filters, onChange, selectionMode = false, sel
     else onChange({ ...filters, search: '' })
   }
   return <>
-    <Card className="sticky top-20 z-20 hidden p-4 backdrop-blur md:block"><FilterFields filters={filters} onChange={onChange} /></Card>
-    <div className="sticky top-16 z-20 space-y-3 rounded-3xl border bg-card/95 p-3 shadow-soft backdrop-blur md:hidden">
+    <Card className={`${desktopSticky ? 'sticky top-20 z-20' : ''} hidden p-4 backdrop-blur md:block`}><FilterFields filters={filters} onChange={onChange} /></Card>
+    <div className={`${mobileSticky ? 'sticky top-16 z-20' : ''} space-y-3 rounded-3xl border bg-card/95 p-3 shadow-soft backdrop-blur md:hidden`}>
       <div className="flex gap-2">
         <Select value={filters.preset} onChange={(event) => onChange({ ...filters, preset: event.target.value as DatePreset })} aria-label="Date preset"><option value="thisMonth">This month</option><option value="lastMonth">Last month</option><option value="thisYear">This year</option><option value="all">All</option><option value="custom">Custom</option></Select>
         <Button type="button" variant="outline" onClick={() => setOpen(true)}><Filter className="h-4 w-4" />Filters</Button>
