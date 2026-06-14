@@ -6,7 +6,6 @@
   html, body, #root {
     min-height: 100%;
     max-width: 100vw;
-    overflow-x: hidden;
     overflow-x: clip;
     touch-action: pan-x pan-y;
     -webkit-user-select: none;

@@ -360,7 +360,7 @@ export function AppLayout() {
   const cycleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
   const logout = () => { signOut(); localStorage.removeItem(SHEET_ID_KEY); navigate('/login') }
   useBundleUpdateOnFocus()
-  return <div className="min-h-[100dvh] bg-background text-foreground [overflow-x:hidden] [overflow-x:clip]">
+  return <div className="min-h-[100dvh] bg-background text-foreground [overflow-x:clip]">
     <PullToRefresh />
     <div className="pull-refresh-content">
       <div className="fixed inset-y-0 left-0 hidden md:block"><Sidebar /></div>
