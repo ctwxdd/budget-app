@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { @apply overflow-x-hidden; max-width: 100vw; }
+  :root {
+    --background: 20 33% 97%;
+    --foreground: 257 21% 18%;
+    --card: 0 0% 100%;
+    --card-foreground: 257 21% 18%;
+    --primary: 354 80% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 24 100% 96%;
+    --secondary-foreground: 257 21% 18%;
+    --muted: 24 38% 94%;
+    --muted-foreground: 260 8% 45%;
+    --accent: 14 100% 94%;
+    --accent-foreground: 354 80% 38%;
+    --destructive: 348 84% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 24 27% 90%;
+    --input: 24 27% 90%;
+    --ring: 354 80% 50%;
+    --radius: 1.25rem;
+    --coral: 8 88% 58%;
+    --peach: 18 92% 64%;
+    --mint: 158 64% 52%;
+    --butter: 46 97% 65%;
+    --sky: 199 95% 74%;
+    --lavender: 258 90% 80%;
+    --rose: 330 81% 71%;
+    --sage: 140 29% 67%;
+  }
+  .dark {
+    --background: 257 25% 12%;
+    --foreground: 24 33% 96%;
+    --card: 258 24% 16%;
+    --card-foreground: 24 33% 96%;
+    --primary: 354 78% 56%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 258 22% 22%;
+    --secondary-foreground: 24 33% 96%;
+    --muted: 258 20% 22%;
+    --muted-foreground: 260 15% 75%;
+    --accent: 258 29% 28%;
+    --accent-foreground: 354 100% 86%;
+    --destructive: 348 86% 66%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 258 18% 26%;
+    --input: 258 18% 26%;
+    --ring: 354 78% 56%;
+  }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  h1, h2, h3 { font-family: 'Plus Jakarta Sans', Inter, ui-sans-serif, system-ui, sans-serif; }
+}
+
+@layer components {
+  .skeleton { @apply animate-pulse rounded-3xl bg-muted; }
+  .soft-blob { @apply pointer-events-none absolute -z-10 rounded-full blur-3xl; }
+}
