@@ -1,4 +1,4 @@
-# Budget App
+# Chamomile Pocket
 
 A personal budget-tracking single-page app built with Vite, React, TypeScript, Tailwind CSS, and Google Sheets as the database. It reads and writes the `Expense` tab from your spreadsheet, computes summaries client-side, and supports dark mode, filtering, charts, and mobile layouts.
 

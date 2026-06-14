@@ -1,7 +1,7 @@
 {
-  "name": "Budget Buddy",
-  "short_name": "Budget",
-  "description": "A cute personal budget and expense tracker.",
+  "name": "Chamomile Pocket",
+  "short_name": "Chamomile",
+  "description": "A cozy personal budget and expense tracker.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fff9f6",
