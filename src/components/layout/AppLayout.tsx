@@ -33,12 +33,15 @@ function BottomNav({ onAdd }: { onAdd: () => void }) {
   const mobileNav = nav.filter((item) => !['/settings', '/analytics'].includes(item.to))
   const left = mobileNav.slice(0, 2)
   const right = mobileNav.slice(2)
-  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-bold transition ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5" /><span>{item.label}</span></NavLink>
+  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex h-full min-h-[44px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-bold transition ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5" /><span className="leading-none">{item.label}</span></NavLink>
   return <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden">
-    <div className="mx-auto flex h-16 max-w-md items-start justify-between border-t border-border/80 bg-card/95 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl">
-      {left.map(renderItem)}
-      <Button aria-label="Add expense" variant="gradient" onClick={onAdd} className="-mt-7 h-14 w-14 shrink-0 rounded-full p-0 ring-4 ring-background hover:scale-[1.03]"><Plus className="h-7 w-7" /></Button>
-      {right.map(renderItem)}
+    <div className="relative mx-auto h-[68px] max-w-md border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl">
+      <div className="flex h-full items-stretch justify-between px-2">
+        {left.map(renderItem)}
+        <div className="h-full w-16 shrink-0" aria-hidden />
+        {right.map(renderItem)}
+      </div>
+      <Button aria-label="Add expense" variant="gradient" onClick={onAdd} className="absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full p-0 shadow-lift ring-4 ring-background transition hover:scale-[1.03]"><Plus className="h-7 w-7" /></Button>
     </div>
   </nav>
 }
