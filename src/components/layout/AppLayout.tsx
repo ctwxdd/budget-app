@@ -20,21 +20,25 @@ const nav = [
   { to: '/settings', label: 'Settings', pageLabel: 'Settings', emoji: '⚙️', icon: Settings },
 ]
 
+function resetHomeScroll() {
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+}
+
 function Sidebar() {
   const { user } = useAuth()
   return <aside className="flex h-full w-72 flex-col border-r border-border/70 bg-white/85 p-5 backdrop-blur-xl dark:bg-card/85">
     <div className="mb-8 flex items-center gap-3 rounded-3xl px-2 py-1">
       <LoveNoteIcon imageClassName="h-12 w-12 rounded-2xl shadow-lift" />
-      <Link to="/"><span className="block font-display text-lg font-bold">{user?.name ? `Hi, ${user.name.split(' ')[0]} 👋` : 'Chamomile Pocket'}</span><span className="text-xs text-muted-foreground">A cozy money tracker</span></Link>
+      <Link to="/" onClick={resetHomeScroll}><span className="block font-display text-lg font-bold">{user?.name ? `Hi, ${user.name.split(' ')[0]} 👋` : 'Chamomile Pocket'}</span><span className="text-xs text-muted-foreground">A cozy money tracker</span></Link>
     </div>
-    <nav className="space-y-1.5">{nav.map((item) => <NavLink key={item.to} to={item.to} className={({ isActive }) => `relative flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${isActive ? 'bg-coral/10 text-coral before:absolute before:left-0 before:top-3 before:h-6 before:w-1 before:rounded-full before:bg-coral' : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground'}`}><item.icon className="h-4 w-4" />{item.pageLabel}</NavLink>)}</nav>
+    <nav className="space-y-1.5">{nav.map((item) => <NavLink key={item.to} to={item.to} onClick={item.to === '/' ? resetHomeScroll : undefined} className={({ isActive }) => `relative flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${isActive ? 'bg-coral/10 text-coral before:absolute before:left-0 before:top-3 before:h-6 before:w-1 before:rounded-full before:bg-coral' : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground'}`}><item.icon className="h-4 w-4" />{item.pageLabel}</NavLink>)}</nav>
     <div className="mt-auto rounded-3xl border border-coral/15 bg-gradient-to-br from-coral/10 to-peach/20 p-4 text-sm text-muted-foreground shadow-soft"><p className="font-semibold text-foreground">💡 Tip</p><p>Tap + to log a new expense.</p></div>
   </aside>
 }
 
 function BottomNav({ onAdd }: { onAdd: () => void }) {
   const mobileNav = nav.filter((item) => ['/', '/expenses', '/analytics', '/giftcards'].includes(item.to))
-  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 pb-1 pt-2 text-[10px] font-bold transition sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="max-w-full truncate leading-none">{item.label}</span></NavLink>
+  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} onClick={item.to === '/' ? resetHomeScroll : undefined} className={({ isActive }) => `flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 pb-1 pt-2 text-[10px] font-bold transition sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="max-w-full truncate leading-none">{item.label}</span></NavLink>
   return <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden">
     <div className="relative mx-auto h-[calc(68px+env(safe-area-inset-bottom))] w-full border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl">
       <div className="mobile-bottom-items grid h-[68px] grid-cols-5 items-stretch px-1">
@@ -313,11 +317,11 @@ function MobileMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open
       <div className="mb-6 flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <LoveNoteIcon imageClassName="h-12 w-12 rounded-2xl shadow-lift" />
-          <Link to="/" onClick={() => onOpenChange(false)} className="min-w-0"><span className="block truncate font-display text-lg font-bold">{firstName ? `Hi, ${firstName} 👋` : 'Welcome 👋'}</span><span className="block truncate text-xs text-muted-foreground">Chamomile Pocket · A cozy money tracker</span></Link>
+          <Link to="/" onClick={() => { resetHomeScroll(); onOpenChange(false) }} className="min-w-0"><span className="block truncate font-display text-lg font-bold">{firstName ? `Hi, ${firstName} 👋` : 'Welcome 👋'}</span><span className="block truncate text-xs text-muted-foreground">Chamomile Pocket · A cozy money tracker</span></Link>
         </div>
         <Button variant="ghost" size="icon" aria-label="Close navigation menu" onClick={() => onOpenChange(false)}><X className="h-5 w-5" /></Button>
       </div>
-      <nav className="space-y-1.5">{nav.map((item) => <NavLink key={item.to} to={item.to} onClick={() => onOpenChange(false)} className={({ isActive }) => `flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition ${isActive ? 'bg-coral/10 text-coral' : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground'}`}><item.icon className="h-5 w-5" />{item.pageLabel}</NavLink>)}</nav>
+      <nav className="space-y-1.5">{nav.map((item) => <NavLink key={item.to} to={item.to} onClick={() => { if (item.to === '/') resetHomeScroll(); onOpenChange(false) }} className={({ isActive }) => `flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition ${isActive ? 'bg-coral/10 text-coral' : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground'}`}><item.icon className="h-5 w-5" />{item.pageLabel}</NavLink>)}</nav>
     </aside>
   </div>
 }
