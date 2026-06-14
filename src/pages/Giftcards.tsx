@@ -1,14 +1,41 @@
 import * as React from 'react'
-import { ChevronDown, Gift, WalletCards } from 'lucide-react'
+import { format } from 'date-fns'
+import { ChevronDown, Gift, Pencil, Plus, WalletCards } from 'lucide-react'
 import { PageErrorBoundary } from '../components/ErrorBoundary'
-import { Badge, Card, CardContent, CardHeader, CardTitle } from '../components/ui'
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '../components/ui'
+import { useToast } from '../components/ui/Toast'
 import { SkeletonCards } from '../components/layout/Skeletons'
+import { ExpenseDialog, type FormState } from '../components/expenses/ExpenseDialog'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../hooks/useGiftcards'
+import { useExpenses } from '../hooks/useExpenses'
+import { parseGiftcardDescription } from '../lib/giftcards'
 import { currency, displayDate } from '../lib/format'
+import type { Expense } from '../lib/types'
 import { cn } from '../lib/utils'
 
 type GiftcardsView = 'cards' | 'list'
 const VIEW_KEY = 'giftcards-view'
+
+function cardKey(card: GiftcardRow) {
+  return `${card.card}::${card.date}::${card.paid}`
+}
+
+function findPurchaseExpense(card: GiftcardRow, expenses: Expense[]): Expense | null {
+  const matches = expenses.filter((expense) => {
+    if (expense.category !== 'Giftcard') return false
+    if (Math.abs(expense.amount - card.paid) > 0.005) return false
+    if (expense.date !== card.date) return false
+    const parsed = parseGiftcardDescription(expense.description)
+    if (!parsed) return false
+    if (parsed.vendor !== card.vendor) return false
+    if (card.face > 0 && parsed.face) {
+      const parsedFace = Number(parsed.face)
+      if (Number.isFinite(parsedFace) && Math.abs(parsedFace - card.face) > 0.005) return false
+    }
+    return true
+  })
+  return matches.length === 1 ? matches[0] : null
+}
 
 export function GiftcardsPage() {
   return <PageErrorBoundary><GiftcardsContent /></PageErrorBoundary>
@@ -16,8 +43,13 @@ export function GiftcardsPage() {
 
 function GiftcardsContent() {
   const { cards, merchants, tabMissing, isLoading, error } = useGiftcards()
+  const { data: expenses = [] } = useExpenses()
+  const { toast } = useToast()
   const [expanded, setExpanded] = React.useState<string[]>([])
   const [showInactive, setShowInactive] = React.useState(false)
+  const [selectedKey, setSelectedKey] = React.useState<string | null>(null)
+  const [spendTemplate, setSpendTemplate] = React.useState<FormState | null>(null)
+  const [editingPurchase, setEditingPurchase] = React.useState<Expense | null>(null)
   const [view, setView] = React.useState<GiftcardsView>(() => {
     if (typeof window === 'undefined') return 'list'
     return localStorage.getItem(VIEW_KEY) === 'cards' ? 'cards' : 'list'
@@ -26,6 +58,36 @@ function GiftcardsContent() {
   React.useEffect(() => {
     localStorage.setItem(VIEW_KEY, view)
   }, [view])
+
+  const handleSelect = React.useCallback((card: GiftcardRow) => {
+    const key = cardKey(card)
+    setSelectedKey((current) => (current === key ? null : key))
+  }, [])
+
+  const handleSpend = React.useCallback((card: GiftcardRow) => {
+    setSpendTemplate({
+      date: format(new Date(), 'yyyy-MM-dd'),
+      amount: 0,
+      description: '',
+      category: '',
+      paymentMethod: card.vendor,
+      reimbursement: '',
+    })
+  }, [])
+
+  const handleEditPurchase = React.useCallback((card: GiftcardRow) => {
+    const match = findPurchaseExpense(card, expenses)
+    if (match) {
+      setEditingPurchase(match)
+      return
+    }
+    toast({
+      title: "Couldn't pinpoint the purchase row",
+      description: `No single Giftcard expense matches ${card.vendor} on ${displayDate(card.date)} for ${currency.format(card.paid)}. Edit it from the Expenses tab instead.`,
+      variant: 'destructive',
+      duration: 6000,
+    })
+  }, [expenses, toast])
 
   if (isLoading) return <SkeletonCards />
   if (error) return <EmptyState title="Could not load giftcards" text={error.message} />
@@ -44,12 +106,14 @@ function GiftcardsContent() {
     { label: 'Spent', emoji: '✨', value: currency.format(totalSpent), tint: 'from-butter/25 to-peach/15' },
   ]
 
+  const cardProps = { selectedKey, onSelect: handleSelect, onSpend: handleSpend, onEditPurchase: handleEditPurchase }
+
   return <div className="relative space-y-5 md:space-y-7">
     <div className="soft-blob left-1/3 top-0 hidden h-64 w-64 bg-peach/25 md:block" />
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <h1 className="font-display text-2xl font-extrabold tracking-tight md:text-3xl">Giftcards</h1>
-        <p className="text-sm text-muted-foreground">Track balances and spending by card.</p>
+        <p className="text-sm text-muted-foreground">Track balances and spending by card. Tap a card to spend from it or edit the purchase.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="rounded-full border border-border/70 bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground shadow-sm transition hover:text-foreground" onClick={() => setShowInactive((current) => !current)}>
@@ -61,7 +125,7 @@ function GiftcardsContent() {
       </div>
     </div>
     <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">{kpis.map((item) => <Card key={item.label} className={`overflow-hidden rounded-2xl bg-gradient-to-br ${item.tint}`}><CardHeader className="p-3 pb-1 md:p-4 md:pb-1.5"><CardTitle className="flex items-center gap-1.5 text-[11px] text-muted-foreground md:text-xs"><span>{item.emoji}</span>{item.label}</CardTitle></CardHeader><CardContent className="px-3 pb-3 pt-0 md:px-4 md:pb-4"><div className="truncate font-display text-lg font-extrabold md:text-2xl">{item.value}</div></CardContent></Card>)}</div>
-    {!merchantRows.length ? <EmptyState title="No giftcards yet" text="Giftcard purchases and balances will appear here after the Giftcard tab formulas produce rows." /> : view === 'list' ? <GiftcardList merchants={visibleMerchantRows} cards={cards} showInactive={showInactive} /> : !visibleMerchantRows.length ? <EmptyState title="No active merchants" text="Use Show depleted to include merchants with no remaining balance." /> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    {!merchantRows.length ? <EmptyState title="No giftcards yet" text="Giftcard purchases and balances will appear here after the Giftcard tab formulas produce rows." /> : view === 'list' ? <GiftcardList merchants={visibleMerchantRows} cards={cards} showInactive={showInactive} {...cardProps} /> : !visibleMerchantRows.length ? <EmptyState title="No active merchants" text="Use Show depleted to include merchants with no remaining balance." /> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {visibleMerchantRows.map((merchant) => {
         const open = expanded.includes(merchant.merchant)
         const merchantCards = cards.filter((card) => card.vendor === merchant.merchant && (showInactive || card.balance > 0.005)).sort((a, b) => a.date.localeCompare(b.date))
@@ -78,35 +142,55 @@ function GiftcardsContent() {
               <Badge variant={merchant.active ? 'success' : 'outline'}>{merchant.active ? 'Active' : 'Inactive'}</Badge>
             </CardContent>
           </button>
-          {open && <div className="space-y-2 border-t border-border/70 p-2.5 md:p-3">{merchantCards.map((card) => <GiftcardCard key={`${card.card}-${card.date}`} card={card} />)}</div>}
+          {open && <div className="space-y-2 border-t border-border/70 p-2.5 md:p-3">{merchantCards.map((card) => <GiftcardCard key={cardKey(card)} card={card} {...cardProps} />)}</div>}
         </Card>
       })}
     </div>}
+    {spendTemplate && <ExpenseDialog open template={spendTemplate} onOpenChange={(open) => { if (!open) setSpendTemplate(null) }} />}
+    {editingPurchase && <ExpenseDialog open expense={editingPurchase} onOpenChange={(open) => { if (!open) setEditingPurchase(null) }} />}
   </div>
 }
 
-function GiftcardCard({ card }: { card: GiftcardRow }) {
+type CardActionProps = {
+  selectedKey: string | null
+  onSelect: (card: GiftcardRow) => void
+  onSpend: (card: GiftcardRow) => void
+  onEditPurchase: (card: GiftcardRow) => void
+}
+
+function CardActionBar({ card, onSpend, onEditPurchase }: { card: GiftcardRow } & Pick<CardActionProps, 'onSpend' | 'onEditPurchase'>) {
+  return <div className="mt-2 flex flex-wrap gap-2 border-t border-border/60 pt-2">
+    <Button type="button" size="sm" variant="gradient" onClick={(event) => { event.stopPropagation(); onSpend(card) }}><Plus className="h-4 w-4" />Spend from this card</Button>
+    <Button type="button" size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); onEditPurchase(card) }}><Pencil className="h-4 w-4" />Edit purchase</Button>
+  </div>
+}
+
+function GiftcardCard({ card, selectedKey, onSelect, onSpend, onEditPurchase }: { card: GiftcardRow } & CardActionProps) {
   const spent = card.direct + card.fifo
   const percent = card.face ? Math.max(0, Math.min(100, (spent / card.face) * 100)) : 0
   const depleted = card.balance <= 0.005
-  return <div className={cn('rounded-2xl border border-border/70 bg-white/70 p-2.5 shadow-sm dark:bg-card/70 md:flex md:items-center md:gap-3', depleted && 'opacity-55')}>
-    <div className="flex min-w-0 flex-1 items-start gap-2">
-      <Gift className="mt-0.5 hidden h-4 w-4 shrink-0 text-coral sm:block" />
-      <div className="min-w-0"><p className="truncate text-sm font-semibold">{card.card}</p><p className="text-xs text-muted-foreground">{displayDate(card.date)}</p></div>
-    </div>
-    <div className="mt-2 grid grid-cols-3 gap-1.5 text-[11px] text-muted-foreground md:mt-0 md:w-52">
-      <Metric label="Face" value={currency.format(card.face)} />
-      <Metric label="Spent" value={currency.format(spent)} />
-      <Metric label="Paid" value={currency.format(card.paid)} />
-    </div>
-    <div className="mt-2 min-w-0 md:mt-0 md:w-36">
-      <div className="text-right text-sm font-bold text-foreground">{currency.format(card.balance)}</div>
-      <ProgressBar percent={percent} className="mt-1" />
-    </div>
+  const selected = selectedKey === cardKey(card)
+  return <div className={cn('rounded-2xl border bg-white/70 p-2.5 shadow-sm transition dark:bg-card/70', depleted && 'opacity-55', selected ? 'border-coral/60 ring-2 ring-coral/20' : 'border-border/70')}>
+    <button type="button" onClick={() => onSelect(card)} className="block w-full text-left md:flex md:items-center md:gap-3">
+      <div className="flex min-w-0 flex-1 items-start gap-2">
+        <Gift className="mt-0.5 hidden h-4 w-4 shrink-0 text-coral sm:block" />
+        <div className="min-w-0"><p className="truncate text-sm font-semibold">{card.card}</p><p className="text-xs text-muted-foreground">{displayDate(card.date)}</p></div>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-1.5 text-[11px] text-muted-foreground md:mt-0 md:w-52">
+        <Metric label="Face" value={currency.format(card.face)} />
+        <Metric label="Spent" value={currency.format(spent)} />
+        <Metric label="Paid" value={currency.format(card.paid)} />
+      </div>
+      <div className="mt-2 min-w-0 md:mt-0 md:w-36">
+        <div className="text-right text-sm font-bold text-foreground">{currency.format(card.balance)}</div>
+        <ProgressBar percent={percent} className="mt-1" />
+      </div>
+    </button>
+    {selected && <CardActionBar card={card} onSpend={onSpend} onEditPurchase={onEditPurchase} />}
   </div>
 }
 
-function GiftcardList({ merchants, cards, showInactive }: { merchants: MerchantRow[]; cards: GiftcardRow[]; showInactive: boolean }) {
+function GiftcardList({ merchants, cards, showInactive, selectedKey, onSelect, onSpend, onEditPurchase }: { merchants: MerchantRow[]; cards: GiftcardRow[]; showInactive: boolean } & CardActionProps) {
   const [open, setOpen] = React.useState<string[]>([])
   if (!merchants.length) return <EmptyState title="No active merchants" text="Use Show depleted to include merchants with no remaining balance." />
   const toggle = (merchant: string) => setOpen((current) => current.includes(merchant) ? current.filter((name) => name !== merchant) : [...current, merchant])
@@ -121,20 +205,24 @@ function GiftcardList({ merchants, cards, showInactive }: { merchants: MerchantR
           <div className="hidden md:block"><ProgressBar percent={merchant.purchased ? Math.max(0, Math.min(100, (merchant.spent / merchant.purchased) * 100)) : 0} /></div>
           <div className="text-right"><p className="font-display text-base font-extrabold text-coral md:text-lg">{currency.format(merchant.balance)}</p><p className="text-[10px] uppercase tracking-wider text-muted-foreground">{merchant.active ? 'Active' : 'Inactive'}</p></div>
         </button>
-        {isOpen && <div className="space-y-1.5 bg-accent/20 p-2 md:p-3">{merchantCards.map((card) => <GiftcardListRow key={`${card.card}-${card.date}`} card={card} />)}</div>}
+        {isOpen && <div className="space-y-1.5 bg-accent/20 p-2 md:p-3">{merchantCards.map((card) => <GiftcardListRow key={cardKey(card)} card={card} selectedKey={selectedKey} onSelect={onSelect} onSpend={onSpend} onEditPurchase={onEditPurchase} />)}</div>}
       </div>
     })}
   </Card>
 }
 
-function GiftcardListRow({ card }: { card: GiftcardRow }) {
+function GiftcardListRow({ card, selectedKey, onSelect, onSpend, onEditPurchase }: { card: GiftcardRow } & CardActionProps) {
   const spent = card.direct + card.fifo
   const percent = card.face ? Math.max(0, Math.min(100, (spent / card.face) * 100)) : 0
   const depleted = card.balance <= 0.005
-  return <div className={cn('grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-2 rounded-xl border border-border/60 bg-white/80 px-2.5 py-1.5 text-xs shadow-sm dark:bg-card/60 md:grid-cols-[minmax(0,1fr)_10rem_6.5rem] md:gap-3 md:px-3 md:text-sm', depleted && 'opacity-55')}>
-    <div className="min-w-0"><p className="truncate font-semibold">{card.card}</p><p className="text-[10px] text-muted-foreground md:text-[11px]">{displayDate(card.date)} · Face {currency.format(card.face)} · Spent {currency.format(spent)}</p></div>
-    <div className="hidden md:block"><ProgressBar percent={percent} /></div>
-    <div className="text-right text-sm font-bold text-coral">{currency.format(card.balance)}</div>
+  const selected = selectedKey === cardKey(card)
+  return <div className={cn('rounded-xl border bg-white/80 text-xs shadow-sm transition dark:bg-card/60 md:text-sm', depleted && 'opacity-55', selected ? 'border-coral/60 ring-2 ring-coral/20' : 'border-border/60')}>
+    <button type="button" onClick={() => onSelect(card)} className="grid w-full grid-cols-[minmax(0,1fr)_8rem] items-center gap-2 px-2.5 py-1.5 text-left md:grid-cols-[minmax(0,1fr)_10rem_6.5rem] md:gap-3 md:px-3">
+      <div className="min-w-0"><p className="truncate font-semibold">{card.card}</p><p className="text-[10px] text-muted-foreground md:text-[11px]">{displayDate(card.date)} · Face {currency.format(card.face)} · Spent {currency.format(spent)}</p></div>
+      <div className="hidden md:block"><ProgressBar percent={percent} /></div>
+      <div className="text-right text-sm font-bold text-coral">{currency.format(card.balance)}</div>
+    </button>
+    {selected && <div className="px-2.5 pb-2 md:px-3"><CardActionBar card={card} onSpend={onSpend} onEditPurchase={onEditPurchase} /></div>}
   </div>
 }
 
