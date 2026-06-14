@@ -105,7 +105,7 @@ function DescriptionAutosuggest({ value, onChange, suggestions, placeholder, cur
   return <div className="relative">
     <Input
       value={value}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) => { onChange(event.target.value); setFocused(true) }}
       onFocus={() => { if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current); setFocused(true) }}
       onBlur={() => { blurTimerRef.current = window.setTimeout(() => setFocused(false), 150) }}
       onKeyDown={onKeyDown}
