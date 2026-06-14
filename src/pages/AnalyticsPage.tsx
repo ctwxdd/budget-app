@@ -87,8 +87,8 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
   const percentage = total ? (selected.total / total) * 100 : 0
 
   return <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-    <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto w-full max-w-sm rounded-3xl bg-card/95 pb-3 shadow-[0_14px_26px_-24px_hsl(var(--foreground)/0.45)] backdrop-blur-xl md:top-24 md:pb-4">
-      <div className="relative h-56 md:h-72">
+    <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto h-64 w-full max-w-sm rounded-3xl bg-card/95 shadow-[0_14px_26px_-24px_hsl(var(--foreground)/0.45)] backdrop-blur-xl md:top-24 md:h-80">
+      <div className="relative h-full">
         <ResponsiveContainer>
           <PieChart accessibilityLayer={false}>
             <Pie
@@ -116,18 +116,12 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
           </div>
         </div>
       </div>
-      <div className="px-3 md:px-4">
-        <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => onOpenExpenses(selected.name)}>
-          View filtered expenses
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-      </div>
     </div>
-    <RankedList rows={rows} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
+    <RankedList rows={rows} selectedIndex={selectedIndex} onSelect={setSelectedIndex} onOpenExpenses={onOpenExpenses} />
   </div>
 }
 
-function RankedList({ rows, selectedIndex, onSelect }: { rows: { name: string; total: number }[]; selectedIndex: number; onSelect: (index: number) => void }) {
+function RankedList({ rows, selectedIndex, onSelect, onOpenExpenses }: { rows: { name: string; total: number }[]; selectedIndex: number; onSelect: (index: number) => void; onOpenExpenses: (category: string) => void }) {
   const total = rows.reduce((sum, row) => sum + row.total, 0)
   if (rows.length === 0) return <EmptyChart />
   const max = rows.reduce((m, r) => Math.max(m, r.total), 0) || 1
@@ -138,21 +132,31 @@ function RankedList({ rows, selectedIndex, onSelect }: { rows: { name: string; t
       const pct = total ? (row.total / total) * 100 : 0
       const barPct = (row.total / max) * 100
       const selected = index === selectedIndex
-      return <li key={row.name}>
-        <button type="button" aria-pressed={selected} onClick={() => onSelect(index)} className={`w-full rounded-3xl border px-4 py-3.5 text-left transition duration-200 sm:px-5 ${selected ? 'translate-y-[-2px] border-primary/35 bg-primary/[0.08] opacity-100 shadow-lift ring-1 ring-primary/15' : 'border-transparent bg-card/45 opacity-55 hover:opacity-80'}`}>
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>
-            {Icon ? <Icon className="h-5 w-5" strokeWidth={2.2} /> : (row.name || '?').slice(0, 1).toUpperCase()}
-          </span>
-          <p className="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base" title={row.name}>{row.name}</p>
-          <div className="shrink-0 text-right"><p className="font-display text-sm font-bold tabular-nums sm:text-base">{currency.format(row.total)}</p><p className="text-xs font-semibold tabular-nums text-muted-foreground">{pct.toFixed(1)}%</p></div>
-        </div>
-        <div className="ml-[52px] mt-2.5 flex items-center gap-3">
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted/50">
-            <div className="h-full rounded-full" style={{ width: `${barPct}%`, backgroundColor: color.hex }} />
+      return <li key={row.name} className={`overflow-hidden rounded-3xl border transition duration-200 ${selected ? 'translate-y-[-2px] border-primary/35 bg-primary/[0.08] opacity-100 shadow-lift ring-1 ring-primary/15' : 'border-transparent bg-card/45 opacity-55 hover:opacity-80'}`}>
+        <button type="button" aria-pressed={selected} onClick={() => onSelect(index)} className="w-full px-4 py-3.5 text-left sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>
+              {Icon ? <Icon className="h-5 w-5" strokeWidth={2.2} /> : (row.name || '?').slice(0, 1).toUpperCase()}
+            </span>
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base" title={row.name}>{row.name}</p>
+            <div className="shrink-0 text-right"><p className="font-display text-sm font-bold tabular-nums sm:text-base">{currency.format(row.total)}</p><p className="text-xs font-semibold tabular-nums text-muted-foreground">{pct.toFixed(1)}%</p></div>
+          </div>
+          <div className="ml-[52px] mt-2.5 flex items-center gap-3">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted/50">
+              <div className="h-full rounded-full" style={{ width: `${barPct}%`, backgroundColor: color.hex }} />
+            </div>
+          </div>
+        </button>
+        <div className={`grid transition-[grid-template-rows,opacity] duration-200 ${selected ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`} aria-hidden={!selected}>
+          <div className="overflow-hidden">
+            <div className="border-t border-primary/15 px-4 py-3 sm:px-5">
+              <Button type="button" variant="secondary" size="sm" className="w-full" tabIndex={selected ? 0 : -1} onClick={() => onOpenExpenses(row.name)}>
+                View filtered expenses
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
-        </button>
       </li>
     })}
   </ul>
