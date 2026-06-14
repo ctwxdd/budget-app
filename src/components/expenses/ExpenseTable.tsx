@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { addDays, addMonths, endOfMonth, endOfWeek, format, isBefore, isSameDay, isSameMonth, isValid, parseISO, startOfMonth, startOfWeek } from 'date-fns'
-import { ArrowDownUp, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, Filter, MoreHorizontal, Pencil, Search, Trash2, X } from 'lucide-react'
+import { ArrowDownUp, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, Filter, LayoutGrid, List, MoreHorizontal, Pencil, Search, Trash2, X } from 'lucide-react'
 import type { DatePreset, Expense } from '../../lib/types'
 import { categoryColor, categoryIcon, categoryName, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
 import { cn } from '../../lib/utils'
@@ -257,10 +257,81 @@ function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, selected, selecti
   </div>
 }
 
+function ExpenseListItem({ expense, onEdit, onRemove, onDuplicate, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; selected: boolean; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onEnterSelectionMode: (expense: Expense) => void }) {
+  const [open, setOpen] = React.useState(false)
+  const color = categoryColor(expense.category)
+  const Icon = categoryIcon(expense.category)
+  const timerRef = React.useRef<number | null>(null)
+  const touchStartRef = React.useRef<{ x: number; y: number } | null>(null)
+  const longPressFiredRef = React.useRef(false)
+  const clearLongPress = () => {
+    if (timerRef.current) window.clearTimeout(timerRef.current)
+    timerRef.current = null
+  }
+  const activate = () => {
+    if (longPressFiredRef.current) { longPressFiredRef.current = false; return }
+    if (selectionMode) onToggleSelected(expense)
+    else onEdit(expense)
+  }
+  const onTouchStart = (event: React.TouchEvent) => {
+    if (selectionMode) return
+    const touch = event.touches[0]
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY }
+    longPressFiredRef.current = false
+    timerRef.current = window.setTimeout(() => {
+      longPressFiredRef.current = true
+      setOpen(false)
+      onEnterSelectionMode(expense)
+    }, 500)
+  }
+  const onTouchMove = (event: React.TouchEvent) => {
+    const start = touchStartRef.current
+    if (!start) return
+    const touch = event.touches[0]
+    if (Math.abs(touch.clientX - start.x) > 10 || Math.abs(touch.clientY - start.y) > 10) clearLongPress()
+  }
+
+  return <div className={cn('relative border-b border-border/60 bg-card transition last:border-b-0', selected && 'bg-coral/10')}>
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`${expense.description || 'Expense'} ${currency.format(expense.amount)} on ${displayDate(expense.date)}`}
+      aria-pressed={selectionMode ? selected : undefined}
+      className="flex min-h-[72px] min-w-0 cursor-pointer items-center gap-3 px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-safe:active:bg-accent/60"
+      onClick={activate}
+      onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); activate() } }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={clearLongPress}
+      onTouchCancel={clearLongPress}
+    >
+      <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>
+        {Icon ? <Icon className="h-[18px] w-[18px]" strokeWidth={2.2} /> : (expense.category || '?').slice(0, 1).toUpperCase()}
+        {selected && <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-coral text-white"><Check className="h-3 w-3" /></span>}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold">{expense.description || 'No description'}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">{categoryName(expense.category)} · {expense.paymentMethod || 'Unknown'}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="font-display text-sm font-extrabold tabular-nums text-coral">{currency.format(expense.amount)}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{displayDate(expense.date)}</p>
+      </div>
+      {!selectionMode && <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={open ? 'Close expense actions' : 'Open expense actions'} aria-expanded={open} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value) }}><MoreHorizontal className="h-5 w-5" /></Button>}
+    </div>
+    {open && <div className="grid grid-cols-3 gap-2 border-t border-border/60 px-3 py-2.5" onClick={(event) => event.stopPropagation()}>
+      <Button variant="secondary" size="sm" className="w-full" onClick={() => { setOpen(false); onEdit(expense) }}><Pencil className="h-4 w-4" />Edit</Button>
+      <Button variant="outline" size="sm" className="w-full" onClick={() => { setOpen(false); onDuplicate(expense) }}><Copy className="h-4 w-4" />Copy</Button>
+      <Button variant="outline" size="sm" className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { setOpen(false); onRemove(expense) }}><Trash2 className="h-4 w-4" />Delete</Button>
+    </div>}
+  </div>
+}
+
 export function ExpenseTable({ expenses, onEdit, onDuplicate, selectedIds, selectionMode, onToggleSelected, onSelectMany, onEnterSelectionMode }: { expenses: Expense[]; onEdit: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; selectedIds: Set<number>; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onSelectMany: (expenses: Expense[], selected: boolean) => void; onEnterSelectionMode: (expense: Expense) => void }) {
   const [sortKey, setSortKey] = React.useState<SortKey>('date')
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc')
   const [page, setPage] = React.useState(1)
+  const [mobileView, setMobileView] = React.useState<'cards' | 'list'>(() => localStorage.getItem('budget.expenseMobileView') === 'list' ? 'list' : 'cards')
   const deleteExpense = useDeleteExpense()
   const queryClient = useQueryClient()
   const sheetId = useSheetId()
@@ -274,6 +345,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, selectedIds, selec
   const allVisibleSelected = sorted.length > 0 && selectedVisibleCount === sorted.length
   const partiallyVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < sorted.length
   React.useEffect(() => setPage(1), [expenses.length])
+  React.useEffect(() => { localStorage.setItem('budget.expenseMobileView', mobileView) }, [mobileView])
   React.useEffect(() => () => { void pendingDeleteRef.current?.flush() }, [])
   const toggleSort = (key: SortKey) => { setSortDir(sortKey === key && sortDir === 'desc' ? 'asc' : 'desc'); setSortKey(key) }
   const remove = async (expense: Expense) => {
@@ -334,16 +406,24 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, selectedIds, selec
         })}</tbody>
       </table>
     </div>
-    <div className="grid gap-3 p-3 md:hidden">{(() => {
+    <div className="flex items-center justify-between border-b border-border/70 bg-card px-3 py-2 md:hidden">
+      <p className="text-xs font-semibold text-muted-foreground">{mobileView === 'cards' ? 'Card view' : 'Compact list'}</p>
+      <div className="flex rounded-2xl bg-muted/60 p-1" role="group" aria-label="Expense view">
+        <button type="button" aria-label="Card view" aria-pressed={mobileView === 'cards'} onClick={() => setMobileView('cards')} className={cn('grid h-8 w-9 place-items-center rounded-xl transition', mobileView === 'cards' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground')}><LayoutGrid className="h-4 w-4" /></button>
+        <button type="button" aria-label="List view" aria-pressed={mobileView === 'list'} onClick={() => setMobileView('list')} className={cn('grid h-8 w-9 place-items-center rounded-xl transition', mobileView === 'list' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground')}><List className="h-4 w-4" /></button>
+      </div>
+    </div>
+    <div className={cn('md:hidden', mobileView === 'cards' ? 'grid gap-3 p-3' : 'divide-y-0')}>{(() => {
       let lastDate = ''
       const items: React.ReactNode[] = []
       const groupedByDate = sortKey === 'date'
       for (const expense of current) {
         if (groupedByDate && expense.date !== lastDate) {
           lastDate = expense.date
-          items.push(<div key={`day-${expense.date}`} className="mt-2 px-1 pt-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground first:mt-0">{dayLabel(expense.date)}</div>)
+          items.push(<div key={`day-${expense.date}`} className={cn('text-[11px] font-bold uppercase tracking-wider text-muted-foreground', mobileView === 'cards' ? 'mt-2 px-1 pt-1 first:mt-0' : 'border-y border-border/60 bg-muted/30 px-3 py-1.5 first:border-t-0')}>{dayLabel(expense.date)}</div>)
         }
-        items.push(<ExpenseCard key={expense.rowIndex} expense={expense} onEdit={onEdit} onRemove={remove} onDuplicate={onDuplicate} selected={selectedIds.has(expense.rowIndex)} selectionMode={selectionMode} onToggleSelected={onToggleSelected} onEnterSelectionMode={onEnterSelectionMode} />)
+        const sharedProps = { expense, onEdit, onRemove: remove, onDuplicate, selected: selectedIds.has(expense.rowIndex), selectionMode, onToggleSelected, onEnterSelectionMode }
+        items.push(mobileView === 'cards' ? <ExpenseCard key={expense.rowIndex} {...sharedProps} /> : <ExpenseListItem key={expense.rowIndex} {...sharedProps} />)
       }
       return items
     })()}</div>
