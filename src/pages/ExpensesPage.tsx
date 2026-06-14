@@ -1,8 +1,9 @@
 import * as React from 'react'
-import { Pencil, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, X } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BatchEditDialog } from '../components/expenses/BatchEditDialog'
 import { ExpenseDialog, type FormState } from '../components/expenses/ExpenseDialog'
-import { ExpenseFilterBar, ExpenseTable, applyExpenseFilters, defaultFilters } from '../components/expenses/ExpenseTable'
+import { ExpenseFilterBar, ExpenseTable, applyExpenseFilters, defaultFilters, type ExpenseFilters } from '../components/expenses/ExpenseTable'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { QueryError } from '../components/layout/QueryError'
 import { Button, ConfirmDialog } from '../components/ui'
@@ -11,8 +12,23 @@ import { useBatchDeleteExpenses, useExpenses } from '../hooks/useExpenses'
 import type { Expense } from '../lib/types'
 
 export function ExpensesPage() {
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const drilldownCategory = searchParams.get('category') || ''
+  const fromAnalytics = searchParams.get('from') === 'analytics'
+  const initialFilters = React.useMemo<ExpenseFilters>(() => {
+    if (!drilldownCategory) return defaultFilters
+    const preset = searchParams.get('preset') as ExpenseFilters['preset'] | null
+    return {
+      ...defaultFilters,
+      preset: preset && ['thisMonth', 'lastMonth', 'thisYear', 'all', 'custom'].includes(preset) ? preset : 'all',
+      start: searchParams.get('start') || '',
+      end: searchParams.get('end') || '',
+      categories: [drilldownCategory],
+    }
+  }, [drilldownCategory, searchParams])
   const { data = [], isLoading, error, refetch } = useExpenses()
-  const [filters, setFilters] = React.useState(defaultFilters)
+  const [filters, setFilters] = React.useState(initialFilters)
   const [editing, setEditing] = React.useState<Expense | null>(null)
   const [template, setTemplate] = React.useState<FormState | null>(null)
   const [templateOpen, setTemplateOpen] = React.useState(false)
@@ -24,6 +40,10 @@ export function ExpensesPage() {
   const { toast } = useToast()
   const filtered = React.useMemo(() => applyExpenseFilters(data, filters), [data, filters])
   const selectedExpenses = React.useMemo(() => data.filter((expense) => selectedIds.has(expense.rowIndex)), [data, selectedIds])
+  const clearDrilldown = () => {
+    setFilters(defaultFilters)
+    setSearchParams({}, { replace: true })
+  }
 
   const clearSelection = React.useCallback(() => {
     setSelectedIds(new Set())
@@ -70,6 +90,11 @@ export function ExpensesPage() {
     setTemplateOpen(true)
   }
   return <div className="space-y-5">
+    {fromAnalytics && drilldownCategory && <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-primary/20 bg-primary/[0.07] p-3 shadow-soft">
+      <div className="mr-auto min-w-0 px-1"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Analytics drill-down</p><p className="truncate text-sm font-bold">{drilldownCategory} · {filters.preset === 'custom' ? `${filters.start || 'Start'} – ${filters.end || 'End'}` : filters.preset.replace(/([A-Z])/g, ' $1').toLowerCase()}</p></div>
+      <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/analytics')}><ArrowLeft className="h-4 w-4" />Analytics</Button>
+      <Button type="button" variant="outline" size="sm" onClick={clearDrilldown}><X className="h-4 w-4" />Clear filters</Button>
+    </div>}
     <ExpenseFilterBar filters={filters} onChange={setFilters} selectionMode={selectionMode} selectedCount={selectedIds.size} onEnterSelectionMode={() => enterSelectionMode()} onCancelSelection={clearSelection} />
     <ExpenseTable expenses={filtered} onEdit={setEditing} onDuplicate={duplicate} selectedIds={selectedIds} selectionMode={selectionMode} onToggleSelected={toggleSelected} onSelectMany={selectMany} onEnterSelectionMode={enterSelectionMode} />
     {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} onClear={clearSelection} onEdit={() => setBatchEditOpen(true)} onDelete={() => setBatchDeleteOpen(true)} deleting={batchDelete.isPending} />}

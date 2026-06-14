@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { ExpenseFilters } from '../components/expenses/ExpenseTable'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Sector, Tooltip, XAxis, YAxis } from 'recharts'
 import type { PieSectorShapeProps } from 'recharts'
@@ -13,6 +14,7 @@ const moneyTick = (value: number) => `$${Math.round(value).toLocaleString()}`
 const validYear = (year: number, fallback: number) => (Number.isFinite(year) && year > 0 ? year : fallback)
 
 export function AnalyticsPage() {
+  const navigate = useNavigate()
   const { data = [], isLoading, error, refetch } = useExpenses()
   const [filters, setFilters] = React.useState<ExpenseFilters>({ ...defaultFilters, preset: 'thisYear' })
   const [tab, setTab] = React.useState('category')
@@ -34,7 +36,12 @@ export function AnalyticsPage() {
   const yearOptionsA = [currentYear, ...years].filter((v, i, a) => a.indexOf(v) === i)
   const yearOptionsB = [currentYear - 1, ...years].filter((v, i, a) => a.indexOf(v) === i)
   return <div className="space-y-5 md:space-y-6"><ExpenseFilterBar filters={filters} onChange={setFilters} mobileSticky={false} desktopSticky={false} /><Tabs value={tab} onChange={setTab} tabs={[
-    { value: 'category', label: 'By Category', content: tab === 'category' ? <Card className="overflow-visible"><CardHeader><CardTitle>Spending by category</CardTitle><CardDescription>Tap a slice or category to focus the breakdown.</CardDescription></CardHeader><CardContent>{category.length ? <CategoryBreakdown rows={category} /> : <EmptyChart />}</CardContent></Card> : null },
+    { value: 'category', label: 'By Category', content: tab === 'category' ? <Card className="overflow-visible"><CardHeader><CardTitle>Spending by category</CardTitle><CardDescription>Tap to focus. Double-tap to see matching expenses.</CardDescription></CardHeader><CardContent>{category.length ? <CategoryBreakdown rows={category} onOpenExpenses={(categoryName) => {
+      const params = new URLSearchParams({ category: categoryName, preset: filters.preset, from: 'analytics' })
+      if (filters.start) params.set('start', filters.start)
+      if (filters.end) params.set('end', filters.end)
+      navigate(`/expenses?${params.toString()}`)
+    }} /> : <EmptyChart />}</CardContent></Card> : null },
     { value: 'payment', label: 'By Payment', content: tab === 'payment' ? <Card><CardHeader><CardTitle>Spending by payment method</CardTitle><CardDescription>See which cards or accounts carried the load.</CardDescription></CardHeader><CardContent>{payment.length ? <div className="h-60 md:h-72"><ResponsiveContainer><BarChart data={payment} layout="vertical" margin={{ left: 20 }}><CartesianGrid strokeDasharray="3 3" stroke="#F0EAE5" /><XAxis type="number" tickFormatter={moneyTick} /><YAxis type="category" dataKey="name" width={90} /><Tooltip formatter={(value: unknown) => currency.format(Number(value || 0))} /><Bar dataKey="total" fill={chartPalette[2]} radius={[0, 12, 12, 0]} /></BarChart></ResponsiveContainer></div> : <EmptyChart />}</CardContent></Card> : null },
     { value: 'trend', label: 'Monthly Trend', content: tab === 'trend' ? <Card><CardHeader><CardTitle>Monthly trend</CardTitle><CardDescription>Gentle waves make patterns easier to spot.</CardDescription></CardHeader><CardContent>{trend.length ? <div className="h-60 md:h-72"><ResponsiveContainer><AreaChart data={trend}><defs><linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={chartPalette[0]} stopOpacity={0.35} /><stop offset="95%" stopColor={chartPalette[0]} stopOpacity={0.02} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#F0EAE5" /><XAxis dataKey="month" /><YAxis tickFormatter={moneyTick} /><Tooltip formatter={(value: unknown) => currency.format(Number(value || 0))} /><Area type="monotone" dataKey="total" stroke={chartPalette[0]} fill="url(#trendFill)" strokeWidth={3} /></AreaChart></ResponsiveContainer></div> : <EmptyChart />}</CardContent></Card> : null },
     { value: 'year', label: 'Year Compare', content: tab === 'year' ? <Card><CardHeader><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><CardTitle>Year compare</CardTitle><CardDescription>Month-by-month bars for two years.</CardDescription></div><div className="grid grid-cols-2 gap-2 md:flex"><Select value={String(safeYearA)} onChange={(event) => setYearA(Number(event.target.value))}>{yearOptionsA.map((year) => <option key={year}>{year}</option>)}</Select><Select value={String(safeYearB)} onChange={(event) => setYearB(Number(event.target.value))}>{yearOptionsB.map((year) => <option key={year}>{year}</option>)}</Select></div></div></CardHeader><CardContent><div className="h-60 md:h-72"><ResponsiveContainer><BarChart data={yearCompare}><CartesianGrid strokeDasharray="3 3" stroke="#F0EAE5" /><XAxis dataKey="month" /><YAxis tickFormatter={moneyTick} /><Tooltip formatter={(value: unknown) => currency.format(Number(value || 0))} /><Legend /><Bar dataKey={String(safeYearA)} fill={chartPalette[0]} radius={[10, 10, 0, 0]} /><Bar dataKey={String(safeYearB)} fill={chartPalette[3]} radius={[10, 10, 0, 0]} /></BarChart></ResponsiveContainer></div></CardContent></Card> : null },
@@ -64,14 +71,26 @@ function DonutSector({ isActive, cx = 0, cy = 0, midAngle = 0, innerRadius = 0, 
   />
 }
 
-function CategoryBreakdown({ rows }: { rows: { name: string; total: number }[] }) {
+function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; total: number }[]; onOpenExpenses: (category: string) => void }) {
   const [selectedIndex, setSelectedIndex] = React.useState(0)
+  const lastTap = React.useRef<{ index: number; time: number } | null>(null)
   React.useEffect(() => { if (selectedIndex >= rows.length) setSelectedIndex(0) }, [rows.length, selectedIndex])
   const total = rows.reduce((sum, row) => sum + row.total, 0)
   const selected = rows[selectedIndex] || rows[0]
   const Icon = categoryIcon(selected.name)
   const color = categoryColor(selected.name)
   const percentage = total ? (selected.total / total) * 100 : 0
+  const selectCategory = (index: number) => {
+    const now = Date.now()
+    const previous = lastTap.current
+    setSelectedIndex(index)
+    if (previous?.index === index && now - previous.time < 420) {
+      lastTap.current = null
+      onOpenExpenses(rows[index].name)
+      return
+    }
+    lastTap.current = { index, time: now }
+  }
 
   return <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
     <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto h-64 w-full max-w-sm rounded-3xl bg-card/95 shadow-[0_14px_26px_-24px_hsl(var(--foreground)/0.45)] backdrop-blur-xl md:top-24 md:h-80">
@@ -87,7 +106,7 @@ function CategoryBreakdown({ rows }: { rows: { name: string; total: number }[] }
             cornerRadius={4}
             isAnimationActive="auto"
             shape={(props, index) => <DonutSector {...props} isActive={index === selectedIndex} />}
-            onClick={(_, index) => setSelectedIndex(index)}
+            onClick={(_, index) => selectCategory(index)}
           >
             {rows.map((_, index) => <Cell key={index} fill={chartPalette[index % chartPalette.length]} />)}
           </Pie>
@@ -102,7 +121,7 @@ function CategoryBreakdown({ rows }: { rows: { name: string; total: number }[] }
         </div>
       </div>
     </div>
-    <RankedList rows={rows} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
+    <RankedList rows={rows} selectedIndex={selectedIndex} onSelect={selectCategory} />
   </div>
 }
 
