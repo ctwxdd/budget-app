@@ -5,6 +5,7 @@ import { Button, Dialog, Input, Select } from '../ui'
 import { useAddExpense, useCategories, usePaymentMethods, useUpdateExpense } from '../../hooks/useExpenses'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../../hooks/useGiftcards'
 import { useCards } from '../../hooks/useCards'
+import type { CardRow } from '../../hooks/useCards'
 import { appendNoteToDescription, classifyPaymentMethod, composeGiftcardDescription, parseGiftcardDescription, splitDescriptionNote, type GiftcardDescriptionParts, type PaymentMethodType } from '../../lib/giftcards'
 import { currency } from '../../lib/format'
 import { cn } from '../../lib/utils'
@@ -72,7 +73,6 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
     return selected && !activeMerchants.some((merchant) => merchant.merchant === selected.merchant) ? [selected, ...activeMerchants] : activeMerchants
   }, [activeMerchants, giftcards.merchants, selectedMerchant])
   const filteredPaymentMethods = React.useMemo(() => paymentMethods.filter((method) => classifyPaymentMethod(method) === paymentType), [paymentMethods, paymentType])
-  const cardPaymentMethods = React.useMemo(() => mergePrioritized(managedCards.cards.filter((card) => card.active && card.name).map((card) => card.name), filteredPaymentMethods), [managedCards.cards, filteredPaymentMethods])
   const selectedCards = React.useMemo(() => giftcards.cards.filter((card) => card.vendor === selectedMerchant).sort((a, b) => a.date.localeCompare(b.date)), [giftcards.cards, selectedMerchant])
 
   const setCategory = (category: string) => {
@@ -147,7 +147,9 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
         <div className="pt-1">
           {paymentType === 'giftcard'
             ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
-            : <DatalistInput id={`payment-options-${paymentType}`} value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} options={paymentType === 'card' ? (cardPaymentMethods.length ? cardPaymentMethods : filteredPaymentMethods) : filteredPaymentMethods} placeholder={paymentType === 'card' ? 'Choose or type a card' : 'Cash, Venmo, Zelle…'} />}
+            : paymentType === 'card'
+              ? <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={managedCards.cards.filter((card) => card.active && card.name)} fallback={filteredPaymentMethods} />
+              : <DatalistInput id={`payment-options-${paymentType}`} value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} options={filteredPaymentMethods} placeholder="Cash, Venmo, Zelle…" />}
         </div>
       </div>
       <div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] mt-4 flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_-14px_28px_-24px_rgba(31,41,55,0.45)] backdrop-blur-xl sm:col-span-2 sm:-mx-7 sm:-mb-8 sm:flex-row sm:justify-end sm:pb-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>
@@ -225,12 +227,58 @@ function findMerchantForMethod(paymentMethod: string, merchants: MerchantRow[]) 
   return [...merchants].sort((a, b) => b.merchant.length - a.merchant.length).find((merchant) => paymentMethod === merchant.merchant || paymentMethod.startsWith(`${merchant.merchant} (`) || paymentMethod.startsWith(`${merchant.merchant} #`))?.merchant
 }
 
-function mergePrioritized(primary: string[], secondary: string[]) {
-  const seen = new Set<string>()
-  return [...primary, ...secondary].filter((value) => {
-    const key = value.trim().toLocaleLowerCase()
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+function describeCard(card: CardRow) {
+  const tail = card.last4 ? ` ••${card.last4}` : ''
+  const issuer = card.issuer ? ` — ${card.issuer}` : ''
+  return `${card.name}${tail}${issuer}`
+}
+
+const CUSTOM_CARD_VALUE = '__custom__'
+
+function CardPaymentPicker({ value, onChange, cards, fallback }: { value: string; onChange: (value: string) => void; cards: CardRow[]; fallback: string[] }) {
+  const fallbackOptions = React.useMemo(() => {
+    const seen = new Set(cards.map((card) => card.name.trim().toLocaleLowerCase()))
+    return fallback.filter((option) => {
+      const key = option.trim().toLocaleLowerCase()
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [cards, fallback])
+  const matchesOption = React.useMemo(() => {
+    if (!value) return true
+    return cards.some((card) => card.name === value) || fallbackOptions.includes(value)
+  }, [cards, fallbackOptions, value])
+  const [customMode, setCustomMode] = React.useState(() => Boolean(value) && !matchesOption)
+
+  React.useEffect(() => {
+    if (value && !matchesOption) setCustomMode(true)
+  }, [value, matchesOption])
+
+  if (customMode) {
+    return <div className="space-y-2 rounded-3xl border border-border/70 bg-white/70 p-3 dark:bg-card/70">
+      <Input value={value} placeholder="Card name…" onChange={(event) => onChange(event.target.value)} autoFocus={!value} />
+      <button type="button" className="text-xs font-semibold text-coral hover:underline" onClick={() => { onChange(''); setCustomMode(false) }}>← Pick from list</button>
+    </div>
+  }
+
+  return <div className="space-y-3 rounded-3xl border border-border/70 bg-white/70 p-3 dark:bg-card/70">
+    <label className="block space-y-1.5">
+      <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Card</span>
+      <Select value={matchesOption ? value : ''} onChange={(event) => {
+        if (event.target.value === CUSTOM_CARD_VALUE) { onChange(''); setCustomMode(true); return }
+        onChange(event.target.value)
+      }}>
+        <option value="">Select card…</option>
+        {cards.length > 0 && <optgroup label="Your cards">
+          {cards.map((card) => <option key={`mc-${card.rowIndex}`} value={card.name}>{describeCard(card)}</option>)}
+        </optgroup>}
+        {fallbackOptions.length > 0 && <optgroup label="Other">
+          {fallbackOptions.map((option) => <option key={`fb-${option}`} value={option}>{option}</option>)}
+        </optgroup>}
+        <option value={CUSTOM_CARD_VALUE}>✏️ Custom…</option>
+      </Select>
+    </label>
+    {!cards.length && <p className="rounded-2xl bg-accent/50 p-3 text-xs font-medium">Add cards in the Cards tab for faster picking.</p>}
+  </div>
 }
