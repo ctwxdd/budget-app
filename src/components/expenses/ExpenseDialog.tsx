@@ -124,20 +124,20 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>}
   >
     <form id={formId} onSubmit={submit} className="grid min-w-0 gap-x-5 gap-y-4 pb-2 sm:grid-cols-2 sm:gap-y-5">
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Date<Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Amount<Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} /></label>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Amount</span><Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} /></label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
-        <span>Description</span>
+        <span className="block">Description</span>
         {giftcardPurchase
           ? <GiftcardComposer parts={giftcardParts} structured={giftcardStructured} vendors={vendors} rawDescription={form.description} onRawChange={(description) => setForm({ ...form, description })} onStructuredChange={setGiftcardStructured} onChange={setGiftcardParts} />
           : <Input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Groceries, rent, coffee..." />}
       </div>
       <div className="min-h-6 sm:col-span-2">
-        {noteOpen ? <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Note<Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label> : <Button type="button" variant="ghost" size="sm" className="h-6 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
+        {noteOpen ? <label className="block space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Note</span><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label> : <Button type="button" variant="ghost" size="sm" className="h-6 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
       </div>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Category<CategoryCombobox value={form.category} onChange={setCategory} options={categories} /></label>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Category</span><CategoryCombobox value={form.category} onChange={setCategory} options={categories} /></label>
       <div className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">
-        <span>Payment method</span>
+        <span className="block">Payment method</span>
         <div className="grid grid-cols-3 gap-1 rounded-full bg-accent/50 p-0.5">
           {paymentTypes.map((item) => <button key={item.type} type="button" aria-label={item.label} className={cn('flex h-9 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-none transition md:h-8 md:px-3 md:text-xs', paymentType === item.type ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => {
             const previousType = paymentType

@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { BarChart3, CreditCard, Gift, Home, List, LogOut, Menu, Moon, Plus, RefreshCw, Settings, Sun, X } from 'lucide-react'
 import { SHEET_ID_KEY } from '../../lib/defaults'
@@ -45,6 +46,7 @@ function BottomNav({ onAdd }: { onAdd: () => void }) {
 }
 
 function PullToRefresh() {
+  const queryClient = useQueryClient()
   const [distance, setDistance] = React.useState(0)
   const [refreshing, setRefreshing] = React.useState(false)
   const startY = React.useRef<number | null>(null)
@@ -77,10 +79,15 @@ function PullToRefresh() {
       if (distanceRef.current >= threshold) {
         refreshingRef.current = true
         setRefreshing(true)
-        distanceRef.current = 72
-        setDistance(72)
-        document.documentElement.style.setProperty('--pull-distance', '72px')
-        window.setTimeout(() => window.location.reload(), 180)
+        distanceRef.current = 0
+        setDistance(0)
+        document.documentElement.style.setProperty('--pull-distance', '0px')
+        void queryClient.refetchQueries({ type: 'active' }).finally(() => {
+          window.setTimeout(() => {
+            refreshingRef.current = false
+            setRefreshing(false)
+          }, 420)
+        })
       } else {
         distanceRef.current = 0
         setDistance(0)
@@ -100,7 +107,7 @@ function PullToRefresh() {
       delete document.documentElement.dataset.pulling
       document.documentElement.style.removeProperty('--pull-distance')
     }
-  }, [])
+  }, [queryClient])
 
   if (!distance && !refreshing) return null
   return <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[60] flex justify-center" style={{ transform: `translateY(${Math.max(0, distance - 48)}px)` }}>
