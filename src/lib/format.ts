@@ -1,4 +1,6 @@
 import { addMonths, endOfMonth, endOfYear, format, isValid, isWithinInterval, parseISO, startOfMonth, startOfYear, subMonths } from 'date-fns'
+import type * as React from 'react'
+import * as Icons from 'lucide-react'
 import type { DatePreset, Expense } from './types'
 
 export const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
@@ -20,6 +22,73 @@ export function categoryColor(name: string) {
   let hash = 0
   for (let index = 0; index < key.length; index += 1) hash = (hash * 31 + key.charCodeAt(index)) >>> 0
   return categorySwatches[hash % categorySwatches.length]
+}
+
+type IconComponent = React.ComponentType<{ className?: string; strokeWidth?: number | string }>
+
+const categoryIconMap: Record<string, IconComponent> = {
+  food: Icons.Utensils,
+  '外食': Icons.UtensilsCrossed,
+  diningout: Icons.UtensilsCrossed,
+  restaurant: Icons.UtensilsCrossed,
+  coffee: Icons.Coffee,
+  groceries: Icons.ShoppingBasket,
+  transportation: Icons.Bus,
+  transit: Icons.Bus,
+  '日用': Icons.ShoppingBasket,
+  shopping: Icons.ShoppingBag,
+  entertainment: Icons.Clapperboard,
+  car: Icons.Car,
+  baby: Icons.Baby,
+  house: Icons.Home,
+  home: Icons.Home,
+  gardening: Icons.Sprout,
+  '電信': Icons.Smartphone,
+  telecom: Icons.Smartphone,
+  phone: Icons.Smartphone,
+  '保險': Icons.ShieldCheck,
+  insurance: Icons.ShieldCheck,
+  '規費': Icons.FileText,
+  fee: Icons.FileText,
+  medical: Icons.Stethoscope,
+  health: Icons.HeartPulse,
+  travel: Icons.Plane,
+  rent: Icons.Building2,
+  furniture: Icons.Sofa,
+  utility: Icons.Zap,
+  utilities: Icons.Zap,
+  electricity: Icons.Zap,
+  water: Icons.Droplets,
+  internet: Icons.Wifi,
+  'card annual fee': Icons.CreditCard,
+  card: Icons.CreditCard,
+  other: Icons.CircleDashed,
+  gift: Icons.Gift,
+  tax: Icons.Landmark,
+  giftcard: Icons.TicketPercent,
+  'free shopping': Icons.Sparkles,
+  '代購': Icons.Package,
+  savings: Icons.PiggyBank,
+  work: Icons.Briefcase,
+  income: Icons.Wallet,
+  subscription: Icons.RefreshCw,
+  fitness: Icons.Dumbbell,
+  beauty: Icons.Sparkles,
+  pet: Icons.PawPrint,
+  education: Icons.GraduationCap,
+  book: Icons.BookOpen,
+  music: Icons.Music,
+  uncategorized: Icons.HelpCircle,
+}
+
+export function categoryIcon(name: string): IconComponent | null {
+  const key = (name || '').trim().toLocaleLowerCase()
+  if (!key) return Icons.HelpCircle
+  if (categoryIconMap[key]) return categoryIconMap[key]
+  for (const [token, icon] of Object.entries(categoryIconMap)) {
+    if (key.includes(token) || token.includes(key)) return icon
+  }
+  return null
 }
 
 function safeParseISO(date: string) {

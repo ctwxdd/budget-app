@@ -9,17 +9,18 @@ const themeColors: Record<ColorTheme, { light: string; dark: string }> = {
   sea: { light: '#f2f8f8', dark: '#13282c' },
   'milk-tea': { light: '#f8f3eb', dark: '#261c17' },
   lavender: { light: '#f8f5fa', dark: '#21182b' },
+  matcha: { light: '#f2f7ec', dark: '#16241b' },
 }
 
 function readColorTheme(): ColorTheme {
   const stored = localStorage.getItem(COLOR_THEME_KEY)
-  return stored && stored in themeColors ? stored as ColorTheme : 'coral'
+  return stored && stored in themeColors ? stored as ColorTheme : 'chamomile'
 }
 
 function updateBrowserColor() {
-  const colorTheme = (document.documentElement.dataset.colorTheme as ColorTheme) || 'coral'
+  const colorTheme = (document.documentElement.dataset.colorTheme as ColorTheme) || 'chamomile'
   const mode = document.documentElement.classList.contains('dark') ? 'dark' : 'light'
-  const color = (themeColors[colorTheme] || themeColors.coral)[mode]
+  const color = (themeColors[colorTheme] || themeColors.chamomile)[mode]
   document.documentElement.style.colorScheme = mode
   document.documentElement.style.backgroundColor = color
   document.body?.style.setProperty('background-color', color)

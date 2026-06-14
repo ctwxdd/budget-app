@@ -13,6 +13,7 @@ const colorThemes: { id: ColorTheme; name: string; description: string; colors: 
   { id: 'sea', name: 'Sea Glass', description: 'Calm teal and ocean blue', colors: ['#168c91', '#55b9bd', '#8bd4e5'] },
   { id: 'milk-tea', name: 'Milk Tea', description: 'Cozy caramel and creamy beige', colors: ['#a96f45', '#d3a477', '#ead5b8'] },
   { id: 'lavender', name: 'Lavender', description: 'Soft violet and berry blossom', colors: ['#8267b8', '#ad8ed8', '#e4b4d2'] },
+  { id: 'matcha', name: 'Matcha', description: 'Fresh leaf green and sage', colors: ['#3c8a4a', '#7ec07a', '#c8e4b8'] },
 ]
 
 export function SettingsPage() {

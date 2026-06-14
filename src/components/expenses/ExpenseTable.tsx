@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { ArrowDownUp, Check, Filter, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
 import type { DatePreset, Expense } from '../../lib/types'
-import { categoryColor, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
+import { categoryColor, categoryIcon, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
 import { cn } from '../../lib/utils'
 import { Badge, Button, Card, Dialog, Input, Select } from '../ui'
 import { useCategories, useDeleteExpense, usePaymentMethods } from '../../hooks/useExpenses'
@@ -93,6 +93,7 @@ function SelectAllCheckbox({ checked, indeterminate, disabled, onChange }: { che
 function ExpenseCard({ expense, onEdit, onRemove, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (expense: Expense) => void; selected: boolean; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onEnterSelectionMode: (expense: Expense) => void }) {
   const [open, setOpen] = React.useState(false)
   const color = categoryColor(expense.category)
+  const Icon = categoryIcon(expense.category)
   const timerRef = React.useRef<number | null>(null)
   const touchStartRef = React.useRef<{ x: number; y: number } | null>(null)
   const longPressFiredRef = React.useRef(false)
@@ -136,7 +137,7 @@ function ExpenseCard({ expense, onEdit, onRemove, selected, selectionMode, onTog
     onTouchCancel={clearLongPress}
   >
     {selected && <span className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-coral text-white shadow-soft"><Check className="h-4 w-4" /></span>}
-    <div className="flex min-w-0 items-start justify-between gap-3 pr-7"><div className="flex min-w-0 flex-1 items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>{(expense.category || '?').slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate font-bold">{expense.description || 'No description'}</p><p className="text-sm text-muted-foreground">{displayDate(expense.date)}</p></div></div><p className="shrink-0 whitespace-nowrap font-display text-lg font-extrabold text-coral">{currency.format(expense.amount)}</p></div>
+    <div className="flex min-w-0 items-start justify-between gap-3 pr-7"><div className="flex min-w-0 flex-1 items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>{Icon ? <Icon className="h-5 w-5" strokeWidth={2.2} /> : (expense.category || '?').slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate font-bold">{expense.description || 'No description'}</p><p className="text-sm text-muted-foreground">{displayDate(expense.date)}</p></div></div><p className="shrink-0 whitespace-nowrap font-display text-lg font-extrabold text-coral">{currency.format(expense.amount)}</p></div>
     <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2"><div className="min-w-0 max-w-[45%]"><ColorBadge value={expense.category || 'Uncategorized'} /></div><div className="min-w-0 max-w-[55%]"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></div>{!selectionMode && <div className="ml-auto"><Button variant="ghost" size="icon" aria-label={open ? 'Close expense actions' : 'Open expense actions'} aria-expanded={open} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value) }}><MoreHorizontal className="h-5 w-5" /></Button></div>}</div>
     {open && <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/70 pt-3" onClick={(event) => event.stopPropagation()}>
       <Button variant="secondary" className="w-full" onClick={() => { setOpen(false); onEdit(expense) }}><Pencil className="h-4 w-4" />Edit</Button>
