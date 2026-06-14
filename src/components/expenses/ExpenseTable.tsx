@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowDownUp, Check, Copy, Filter, MoreHorizontal, Pencil, Search, Trash2, X } from 'lucide-react'
+import { addDays, addMonths, endOfMonth, endOfWeek, format, isBefore, isSameDay, isSameMonth, isValid, parseISO, startOfMonth, startOfWeek } from 'date-fns'
+import { ArrowDownUp, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, Filter, MoreHorizontal, Pencil, Search, Trash2, X } from 'lucide-react'
 import type { DatePreset, Expense } from '../../lib/types'
 import { categoryColor, categoryIcon, categoryName, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
 import { cn } from '../../lib/utils'
@@ -56,12 +57,84 @@ export function applyExpenseFilters(expenses: Expense[], filters: ExpenseFilters
   })
 }
 
+function parseFilterDate(value: string) {
+  const date = value ? parseISO(value) : null
+  return date && isValid(date) ? date : null
+}
+
+function DateRangePicker({ start, end, onChange }: { start: string; end: string; onChange: (start: string, end: string) => void }) {
+  const startDate = parseFilterDate(start)
+  const endDate = parseFilterDate(end)
+  const [open, setOpen] = React.useState(false)
+  const [month, setMonth] = React.useState(() => startDate || new Date())
+  const monthStart = startOfMonth(month)
+  const calendarStart = startOfWeek(monthStart)
+  const calendarEnd = endOfWeek(endOfMonth(monthStart))
+  const days: Date[] = []
+  for (let day = calendarStart; day <= calendarEnd; day = addDays(day, 1)) days.push(day)
+  const label = startDate
+    ? endDate
+      ? `${format(startDate, 'MMM d, yyyy')} – ${format(endDate, 'MMM d, yyyy')}`
+      : `${format(startDate, 'MMM d, yyyy')} – Select end`
+    : 'Select date range'
+
+  const selectDay = (day: Date) => {
+    const iso = format(day, 'yyyy-MM-dd')
+    if (!startDate || endDate) {
+      onChange(iso, '')
+      return
+    }
+    if (isBefore(day, startDate)) {
+      onChange(iso, '')
+      return
+    }
+    onChange(start, iso)
+    setOpen(false)
+  }
+
+  return <div className="relative min-w-0 lg:col-span-2">
+    <Button type="button" variant="outline" className="w-full justify-start overflow-hidden px-4 font-normal" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="truncate">{label}</span>
+    </Button>
+    {open && <div className="mt-2 rounded-3xl border border-border bg-card p-3 shadow-xl">
+      <div className="mb-2 flex items-center justify-between">
+        <Button type="button" variant="ghost" size="icon" className="h-9 w-9" aria-label="Previous month" onClick={() => setMonth((value) => addMonths(value, -1))}><ChevronLeft className="h-4 w-4" /></Button>
+        <p className="font-display text-sm font-bold">{format(monthStart, 'MMMM yyyy')}</p>
+        <Button type="button" variant="ghost" size="icon" className="h-9 w-9" aria-label="Next month" onClick={() => setMonth((value) => addMonths(value, 1))}><ChevronRight className="h-4 w-4" /></Button>
+      </div>
+      <div className="grid grid-cols-7 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day} className="py-1">{day.slice(0, 1)}</span>)}
+      </div>
+      <div className="grid grid-cols-7 gap-y-1">
+        {days.map((day) => {
+          const isStart = Boolean(startDate && isSameDay(day, startDate))
+          const isEnd = Boolean(endDate && isSameDay(day, endDate))
+          const inRange = Boolean(startDate && endDate && !isBefore(day, startDate) && !isBefore(endDate, day))
+          return <button
+            key={format(day, 'yyyy-MM-dd')}
+            type="button"
+            aria-label={format(day, 'MMMM d, yyyy')}
+            aria-pressed={isStart || isEnd}
+            onClick={() => selectDay(day)}
+            className={cn('mx-auto grid h-9 w-9 place-items-center rounded-full text-sm transition', !isSameMonth(day, monthStart) && 'text-muted-foreground/45', inRange && 'bg-primary/15', (isStart || isEnd) && 'bg-primary font-bold text-primary-foreground shadow-soft')}
+          >{format(day, 'd')}</button>
+        })}
+      </div>
+      <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-3">
+        <p className="text-xs text-muted-foreground">{startDate && !endDate ? 'Now choose an end date' : 'Choose a start and end date'}</p>
+        {(start || end) && <Button type="button" variant="ghost" size="sm" onClick={() => onChange('', '')}>Clear</Button>}
+      </div>
+    </div>}
+  </div>
+}
+
 function FilterFields({ filters, onChange, showSearch = true }: { filters: ExpenseFilters; onChange: (filters: ExpenseFilters) => void; showSearch?: boolean }) {
   const categories = useCategories()
   const payments = usePaymentMethods()
   return <div className="grid gap-3 lg:grid-cols-5">
     <Select value={filters.preset} onChange={(event) => onChange({ ...filters, preset: event.target.value as DatePreset })}><option value="thisMonth">This month</option><option value="lastMonth">Last month</option><option value="thisYear">This year</option><option value="all">All</option><option value="custom">Custom</option></Select>
-    {filters.preset === 'custom' ? <div className="grid grid-cols-2 gap-2 lg:col-span-2"><Input type="date" value={filters.start} onChange={(event) => onChange({ ...filters, start: event.target.value })} /><Input type="date" value={filters.end} onChange={(event) => onChange({ ...filters, end: event.target.value })} /></div> : showSearch ? <Input className="lg:col-span-2" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} /> : <div className="hidden lg:col-span-2" />}
+    {filters.preset === 'custom' ? <DateRangePicker start={filters.start} end={filters.end} onChange={(start, end) => onChange({ ...filters, start, end })} /> : showSearch ? <Input className="lg:col-span-2" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} /> : <div className="hidden lg:col-span-2" />}
     {filters.preset === 'custom' && showSearch && <Input className="lg:col-span-2" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} />}
     <div className="lg:col-span-2"><MultiSelect label="Categories" values={filters.categories} options={categories} onChange={(categories) => onChange({ ...filters, categories })} /></div>
     <div className="lg:col-span-2"><MultiSelect label="Payment methods" values={filters.payments} options={payments} onChange={(payments) => onChange({ ...filters, payments })} /></div>
