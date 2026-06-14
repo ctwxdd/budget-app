@@ -12,6 +12,9 @@ const queryClient = new QueryClient()
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 initializeTheme()
 
+// iOS standalone apps can ignore viewport zoom limits for native pinch gestures.
+document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false })
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
