@@ -8,6 +8,7 @@ import { useTheme } from '../../hooks/useTheme'
 import { Button } from '../ui'
 import { ExpenseDialog } from '../expenses/ExpenseDialog'
 import { ErrorBoundary } from '../ErrorBoundary'
+import { LoveNoteIcon } from '../LoveNoteIcon'
 
 const nav = [
   { to: '/', label: 'Home', pageLabel: 'Overview', emoji: '🏠', icon: Home },
@@ -21,10 +22,10 @@ const nav = [
 function Sidebar() {
   const { user } = useAuth()
   return <aside className="flex h-full w-72 flex-col border-r border-border/70 bg-white/85 p-5 backdrop-blur-xl dark:bg-card/85">
-    <Link to="/" className="mb-8 flex items-center gap-3 rounded-3xl px-2 py-1">
-      <img src="/icon-192.png" alt="" className="h-12 w-12 rounded-2xl shadow-lift" />
-      <span><span className="block font-display text-lg font-bold">{user?.name ? `Hi, ${user.name.split(' ')[0]} 👋` : 'Chamomile Pocket'}</span><span className="text-xs text-muted-foreground">A cozy money tracker</span></span>
-    </Link>
+    <div className="mb-8 flex items-center gap-3 rounded-3xl px-2 py-1">
+      <LoveNoteIcon imageClassName="h-12 w-12 rounded-2xl shadow-lift" />
+      <Link to="/"><span className="block font-display text-lg font-bold">{user?.name ? `Hi, ${user.name.split(' ')[0]} 👋` : 'Chamomile Pocket'}</span><span className="text-xs text-muted-foreground">A cozy money tracker</span></Link>
+    </div>
     <nav className="space-y-1.5">{nav.map((item) => <NavLink key={item.to} to={item.to} className={({ isActive }) => `relative flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${isActive ? 'bg-coral/10 text-coral before:absolute before:left-0 before:top-3 before:h-6 before:w-1 before:rounded-full before:bg-coral' : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground'}`}><item.icon className="h-4 w-4" />{item.pageLabel}</NavLink>)}</nav>
     <div className="mt-auto rounded-3xl border border-coral/15 bg-gradient-to-br from-coral/10 to-peach/20 p-4 text-sm text-muted-foreground shadow-soft"><p className="font-semibold text-foreground">💡 Tip</p><p>Tap + to log a new expense.</p></div>
   </aside>
@@ -134,10 +135,10 @@ function MobileMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open
     <button className={`absolute inset-0 bg-foreground/25 backdrop-blur-sm transition-opacity ${open ? 'opacity-100' : 'opacity-0'}`} aria-label="Close navigation menu" onClick={() => onOpenChange(false)} />
     <aside className={`absolute inset-y-0 left-0 flex w-[min(86vw,22rem)] flex-col border-r border-border bg-card px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1.25rem+env(safe-area-inset-top))] shadow-2xl transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="mb-6 flex items-center justify-between">
-        <Link to="/" onClick={() => onOpenChange(false)} className="flex items-center gap-3">
-          <img src="/icon-192.png" alt="" className="h-12 w-12 rounded-2xl shadow-lift" />
-          <span className="min-w-0"><span className="block truncate font-display text-lg font-bold">{firstName ? `Hi, ${firstName} 👋` : 'Welcome 👋'}</span><span className="block truncate text-xs text-muted-foreground">Chamomile Pocket · A cozy money tracker</span></span>
-        </Link>
+        <div className="flex min-w-0 items-center gap-3">
+          <LoveNoteIcon imageClassName="h-12 w-12 rounded-2xl shadow-lift" />
+          <Link to="/" onClick={() => onOpenChange(false)} className="min-w-0"><span className="block truncate font-display text-lg font-bold">{firstName ? `Hi, ${firstName} 👋` : 'Welcome 👋'}</span><span className="block truncate text-xs text-muted-foreground">Chamomile Pocket · A cozy money tracker</span></Link>
+        </div>
         <Button variant="ghost" size="icon" aria-label="Close navigation menu" onClick={() => onOpenChange(false)}><X className="h-5 w-5" /></Button>
       </div>
       <nav className="space-y-1.5">{nav.map((item) => <NavLink key={item.to} to={item.to} onClick={() => onOpenChange(false)} className={({ isActive }) => `flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition ${isActive ? 'bg-coral/10 text-coral' : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground'}`}><item.icon className="h-5 w-5" />{item.pageLabel}</NavLink>)}</nav>
