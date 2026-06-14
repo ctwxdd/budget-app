@@ -16,15 +16,17 @@ export function ExpensesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const drilldownCategory = searchParams.get('category') || ''
   const fromAnalytics = searchParams.get('from') === 'analytics'
+  const fromOverview = searchParams.get('from') === 'overview'
   const initialFilters = React.useMemo<ExpenseFilters>(() => {
-    if (!drilldownCategory) return defaultFilters
     const preset = searchParams.get('preset') as ExpenseFilters['preset'] | null
+    const hasValidPreset = preset && ['thisMonth', 'lastMonth', 'thisYear', 'all', 'custom'].includes(preset)
+    if (!drilldownCategory && !hasValidPreset) return defaultFilters
     return {
       ...defaultFilters,
-      preset: preset && ['thisMonth', 'lastMonth', 'thisYear', 'all', 'custom'].includes(preset) ? preset : 'all',
+      preset: hasValidPreset ? preset : 'all',
       start: searchParams.get('start') || '',
       end: searchParams.get('end') || '',
-      categories: [drilldownCategory],
+      categories: drilldownCategory ? [drilldownCategory] : [],
     }
   }, [drilldownCategory, searchParams])
   const { data = [], isLoading, error, refetch } = useExpenses()
@@ -90,6 +92,11 @@ export function ExpensesPage() {
     setTemplateOpen(true)
   }
   return <div className="space-y-5">
+    {fromOverview && <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-primary/20 bg-primary/[0.07] p-3 shadow-soft">
+      <div className="mr-auto min-w-0 px-1"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Overview shortcut</p><p className="truncate text-sm font-bold">Transactions · this month</p></div>
+      <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/')}><ArrowLeft className="h-4 w-4" />Overview</Button>
+      <Button type="button" variant="outline" size="sm" onClick={clearDrilldown}><X className="h-4 w-4" />Clear filter</Button>
+    </div>}
     {fromAnalytics && drilldownCategory && <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-primary/20 bg-primary/[0.07] p-3 shadow-soft">
       <div className="mr-auto min-w-0 px-1"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Analytics drill-down</p><p className="truncate text-sm font-bold">{drilldownCategory} · {filters.preset === 'custom' ? `${filters.start || 'Start'} – ${filters.end || 'End'}` : filters.preset.replace(/([A-Z])/g, ' $1').toLowerCase()}</p></div>
       <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/analytics')}><ArrowLeft className="h-4 w-4" />Analytics</Button>

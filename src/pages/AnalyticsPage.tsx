@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { ArrowRight } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import type { ExpenseFilters } from '../components/expenses/ExpenseTable'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Sector, Tooltip, XAxis, YAxis } from 'recharts'
 import type { PieSectorShapeProps } from 'recharts'
@@ -16,9 +16,14 @@ const validYear = (year: number, fallback: number) => (Number.isFinite(year) && 
 
 export function AnalyticsPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { data = [], isLoading, error, refetch } = useExpenses()
-  const [filters, setFilters] = React.useState<ExpenseFilters>({ ...defaultFilters, preset: 'thisYear' })
-  const [tab, setTab] = React.useState('category')
+  const requestedPreset = searchParams.get('preset') as ExpenseFilters['preset'] | null
+  const initialPreset = requestedPreset && ['thisMonth', 'lastMonth', 'thisYear', 'all', 'custom'].includes(requestedPreset) ? requestedPreset : 'thisYear'
+  const requestedTab = searchParams.get('tab')
+  const initialTab = requestedTab && ['category', 'payment', 'trend', 'year'].includes(requestedTab) ? requestedTab : 'category'
+  const [filters, setFilters] = React.useState<ExpenseFilters>({ ...defaultFilters, preset: initialPreset })
+  const [tab, setTab] = React.useState(initialTab)
   const currentYear = new Date().getFullYear()
   const years = React.useMemo(() => Array.from(new Set(data.map((expense) => Number(expense.date.slice(0, 4))).filter((year) => Number.isFinite(year) && year > 0))).sort((a, b) => b - a), [data])
   const [yearA, setYearA] = React.useState(currentYear)
