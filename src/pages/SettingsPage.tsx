@@ -9,7 +9,7 @@ import type { ColorTheme, Theme } from '../lib/types'
 
 const colorThemes: { id: ColorTheme; name: string; description: string; colors: string[] }[] = [
   { id: 'coral', name: 'Coral', description: 'The original warm and cheerful look', colors: ['#f15b52', '#ff9a73', '#f7b4a7'] },
-  { id: 'chamomile', name: 'Chamomile', description: 'Creamy petals, honey, and soft orange', colors: ['#e5a91a', '#f4c84b', '#f3a45d'] },
+  { id: 'chamomile', name: 'Chamomile', description: 'Creamy petals, butter, and soft apricot', colors: ['#f2bb82', '#f6d77a', '#f7c9a5'] },
   { id: 'sea', name: 'Sea Glass', description: 'Calm teal and ocean blue', colors: ['#168c91', '#55b9bd', '#8bd4e5'] },
   { id: 'milk-tea', name: 'Milk Tea', description: 'Cozy caramel and creamy beige', colors: ['#a96f45', '#d3a477', '#ead5b8'] },
   { id: 'lavender', name: 'Lavender', description: 'Soft violet and berry blossom', colors: ['#8267b8', '#ad8ed8', '#e4b4d2'] },
