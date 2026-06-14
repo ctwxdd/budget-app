@@ -151,7 +151,7 @@ function RankedList({ rows, selectedIndex, onSelect, onOpenExpenses }: { rows: {
           <div className="overflow-hidden">
             <div className="border-t border-primary/15 px-4 py-3 sm:px-5">
               <Button type="button" variant="secondary" size="sm" className="w-full" tabIndex={selected ? 0 : -1} onClick={() => onOpenExpenses(row.name)}>
-                View filtered expenses
+                View expenses
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
