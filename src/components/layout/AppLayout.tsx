@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, CreditCard, Gift, Home, List, LogOut, Menu, Moon, Plus, Settings, Sun, X } from 'lucide-react'
+import { BarChart3, CreditCard, ExternalLink, Gift, Home, List, LogOut, Menu, Moon, Plus, Settings, Sun, X } from 'lucide-react'
 import { SHEET_ID_KEY } from '../../lib/defaults'
 import { useAuth } from '../../lib/auth'
 import { useTheme } from '../../hooks/useTheme'
@@ -9,6 +9,7 @@ import { Button } from '../ui'
 import { ExpenseDialog } from '../expenses/ExpenseDialog'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { LoveNoteIcon } from '../LoveNoteIcon'
+import { useSheetId } from '../../hooks/useExpenses'
 
 const nav = [
   { to: '/', label: 'Home', pageLabel: 'Overview', emoji: '🏠', icon: Home },
@@ -324,6 +325,8 @@ function MobileMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open
 function AccountMenu({ onLogout }: { onLogout: () => void }) {
   const [open, setOpen] = React.useState(false)
   const { user } = useAuth()
+  const sheetId = useSheetId()
+  const sheetUrl = sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit` : ''
   const firstName = user?.name?.trim().split(/\s+/)[0]
   const displayName = firstName || user?.email || 'Account'
   const initial = displayName.slice(0, 1).toUpperCase()
@@ -339,6 +342,7 @@ function AccountMenu({ onLogout }: { onLogout: () => void }) {
     <button title={user?.email} aria-label="Open account menu" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="grid h-10 w-10 place-items-center rounded-full bg-coral text-sm font-bold text-foreground ring-1 ring-coral/20 shadow-lift dark:text-white">{initial}</button>
     {open && <div className="absolute right-0 z-40 mt-2 w-64 overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-2xl">
       <div className="border-b border-border px-3 py-2.5"><p className="truncate text-sm font-bold">{displayName}</p>{user?.email && user.email !== displayName && <p className="truncate text-xs text-muted-foreground">{user.email}</p>}</div>
+      {sheetUrl && <a href={sheetUrl} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold hover:bg-accent"><ExternalLink className="h-4 w-4" />Open in Google Sheets</a>}
       <Link to="/settings" onClick={() => setOpen(false)} className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold hover:bg-accent"><Settings className="h-4 w-4" />Settings</Link>
       <button onClick={onLogout} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-destructive hover:bg-destructive/10"><LogOut className="h-4 w-4" />Sign out</button>
     </div>}
