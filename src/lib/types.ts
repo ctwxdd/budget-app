@@ -14,4 +14,4 @@ export type SheetMeta = {
 
 export type DatePreset = 'thisMonth' | 'lastMonth' | 'thisYear' | 'all' | 'custom'
 export type Theme = 'light' | 'dark' | 'system'
-export type ColorTheme = 'chamomile' | 'sea' | 'milk-tea' | 'lavender'
+export type ColorTheme = 'coral' | 'chamomile' | 'sea' | 'milk-tea' | 'lavender'

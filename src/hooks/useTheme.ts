@@ -4,7 +4,8 @@ import type { ColorTheme, Theme } from '../lib/types'
 
 const THEME_CHANGE_EVENT = 'budget-theme-change'
 const themeColors: Record<ColorTheme, { light: string; dark: string }> = {
-  chamomile: { light: '#faf6f4', dark: '#241a2f' },
+  coral: { light: '#faf6f4', dark: '#241a2f' },
+  chamomile: { light: '#fffaf0', dark: '#292116' },
   sea: { light: '#f2f8f8', dark: '#13282c' },
   'milk-tea': { light: '#f8f3eb', dark: '#261c17' },
   lavender: { light: '#f8f5fa', dark: '#21182b' },
@@ -12,13 +13,13 @@ const themeColors: Record<ColorTheme, { light: string; dark: string }> = {
 
 function readColorTheme(): ColorTheme {
   const stored = localStorage.getItem(COLOR_THEME_KEY)
-  return stored && stored in themeColors ? stored as ColorTheme : 'chamomile'
+  return stored && stored in themeColors ? stored as ColorTheme : 'coral'
 }
 
 function updateBrowserColor() {
-  const colorTheme = (document.documentElement.dataset.colorTheme as ColorTheme) || 'chamomile'
+  const colorTheme = (document.documentElement.dataset.colorTheme as ColorTheme) || 'coral'
   const mode = document.documentElement.classList.contains('dark') ? 'dark' : 'light'
-  const color = (themeColors[colorTheme] || themeColors.chamomile)[mode]
+  const color = (themeColors[colorTheme] || themeColors.coral)[mode]
   document.documentElement.style.colorScheme = mode
   document.documentElement.style.backgroundColor = color
   document.body?.style.setProperty('background-color', color)

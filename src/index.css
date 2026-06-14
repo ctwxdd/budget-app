@@ -40,6 +40,31 @@
     --rose: 330 81% 71%;
     --sage: 140 29% 67%;
   }
+  :root[data-color-theme='chamomile'] {
+    --background: 43 100% 97%;
+    --foreground: 30 27% 19%;
+    --card: 45 100% 99%;
+    --card-foreground: 30 27% 19%;
+    --primary: 40 81% 50%;
+    --primary-foreground: 31 36% 15%;
+    --secondary: 44 100% 91%;
+    --secondary-foreground: 30 27% 19%;
+    --muted: 42 46% 92%;
+    --muted-foreground: 31 13% 43%;
+    --accent: 37 100% 90%;
+    --accent-foreground: 31 68% 34%;
+    --border: 40 42% 83%;
+    --input: 40 42% 83%;
+    --ring: 40 81% 50%;
+    --coral: 32 82% 61%;
+    --peach: 37 88% 67%;
+    --mint: 120 36% 53%;
+    --butter: 47 92% 60%;
+    --sky: 195 55% 72%;
+    --lavender: 266 47% 76%;
+    --rose: 338 55% 72%;
+    --sage: 105 27% 62%;
+  }
   :root[data-color-theme='sea'] {
     --background: 186 32% 96%;
     --foreground: 194 34% 18%;
@@ -133,6 +158,25 @@
     --border: 258 18% 26%;
     --input: 258 18% 26%;
     --ring: 354 78% 56%;
+  }
+  .dark[data-color-theme='chamomile'] {
+    --background: 35 31% 12%;
+    --foreground: 43 52% 94%;
+    --card: 34 28% 16%;
+    --card-foreground: 43 52% 94%;
+    --primary: 42 77% 61%;
+    --primary-foreground: 32 38% 13%;
+    --secondary: 35 25% 22%;
+    --secondary-foreground: 43 52% 94%;
+    --muted: 35 21% 22%;
+    --muted-foreground: 41 20% 72%;
+    --accent: 34 34% 26%;
+    --accent-foreground: 43 78% 80%;
+    --border: 35 20% 28%;
+    --input: 35 20% 28%;
+    --ring: 42 77% 61%;
+    --coral: 32 72% 62%;
+    --peach: 37 72% 66%;
   }
   .dark[data-color-theme='sea'] {
     --background: 194 33% 11%;
