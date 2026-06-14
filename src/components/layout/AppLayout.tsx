@@ -30,11 +30,11 @@ function Sidebar() {
 }
 
 function BottomNav({ onAdd }: { onAdd: () => void }) {
-  const mobileNav = nav.filter((item) => ['/', '/expenses', '/giftcards'].includes(item.to))
-  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex h-full min-h-[44px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-bold transition ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5" /><span className="leading-none">{item.label}</span></NavLink>
+  const mobileNav = nav.filter((item) => ['/', '/expenses', '/analytics', '/giftcards'].includes(item.to))
+  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 pb-1 pt-2 text-[10px] font-bold transition sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="max-w-full truncate leading-none">{item.label}</span></NavLink>
   return <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden">
-    <div className="relative mx-auto h-[68px] w-full border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl">
-      <div className="grid h-full grid-cols-4 items-stretch px-2">
+    <div className="relative mx-auto h-[calc(68px+env(safe-area-inset-bottom))] w-full border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl">
+      <div className="grid h-[68px] grid-cols-5 items-stretch px-1">
         {mobileNav.slice(0, 2).map(renderItem)}
         <div className="h-full" aria-hidden />
         {mobileNav.slice(2).map(renderItem)}
@@ -56,7 +56,7 @@ function MobileMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open
 
   return <div className={`fixed inset-0 z-50 transition md:hidden ${open ? 'pointer-events-auto' : 'pointer-events-none'}`} aria-hidden={!open}>
     <button className={`absolute inset-0 bg-foreground/25 backdrop-blur-sm transition-opacity ${open ? 'opacity-100' : 'opacity-0'}`} aria-label="Close navigation menu" onClick={() => onOpenChange(false)} />
-    <aside className={`absolute inset-y-0 left-0 flex w-[min(86vw,22rem)] flex-col border-r border-border bg-card p-5 shadow-2xl transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+    <aside className={`absolute inset-y-0 left-0 flex w-[min(86vw,22rem)] flex-col border-r border-border bg-card px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1.25rem+env(safe-area-inset-top))] shadow-2xl transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="mb-6 flex items-center justify-between">
         <Link to="/" onClick={() => onOpenChange(false)} className="flex items-center gap-3">
           <img src="/icon-192.png" alt="" className="h-12 w-12 rounded-2xl shadow-lift" />
@@ -102,14 +102,14 @@ export function AppLayout() {
   const page = nav.find((item) => item.to === location.pathname) ?? nav[0]
   const cycleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
   const logout = () => { signOut(); localStorage.removeItem(SHEET_ID_KEY); navigate('/login') }
-  return <div className="min-h-screen bg-background text-foreground [overflow-x:hidden] [overflow-x:clip]">
+  return <div className="min-h-[100dvh] bg-background text-foreground [overflow-x:hidden] [overflow-x:clip]">
     <div className="fixed inset-y-0 left-0 hidden md:block"><Sidebar /></div>
     <div className="md:pl-72">
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between relative border-b border-border/70 bg-background/85 px-3 backdrop-blur-xl md:h-20 md:px-8">
+      <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between relative border-b border-border/70 bg-background/85 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:h-20 md:px-8 md:pt-0">
         <div className="flex min-w-0 items-center gap-2 md:gap-3"><Button variant="ghost" size="icon" className="md:hidden" aria-label="Open navigation menu" onClick={() => setMobileMenuOpen(true)}><Menu className="h-5 w-5" /></Button><div className="hidden min-w-0 md:block"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">{page.emoji} {page.pageLabel}</p><h1 className="truncate font-display text-2xl font-extrabold">{page.pageLabel}</h1></div></div><h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 font-display text-lg font-extrabold md:hidden">{page.pageLabel}</h1>
         <div className="flex items-center gap-1.5 md:gap-2"><Button size="sm" className="hidden md:inline-flex" onClick={() => setExpenseOpen(true)}><Plus className="h-4 w-4" />Add expense</Button><Button variant="ghost" size="icon" onClick={cycleTheme} aria-label="Toggle theme">{theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}</Button><AccountMenu onLogout={logout} /></div>
       </header>
-      <main className="relative p-4 pb-28 md:p-8"><div className="soft-blob right-10 top-10 hidden h-56 w-56 bg-coral/20 md:block" /><ErrorBoundary resetKey={location.pathname}><Outlet context={{ openExpenseDialog: () => setExpenseOpen(true) }} /></ErrorBoundary></main>
+      <main className="relative p-4 pb-[calc(8rem+env(safe-area-inset-bottom))] md:p-8"><div className="soft-blob right-10 top-10 hidden h-56 w-56 bg-coral/20 md:block" /><ErrorBoundary resetKey={location.pathname}><Outlet context={{ openExpenseDialog: () => setExpenseOpen(true) }} /></ErrorBoundary></main>
     </div>
     <MobileMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} />
     <BottomNav onAdd={() => setExpenseOpen(true)} />
