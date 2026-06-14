@@ -9,6 +9,7 @@ type DialogProps = {
   title: string
   description?: string
   children: React.ReactNode
+  footer?: React.ReactNode
   className?: string
   mobileBottomSheet?: boolean
 }
@@ -16,7 +17,7 @@ type DialogProps = {
 const SWIPE_CLOSE_RATIO = 0.25
 const SWIPE_CLOSE_VELOCITY = 0.55
 
-export function Dialog({ open, onOpenChange, title, description, children, className, mobileBottomSheet }: DialogProps) {
+export function Dialog({ open, onOpenChange, title, description, children, footer, className, mobileBottomSheet }: DialogProps) {
   const sheetRef = React.useRef<HTMLDivElement>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const dragStart = React.useRef<{ y: number; t: number } | null>(null)
@@ -42,6 +43,14 @@ export function Dialog({ open, onOpenChange, title, description, children, class
     dragStart.current = { y: clientY, t: Date.now() }
     setIsDragging(true)
     try { target.setPointerCapture(pointerId) } catch { /* noop */ }
+  }
+
+  const isInteractive = (target: EventTarget | null) => target instanceof Element && Boolean(target.closest('button, input, select, textarea, a, [role="combobox"], [role="option"]'))
+
+  const startSheetDrag = (event: React.PointerEvent<HTMLElement>, allowFromScroll = false) => {
+    if (isInteractive(event.target)) return
+    if (allowFromScroll && (scrollRef.current?.scrollTop ?? 0) > 0) return
+    startDrag(event.clientY, event.pointerId, event.currentTarget)
   }
 
   const onPointerMove = (event: React.PointerEvent) => {
@@ -95,7 +104,13 @@ export function Dialog({ open, onOpenChange, title, description, children, class
       >
         <span className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
       </div>}
-      <div className={cn('flex shrink-0 items-start justify-between gap-4 px-5 md:px-7', mobileBottomSheet ? 'pt-1 md:pt-7' : 'pt-6 md:pt-7')}>
+      <div
+        className={cn('flex shrink-0 touch-pan-y items-start justify-between gap-4 px-5 md:px-7', mobileBottomSheet ? 'pt-1 md:pt-7' : 'pt-6 md:pt-7')}
+        onPointerDown={(event) => startSheetDrag(event)}
+        onPointerMove={onPointerMove}
+        onPointerUp={(event) => endDrag(event.clientY)}
+        onPointerCancel={(event) => endDrag(event.clientY)}
+      >
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-2xl font-bold leading-tight">{title}</h2>
           {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
@@ -108,9 +123,14 @@ export function Dialog({ open, onOpenChange, title, description, children, class
           'flex-1 overflow-y-auto overscroll-contain px-5 pt-4 md:px-7 md:pt-6',
           mobileBottomSheet ? 'pb-[calc(env(safe-area-inset-bottom)+1.5rem)] md:pb-8' : 'pb-6 md:pb-8',
         )}
+        onPointerDown={(event) => startSheetDrag(event, true)}
+        onPointerMove={onPointerMove}
+        onPointerUp={(event) => endDrag(event.clientY)}
+        onPointerCancel={(event) => endDrag(event.clientY)}
       >
         {children}
       </div>
+      {footer && <div className="shrink-0 border-t border-border/70 bg-card/95 px-5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-14px_28px_-24px_rgba(31,41,55,0.45)] backdrop-blur-xl md:px-7 md:pb-5 md:pt-4">{footer}</div>}
     </div>
   </div>
 }

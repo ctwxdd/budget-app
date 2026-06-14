@@ -114,8 +114,16 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
   }
 
   const giftcardPurchase = form.category === 'Giftcard'
-  return <Dialog open={open} onOpenChange={onOpenChange} title={expense ? 'Edit expense' : 'Add expense'} description="Saved directly to your Google Sheet" mobileBottomSheet>
-    <form onSubmit={submit} className="grid min-w-0 gap-4 pb-2 sm:grid-cols-2 sm:gap-5">
+  const formId = React.useId()
+  return <Dialog
+    open={open}
+    onOpenChange={onOpenChange}
+    title={expense ? 'Edit expense' : 'Add expense'}
+    description="Saved directly to your Google Sheet"
+    mobileBottomSheet
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>}
+  >
+    <form id={formId} onSubmit={submit} className="grid min-w-0 gap-4 pb-2 sm:grid-cols-2 sm:gap-5">
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Date<Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Amount<Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} /></label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
@@ -152,7 +160,6 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
             : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={managedCards.cards.filter((card) => card.active && card.name)} fallback={filteredPaymentMethods} />}
         </div>}
       </div>
-      <div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] mt-2 flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 px-5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-14px_28px_-24px_rgba(31,41,55,0.45)] backdrop-blur-xl sm:col-span-2 sm:-mx-7 sm:-mb-8 sm:flex-row sm:justify-end sm:px-7 sm:pb-4 sm:pt-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>
     </form>
   </Dialog>
 }
