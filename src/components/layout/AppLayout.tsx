@@ -5,7 +5,6 @@ import { BarChart3, CreditCard, Gift, Home, List, LogOut, Menu, Moon, Plus, Sett
 import { SHEET_ID_KEY } from '../../lib/defaults'
 import { useAuth } from '../../lib/auth'
 import { useTheme } from '../../hooks/useTheme'
-import { haptic } from '../../lib/haptics'
 import { Button } from '../ui'
 import { ExpenseDialog } from '../expenses/ExpenseDialog'
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -34,7 +33,7 @@ function Sidebar() {
 
 function BottomNav({ onAdd }: { onAdd: () => void }) {
   const mobileNav = nav.filter((item) => ['/', '/expenses', '/analytics', '/giftcards'].includes(item.to))
-  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} onClick={() => haptic('selection')} className={({ isActive }) => `flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 pb-1 pt-2 text-[10px] font-bold transition sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="max-w-full truncate leading-none">{item.label}</span></NavLink>
+  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 pb-1 pt-2 text-[10px] font-bold transition sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="max-w-full truncate leading-none">{item.label}</span></NavLink>
   return <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden">
     <div className="relative mx-auto h-[calc(68px+env(safe-area-inset-bottom))] w-full border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl">
       <div className="mobile-bottom-items grid h-[68px] grid-cols-5 items-stretch px-1">
@@ -84,7 +83,6 @@ function PullToRefresh() {
   const distanceRef = React.useRef(0)
   const startY = React.useRef<number | null>(null)
   const activeRef = React.useRef(false)
-  const armedRef = React.useRef(false)
   const finishTimerRef = React.useRef<number | null>(null)
   const safetyTimerRef = React.useRef<number | null>(null)
   const returnRafRef = React.useRef<number | null>(null)
@@ -177,16 +175,14 @@ function PullToRefresh() {
       if (document.body.style.overflow === 'hidden') return
       startY.current = event.touches[0].clientY
       activeRef.current = false
-      armedRef.current = false
     }
     const onTouchMove = (event: TouchEvent) => {
       if (startY.current === null || phaseRef.current === 'refreshing') return
-      if (window.scrollY > 0) { startY.current = null; activeRef.current = false; armedRef.current = false; setPullingAttr(false); return }
+      if (window.scrollY > 0) { startY.current = null; activeRef.current = false; setPullingAttr(false); return }
       const delta = event.touches[0].clientY - startY.current
       if (delta <= activationSlop) {
         if (activeRef.current) {
           activeRef.current = false
-          armedRef.current = false
           setPullingAttr(false)
           commitPhase('idle')
           setPull(0)
@@ -206,23 +202,15 @@ function PullToRefresh() {
       event.preventDefault()
       const eased = Math.min(maxDistance, (delta - activationSlop) * 0.5)
       setPull(eased)
-      if (!armedRef.current && eased >= threshold) {
-        armedRef.current = true
-        haptic('selection')
-      } else if (armedRef.current && eased < threshold) {
-        armedRef.current = false
-      }
     }
     const onTouchEnd = () => {
       const wasActive = activeRef.current
       const currentDistance = distanceRef.current
       startY.current = null
       activeRef.current = false
-      armedRef.current = false
       setPullingAttr(false)
       if (!wasActive) return
       if (currentDistance >= threshold) {
-        haptic('medium')
         commitPhase('refreshing')
         setPull(holdDistance)
         armSafetyTimer(10_000)

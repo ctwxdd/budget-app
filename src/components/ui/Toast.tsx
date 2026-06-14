@@ -1,7 +1,6 @@
 import * as React from 'react'
 import { X } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { haptic } from '../../lib/haptics'
 
 type ToastAction = { label: string; onClick: () => void }
 type Toast = { id: number; title: string; description?: string; variant?: 'default' | 'destructive'; action?: ToastAction; duration?: number }
@@ -14,7 +13,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const toast = React.useCallback((next: Omit<Toast, 'id'>) => {
     const id = Date.now() + Math.random()
     setToasts((items) => [...items, { id, ...next }])
-    haptic(next.variant === 'destructive' ? 'warning' : 'success')
     const duration = next.duration ?? 4000
     if (duration > 0) window.setTimeout(() => dismiss(id), duration)
   }, [dismiss])
