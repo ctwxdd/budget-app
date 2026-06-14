@@ -238,11 +238,11 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   >
     <form id={formId} onSubmit={submit} className="grid min-w-0 gap-x-5 gap-y-4 pb-2 sm:grid-cols-2 sm:gap-y-5">
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Amount</span><Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} /></label>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">{giftcardPurchase ? 'Cost paid' : 'Amount'}</span><Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} /></label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="block">Description</span>
         {giftcardPurchase
-          ? <GiftcardComposer parts={giftcardParts} structured={giftcardStructured} vendors={vendors} rawDescription={form.description} onRawChange={(description) => setForm({ ...form, description })} onStructuredChange={setGiftcardStructured} onChange={setGiftcardParts} />
+          ? <GiftcardComposer parts={giftcardParts} structured={giftcardStructured} vendors={vendors} rawDescription={form.description} paidAmount={Number(form.amount) || 0} onRawChange={(description) => setForm({ ...form, description })} onStructuredChange={setGiftcardStructured} onChange={setGiftcardParts} />
           : <DescriptionAutosuggest value={form.description} onChange={(description) => setForm({ ...form, description })} suggestions={descriptionSuggestions} currentCategory={form.category} placeholder="Groceries, rent, coffee..." />}
       </div>
       <div className="min-h-6 sm:col-span-2">
@@ -305,12 +305,17 @@ function CategoryCombobox({ value, onChange, options, placeholder = 'Choose or t
   </div>
 }
 
-function GiftcardComposer({ parts, structured, vendors, rawDescription, onChange, onRawChange, onStructuredChange }: { parts: GiftcardDescriptionParts; structured: boolean; vendors: string[]; rawDescription: string; onChange: (parts: GiftcardDescriptionParts) => void; onRawChange: (description: string) => void; onStructuredChange: (structured: boolean) => void }) {
+function GiftcardComposer({ parts, structured, vendors, rawDescription, paidAmount, onChange, onRawChange, onStructuredChange }: { parts: GiftcardDescriptionParts; structured: boolean; vendors: string[]; rawDescription: string; paidAmount: number; onChange: (parts: GiftcardDescriptionParts) => void; onRawChange: (description: string) => void; onStructuredChange: (structured: boolean) => void }) {
   if (!structured) return <div className="space-y-2"><Input value={rawDescription} onChange={(event) => onRawChange(event.target.value)} placeholder="Giftcard description" /><Button type="button" variant="outline" size="sm" onClick={() => { onChange(parseGiftcardDescription(rawDescription) || emptyGiftcardParts()); onStructuredChange(true) }}>Switch to structured</Button></div>
-  return <div className="grid gap-3 sm:grid-cols-3">
-    <div className="sm:col-span-3"><DatalistInput id="giftcard-vendors" value={parts.vendor} onChange={(vendor) => onChange({ ...parts, vendor })} options={vendors} placeholder="Vendor, e.g. H&M GC" /></div>
-    <Input type="number" min="0" step="0.01" value={parts.face} onChange={(event) => onChange({ ...parts, face: event.target.value })} placeholder="Face amount (same as paid)" />
-    <Input className="sm:col-span-2" value={parts.source} onChange={(event) => onChange({ ...parts, source: event.target.value })} placeholder="Source, e.g. Office Depot" />
+  const faceNumber = Number(parts.face)
+  const savings = Number.isFinite(faceNumber) && faceNumber > 0 && paidAmount > 0 ? faceNumber - paidAmount : 0
+  return <div className="space-y-2">
+    <div className="grid gap-3 sm:grid-cols-3">
+      <label className="block space-y-1 sm:col-span-3"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vendor</span><DatalistInput id="giftcard-vendors" value={parts.vendor} onChange={(vendor) => onChange({ ...parts, vendor })} options={vendors} placeholder="e.g. H&M GC" /></label>
+      <label className="block space-y-1"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Face value <span className="font-normal normal-case text-muted-foreground/70">· optional</span></span><Input inputMode="decimal" type="number" min="0" step="0.01" value={parts.face} onChange={(event) => onChange({ ...parts, face: event.target.value })} placeholder="e.g. 50" /></label>
+      <label className="block space-y-1 sm:col-span-2"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Source <span className="font-normal normal-case text-muted-foreground/70">· optional</span></span><Input value={parts.source} onChange={(event) => onChange({ ...parts, source: event.target.value })} placeholder="e.g. Office Depot" /></label>
+    </div>
+    {savings > 0.005 && <p className="px-1 text-xs font-semibold text-emerald-600 dark:text-mint">You'll bank {currency.format(savings)} ({((savings / faceNumber) * 100).toFixed(0)}% off face).</p>}
   </div>
 }
 
