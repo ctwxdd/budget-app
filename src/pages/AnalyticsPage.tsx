@@ -54,17 +54,19 @@ function RankedList({ rows }: { rows: { name: string; total: number }[] }) {
       const color = categoryColor(row.name)
       const pct = total ? (row.total / total) * 100 : 0
       const barPct = (row.total / max) * 100
-      return <li key={row.name} className="relative px-3 py-2.5 sm:px-4">
-        <span aria-hidden className="absolute inset-y-0 left-0 -z-0 rounded-r-full opacity-20" style={{ width: `${barPct}%`, backgroundColor: color.hex }} />
-        <div className="relative flex min-w-0 items-center gap-3">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold" style={{ backgroundColor: color.bg, color: color.text }}>
-            {Icon ? <Icon className="h-4 w-4" strokeWidth={2.2} /> : (row.name || '?').slice(0, 1).toUpperCase()}
+      return <li key={row.name} className="px-4 py-4 sm:px-5 sm:py-5">
+        <div className="flex min-w-0 items-center gap-4">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>
+            {Icon ? <Icon className="h-5 w-5" strokeWidth={2.2} /> : (row.name || '?').slice(0, 1).toUpperCase()}
           </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold" title={row.name}>{row.name}</p>
-            <p className="text-xs text-muted-foreground">{pct.toFixed(1)}%</p>
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base" title={row.name}>{row.name}</p>
+          <p className="shrink-0 font-display text-base font-bold tabular-nums text-coral sm:text-lg">{currency.format(row.total)}</p>
+        </div>
+        <div className="ml-14 mt-2.5 flex items-center gap-3">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted/50">
+            <div className="h-full rounded-full" style={{ width: `${barPct}%`, backgroundColor: color.hex }} />
           </div>
-          <p className="shrink-0 font-display text-sm font-bold tabular-nums text-coral sm:text-base">{currency.format(row.total)}</p>
+          <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">{pct.toFixed(1)}%</span>
         </div>
       </li>
     })}
