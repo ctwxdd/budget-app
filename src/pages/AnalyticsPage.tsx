@@ -4,6 +4,7 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieCh
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Select, Tabs } from '../components/ui'
 import { ExpenseFilterBar, applyExpenseFilters, defaultFilters } from '../components/expenses/ExpenseTable'
 import { SkeletonCards } from '../components/layout/Skeletons'
+import { QueryError } from '../components/layout/QueryError'
 import { useExpenses } from '../hooks/useExpenses'
 import { chartPalette, currency, groupTotals, monthlyTotals, monthsForYear, sumExpenses } from '../lib/format'
 
@@ -11,7 +12,7 @@ const moneyTick = (value: number) => `$${Math.round(value).toLocaleString()}`
 const validYear = (year: number, fallback: number) => (Number.isFinite(year) && year > 0 ? year : fallback)
 
 export function AnalyticsPage() {
-  const { data = [], isLoading } = useExpenses()
+  const { data = [], isLoading, error, refetch } = useExpenses()
   const [filters, setFilters] = React.useState<ExpenseFilters>({ ...defaultFilters, preset: 'thisYear' })
   const [tab, setTab] = React.useState('category')
   const currentYear = new Date().getFullYear()
@@ -22,6 +23,7 @@ export function AnalyticsPage() {
   const safeYearB = validYear(yearB, currentYear - 1)
   const filtered = React.useMemo(() => applyExpenseFilters(data, filters), [data, filters])
   if (isLoading) return <SkeletonCards />
+  if (error) return <QueryError error={error} onRetry={() => { void refetch() }} />
   const category = groupTotals(filtered, 'category')
   const payment = groupTotals(filtered, 'paymentMethod')
   const trend = monthlyTotals(filtered)
@@ -44,5 +46,5 @@ function EmptyChart() {
 
 function RankedList({ rows }: { rows: { name: string; total: number }[] }) {
   const total = sumExpenses(rows.map((row, index) => ({ rowIndex: index, date: '', amount: row.total, description: '', category: '', paymentMethod: '', reimbursement: '' })))
-  return <div className="space-y-3">{rows.map((row, index) => <div key={row.name} className="flex items-center justify-between gap-3 rounded-3xl border bg-white/70 p-4 dark:bg-card/70"><div><p className="font-semibold">{index + 1}. {row.name}</p><p className="text-sm text-muted-foreground">{total ? ((row.total / total) * 100).toFixed(1) : 0}%</p></div><p className="font-display font-bold text-coral">{currency.format(row.total)}</p></div>)}{rows.length === 0 && <EmptyChart />}</div>
+  return <div className="space-y-3">{rows.map((row, index) => <div key={row.name} className="flex min-w-0 items-center justify-between gap-3 rounded-3xl border bg-white/70 p-4 dark:bg-card/70"><div className="min-w-0"><p className="truncate font-semibold" title={row.name}>{index + 1}. {row.name}</p><p className="text-sm text-muted-foreground">{total ? ((row.total / total) * 100).toFixed(1) : 0}%</p></div><p className="shrink-0 font-display text-sm font-bold text-coral sm:text-base">{currency.format(row.total)}</p></div>)}{rows.length === 0 && <EmptyChart />}</div>
 }

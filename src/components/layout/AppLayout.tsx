@@ -59,6 +59,7 @@ function PullToRefresh() {
     const onTouchStart = (event: TouchEvent) => {
       if (refreshingRef.current || event.touches.length !== 1 || window.scrollY > 0 || document.body.style.overflow === 'hidden') return
       startY.current = event.touches[0].clientY
+      document.documentElement.dataset.pulling = 'true'
     }
     const onTouchMove = (event: TouchEvent) => {
       if (startY.current === null || window.scrollY > 0) return
@@ -67,19 +68,23 @@ function PullToRefresh() {
       event.preventDefault()
       distanceRef.current = Math.min(82, delta * 0.45)
       setDistance(distanceRef.current)
+      document.documentElement.style.setProperty('--pull-distance', `${distanceRef.current}px`)
     }
     const onTouchEnd = () => {
       if (startY.current === null) return
       startY.current = null
+      delete document.documentElement.dataset.pulling
       if (distanceRef.current >= threshold) {
         refreshingRef.current = true
         setRefreshing(true)
         distanceRef.current = 72
         setDistance(72)
+        document.documentElement.style.setProperty('--pull-distance', '72px')
         window.setTimeout(() => window.location.reload(), 180)
       } else {
         distanceRef.current = 0
         setDistance(0)
+        document.documentElement.style.setProperty('--pull-distance', '0px')
       }
     }
 
@@ -92,6 +97,8 @@ function PullToRefresh() {
       window.removeEventListener('touchmove', onTouchMove)
       window.removeEventListener('touchend', onTouchEnd)
       window.removeEventListener('touchcancel', onTouchEnd)
+      delete document.documentElement.dataset.pulling
+      document.documentElement.style.removeProperty('--pull-distance')
     }
   }, [])
 
@@ -164,13 +171,15 @@ export function AppLayout() {
   const logout = () => { signOut(); localStorage.removeItem(SHEET_ID_KEY); navigate('/login') }
   return <div className="min-h-[100dvh] bg-background text-foreground [overflow-x:hidden] [overflow-x:clip]">
     <PullToRefresh />
-    <div className="fixed inset-y-0 left-0 hidden md:block"><Sidebar /></div>
-    <div className="md:pl-72">
-      <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between relative border-b border-border/70 bg-background/85 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:h-20 md:px-8 md:pt-0">
-        <div className="flex min-w-0 items-center gap-2 md:gap-3"><Button variant="ghost" size="icon" className="md:hidden" aria-label="Open navigation menu" onClick={() => setMobileMenuOpen(true)}><Menu className="h-5 w-5" /></Button><div className="hidden min-w-0 md:block"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">{page.emoji} {page.pageLabel}</p><h1 className="truncate font-display text-2xl font-extrabold">{page.pageLabel}</h1></div></div><h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 font-display text-lg font-extrabold md:hidden">{page.pageLabel}</h1>
-        <div className="flex items-center gap-1.5 md:gap-2"><Button size="sm" className="hidden md:inline-flex" onClick={() => setExpenseOpen(true)}><Plus className="h-4 w-4" />Add expense</Button><Button variant="ghost" size="icon" onClick={cycleTheme} aria-label="Toggle theme">{theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}</Button><AccountMenu onLogout={logout} /></div>
-      </header>
-      <main className="relative p-4 pb-[calc(8rem+env(safe-area-inset-bottom))] md:p-8"><div className="soft-blob right-10 top-10 hidden h-56 w-56 bg-coral/20 md:block" /><ErrorBoundary resetKey={location.pathname}><Outlet context={{ openExpenseDialog: () => setExpenseOpen(true) }} /></ErrorBoundary></main>
+    <div className="pull-refresh-content">
+      <div className="fixed inset-y-0 left-0 hidden md:block"><Sidebar /></div>
+      <div className="md:pl-72">
+        <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between relative border-b border-border/70 bg-background/85 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:h-20 md:px-8 md:pt-0">
+          <div className="flex min-w-0 items-center gap-2 md:gap-3"><Button variant="ghost" size="icon" className="md:hidden" aria-label="Open navigation menu" onClick={() => setMobileMenuOpen(true)}><Menu className="h-5 w-5" /></Button><div className="hidden min-w-0 md:block"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">{page.emoji} {page.pageLabel}</p><h1 className="truncate font-display text-2xl font-extrabold">{page.pageLabel}</h1></div></div><h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 font-display text-lg font-extrabold md:hidden">{page.pageLabel}</h1>
+          <div className="flex items-center gap-1.5 md:gap-2"><Button size="sm" className="hidden md:inline-flex" onClick={() => setExpenseOpen(true)}><Plus className="h-4 w-4" />Add expense</Button><Button variant="ghost" size="icon" onClick={cycleTheme} aria-label="Toggle theme">{theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}</Button><AccountMenu onLogout={logout} /></div>
+        </header>
+        <main className="relative p-4 pb-[calc(8rem+env(safe-area-inset-bottom))] md:p-8"><div className="soft-blob right-10 top-10 hidden h-56 w-56 bg-coral/20 md:block" /><ErrorBoundary resetKey={location.pathname}><Outlet context={{ openExpenseDialog: () => setExpenseOpen(true) }} /></ErrorBoundary></main>
+      </div>
     </div>
     <MobileMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} />
     <BottomNav onAdd={() => setExpenseOpen(true)} />

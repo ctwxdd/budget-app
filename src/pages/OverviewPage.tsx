@@ -4,15 +4,17 @@ import { ArrowDown, ArrowUp, Plus } from 'lucide-react'
 import { ExpenseDialog } from '../components/expenses/ExpenseDialog'
 import { Button, Card, CardContent, CardHeader, CardTitle } from '../components/ui'
 import { SkeletonCards } from '../components/layout/Skeletons'
+import { QueryError } from '../components/layout/QueryError'
 import { useExpenses } from '../hooks/useExpenses'
 import { categoryColor, currency, displayDate, filterByDateRange, getPresetRange, groupTotals, sumExpenses } from '../lib/format'
 import type { Expense } from '../lib/types'
 
 export function OverviewPage() {
-  const { data = [], isLoading } = useExpenses()
+  const { data = [], isLoading, error, refetch } = useExpenses()
   const outlet = useOutletContext<{ openExpenseDialog: () => void }>()
   const [editing, setEditing] = React.useState<Expense | null>(null)
   if (isLoading) return <SkeletonCards />
+  if (error) return <QueryError error={error} onRetry={() => { void refetch() }} />
   const thisMonth = filterByDateRange(data, getPresetRange('thisMonth').start, getPresetRange('thisMonth').end)
   const lastMonth = filterByDateRange(data, getPresetRange('lastMonth').start, getPresetRange('lastMonth').end)
   const thisTotal = sumExpenses(thisMonth)

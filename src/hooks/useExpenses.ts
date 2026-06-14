@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { DEFAULT_CATEGORIES, DEFAULT_PAYMENT_METHODS, SHEET_ID_KEY } from '../lib/defaults'
 import { expenseToRow, parseExpenseRows } from '../lib/parse'
-import { appendRow, batchUpdateExpenseFields, deleteRow, deleteRows, getSheet, getSheetMeta, updateRow } from '../lib/sheets'
+import { appendRow, batchUpdateExpenseFields, deleteRow, deleteRows, getSheet, getSheetMeta, isRateLimitError, updateRow } from '../lib/sheets'
 import type { Expense } from '../lib/types'
 
 export function getStoredSheetId() {
@@ -23,6 +23,10 @@ export function useExpenses() {
     queryKey: ['expenses', sheetId],
     queryFn: async () => parseExpenseRows((await getSheet(sheetId, 'Expense!A2:F')).values || []),
     enabled: Boolean(sheetId),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    retry: (failureCount, error) => isRateLimitError(error) ? failureCount < 2 : failureCount < 1,
+    retryDelay: (attempt, error) => isRateLimitError(error) ? Math.min(4000, 1200 * (attempt + 1)) : 1000,
   })
 }
 

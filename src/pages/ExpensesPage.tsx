@@ -4,13 +4,14 @@ import { BatchEditDialog } from '../components/expenses/BatchEditDialog'
 import { ExpenseDialog } from '../components/expenses/ExpenseDialog'
 import { ExpenseFilterBar, ExpenseTable, applyExpenseFilters, defaultFilters } from '../components/expenses/ExpenseTable'
 import { SkeletonCards } from '../components/layout/Skeletons'
+import { QueryError } from '../components/layout/QueryError'
 import { Button } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { useBatchDeleteExpenses, useExpenses } from '../hooks/useExpenses'
 import type { Expense } from '../lib/types'
 
 export function ExpensesPage() {
-  const { data = [], isLoading } = useExpenses()
+  const { data = [], isLoading, error, refetch } = useExpenses()
   const [filters, setFilters] = React.useState(defaultFilters)
   const [editing, setEditing] = React.useState<Expense | null>(null)
   const [batchEditOpen, setBatchEditOpen] = React.useState(false)
@@ -59,6 +60,7 @@ export function ExpensesPage() {
   }
 
   if (isLoading) return <SkeletonCards />
+  if (error) return <QueryError error={error} onRetry={() => { void refetch() }} />
   return <div className="space-y-5">
     <ExpenseFilterBar filters={filters} onChange={setFilters} selectionMode={selectionMode} selectedCount={selectedIds.size} onEnterSelectionMode={() => enterSelectionMode()} onCancelSelection={clearSelection} />
     <ExpenseTable expenses={filtered} onEdit={setEditing} selectedIds={selectedIds} selectionMode={selectionMode} onToggleSelected={toggleSelected} onSelectMany={selectMany} onEnterSelectionMode={enterSelectionMode} />

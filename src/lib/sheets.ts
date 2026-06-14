@@ -3,6 +3,22 @@ import type { Expense, SheetMeta } from './types'
 type SheetsAuth = { getToken: () => Promise<string>; onUnauthorized?: () => void }
 let auth: SheetsAuth = { getToken: async () => localStorage.getItem('budget.token') || '' }
 
+export class SheetsHttpError extends Error {
+  status: number
+  retryAfterMs?: number
+
+  constructor(status: number, message: string, retryAfterMs?: number) {
+    super(message)
+    this.name = 'SheetsHttpError'
+    this.status = status
+    this.retryAfterMs = retryAfterMs
+  }
+}
+
+export function isRateLimitError(error: unknown) {
+  return error instanceof SheetsHttpError && error.status === 429
+}
+
 export function setSheetsAuth(next: SheetsAuth) {
   auth = next
 }
@@ -22,8 +38,13 @@ async function sheetsFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
     throw new Error('Google authorization expired. Please sign in again.')
   }
   if (!response.ok) {
-    const message = await response.text()
-    throw new Error(message || `Google Sheets request failed (${response.status})`)
+    const body = await response.text()
+    const retryAfter = Number(response.headers.get('retry-after'))
+    const retryAfterMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : undefined
+    const message = response.status === 429
+      ? 'Google Sheets is temporarily rate-limiting requests. Wait a moment, then try again.'
+      : body || `Google Sheets request failed (${response.status})`
+    throw new SheetsHttpError(response.status, message, retryAfterMs)
   }
   return response.json() as Promise<T>
 }

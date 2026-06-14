@@ -115,20 +115,20 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
 
   const giftcardPurchase = form.category === 'Giftcard'
   return <Dialog open={open} onOpenChange={onOpenChange} title={expense ? 'Edit expense' : 'Add expense'} description="Saved directly to your Google Sheet" mobileBottomSheet>
-    <form onSubmit={submit} className="grid gap-5 sm:grid-cols-2 pb-2">
-      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Date<Input type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
-      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Amount<Input type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} /></label>
+    <form onSubmit={submit} className="grid min-w-0 gap-4 pb-2 sm:grid-cols-2 sm:gap-5">
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Date<Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Amount<Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} /></label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span>Description</span>
         {giftcardPurchase
           ? <GiftcardComposer parts={giftcardParts} structured={giftcardStructured} vendors={vendors} rawDescription={form.description} onRawChange={(description) => setForm({ ...form, description })} onStructuredChange={setGiftcardStructured} onChange={setGiftcardParts} />
           : <Input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Groceries, rent, coffee..." />}
       </div>
-      <div className="space-y-2 sm:col-span-2">
+      <div className="-mt-1 space-y-2 sm:col-span-2">
         {noteOpen ? <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Note<Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label> : <Button type="button" variant="ghost" size="sm" className="px-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
       </div>
-      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Category<CategoryCombobox value={form.category} onChange={setCategory} options={categories} /></label>
-      <div className="space-y-3 text-sm font-semibold text-muted-foreground">
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Category<CategoryCombobox value={form.category} onChange={setCategory} options={categories} /></label>
+      <div className="min-w-0 space-y-3 text-sm font-semibold text-muted-foreground">
         <span>Payment method</span>
         <div className="grid grid-cols-3 gap-1 rounded-full bg-accent/50 p-0.5">
           {paymentTypes.map((item) => <button key={item.type} type="button" aria-label={item.label} className={cn('flex h-9 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-none transition md:h-8 md:px-3 md:text-xs', paymentType === item.type ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => {
@@ -152,7 +152,7 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
             : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={managedCards.cards.filter((card) => card.active && card.name)} fallback={filteredPaymentMethods} />}
         </div>}
       </div>
-      <div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] mt-4 flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_-14px_28px_-24px_rgba(31,41,55,0.45)] backdrop-blur-xl sm:col-span-2 sm:-mx-7 sm:-mb-8 sm:flex-row sm:justify-end sm:pb-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>
+      <div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] mt-2 flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 px-5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-14px_28px_-24px_rgba(31,41,55,0.45)] backdrop-blur-xl sm:col-span-2 sm:-mx-7 sm:-mb-8 sm:flex-row sm:justify-end sm:px-7 sm:pb-4 sm:pt-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>
     </form>
   </Dialog>
 }
