@@ -41,9 +41,23 @@ async function sheetsFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
     const body = await response.text()
     const retryAfter = Number(response.headers.get('retry-after'))
     const retryAfterMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : undefined
-    const message = response.status === 429
-      ? 'Google Sheets is temporarily rate-limiting requests. Wait a moment, then try again.'
-      : body || `Google Sheets request failed (${response.status})`
+    let apiMessage = ''
+    try {
+      const parsed = JSON.parse(body) as { error?: { message?: string; status?: string } }
+      apiMessage = parsed?.error?.message || ''
+    } catch {
+      apiMessage = body
+    }
+    let message: string
+    if (response.status === 429) {
+      message = 'Google Sheets is temporarily rate-limiting requests. Wait a moment, then try again.'
+    } else if (response.status === 403) {
+      message = "You don't have access to this spreadsheet with the Google account you're signed in with. Ask the owner to share it with your account, or switch to a Google account that already has access."
+    } else if (response.status === 404) {
+      message = "Spreadsheet not found. Double-check the link or ID."
+    } else {
+      message = apiMessage || `Google Sheets request failed (${response.status})`
+    }
     throw new SheetsHttpError(response.status, message, retryAfterMs)
   }
   return response.json() as Promise<T>

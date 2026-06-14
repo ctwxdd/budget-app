@@ -10,6 +10,7 @@ type AuthContextValue = {
   user: UserInfo | null
   isAuthenticated: boolean
   login: () => Promise<void>
+  switchAccount: () => Promise<void>
   signOut: () => void
   withFreshToken: () => Promise<string>
 }
@@ -67,11 +68,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
   })
 
+  const googleSwitch = useGoogleLogin({
+    flow: 'implicit',
+    scope: 'https://www.googleapis.com/auth/spreadsheets openid email profile',
+    prompt: 'select_account',
+    onSuccess: (response) => {
+      persistToken(response.access_token, response.expires_in)
+      void fetchUser(response.access_token)
+      pendingLogin.current?.()
+      pendingLogin.current = null
+      pendingError.current = null
+    },
+    onError: (error) => {
+      pendingError.current?.(error)
+      pendingLogin.current = null
+      pendingError.current = null
+    },
+  })
+
   const login = useCallback(() => new Promise<void>((resolve, reject) => {
     pendingLogin.current = resolve
     pendingError.current = reject
     googleLogin()
   }), [googleLogin])
+
+  const switchAccount = useCallback(() => new Promise<void>((resolve, reject) => {
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(TOKEN_EXPIRES_KEY)
+    localStorage.removeItem('budget.user')
+    setToken('')
+    setExpiresAt(0)
+    setUser(null)
+    pendingLogin.current = resolve
+    pendingError.current = reject
+    googleSwitch()
+  }), [googleSwitch])
 
   const signOut = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
@@ -95,7 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSheetsAuth({ getToken: withFreshToken, onUnauthorized: signOut })
   }, [withFreshToken, signOut])
 
-  const value = useMemo(() => ({ token, expiresAt, user, isAuthenticated: Boolean(token && expiresAt > Date.now()), login, signOut, withFreshToken }), [token, expiresAt, user, login, signOut, withFreshToken])
+  const value = useMemo(() => ({ token, expiresAt, user, isAuthenticated: Boolean(token && expiresAt > Date.now()), login, switchAccount, signOut, withFreshToken }), [token, expiresAt, user, login, switchAccount, signOut, withFreshToken])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
