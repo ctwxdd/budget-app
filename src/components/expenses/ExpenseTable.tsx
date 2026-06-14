@@ -2,7 +2,7 @@ import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowDownUp, Check, Copy, Filter, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
 import type { DatePreset, Expense } from '../../lib/types'
-import { categoryColor, categoryIcon, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
+import { categoryColor, categoryIcon, categoryName, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
 import { cn } from '../../lib/utils'
 import { Badge, Button, Card, Dialog, Input, Select } from '../ui'
 import { useCategories, useDeleteExpense, usePaymentMethods, useSheetId } from '../../hooks/useExpenses'
@@ -46,7 +46,7 @@ function dayLabel(iso: string) {
 export function applyExpenseFilters(expenses: Expense[], filters: ExpenseFilters) {
   const range = getPresetRange(filters.preset, filters.start, filters.end)
   return filterByDateRange(expenses, range.start, range.end).filter((expense) => {
-    if (filters.categories.length && !filters.categories.includes(expense.category)) return false
+    if (filters.categories.length && !filters.categories.includes(categoryName(expense.category))) return false
     if (filters.payments.length && !filters.payments.includes(expense.paymentMethod)) return false
     if (filters.reimbursement === 'Reimbursed' && expense.reimbursement !== 'Reimbursed') return false
     if (filters.reimbursement === 'Pending' && expense.reimbursement !== 'Pending') return false
@@ -171,7 +171,7 @@ function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, selected, selecti
   >
     {selected && <span className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-coral text-white shadow-soft"><Check className="h-4 w-4" /></span>}
     <div className="flex min-w-0 items-start justify-between gap-3 pr-7"><div className="flex min-w-0 flex-1 items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>{Icon ? <Icon className="h-5 w-5" strokeWidth={2.2} /> : (expense.category || '?').slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate font-bold">{expense.description || 'No description'}</p><p className="text-sm text-muted-foreground">{displayDate(expense.date)}</p></div></div><p className="shrink-0 whitespace-nowrap font-display text-lg font-extrabold text-coral">{currency.format(expense.amount)}</p></div>
-    <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2"><div className="min-w-0 max-w-[45%]"><ColorBadge value={expense.category || 'Uncategorized'} /></div><div className="min-w-0 max-w-[55%]"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></div>{expense.reimbursement && <ReimbursementChip value={expense.reimbursement} />}{!selectionMode && <div className="ml-auto"><Button variant="ghost" size="icon" aria-label={open ? 'Close expense actions' : 'Open expense actions'} aria-expanded={open} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value) }}><MoreHorizontal className="h-5 w-5" /></Button></div>}</div>
+    <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2"><div className="min-w-0 max-w-[45%]"><ColorBadge value={categoryName(expense.category)} /></div><div className="min-w-0 max-w-[55%]"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></div>{expense.reimbursement && <ReimbursementChip value={expense.reimbursement} />}{!selectionMode && <div className="ml-auto"><Button variant="ghost" size="icon" aria-label={open ? 'Close expense actions' : 'Open expense actions'} aria-expanded={open} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value) }}><MoreHorizontal className="h-5 w-5" /></Button></div>}</div>
     {open && <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border/70 pt-3" onClick={(event) => event.stopPropagation()}>
       <Button variant="secondary" className="w-full" onClick={() => { setOpen(false); onEdit(expense) }}><Pencil className="h-4 w-4" />Edit</Button>
       <Button variant="outline" className="w-full" onClick={() => { setOpen(false); onDuplicate(expense) }}><Copy className="h-4 w-4" />Copy</Button>
@@ -250,7 +250,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, selectedIds, selec
             <td className="whitespace-nowrap p-4">{displayDate(expense.date)}</td>
             <td className="p-4 text-right font-display font-bold text-coral">{currency.format(expense.amount)}</td>
             <td className="p-4">{expense.description || <span className="text-muted-foreground">No description</span>}</td>
-            <td className="p-4"><ColorBadge value={expense.category || 'Uncategorized'} /></td>
+            <td className="p-4"><ColorBadge value={categoryName(expense.category)} /></td>
             <td className="p-4"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></td>
             <td className="p-4" onClick={(event) => event.stopPropagation()}><div className="flex justify-end gap-1"><Button variant="ghost" size="icon" onClick={() => onEdit(expense)} aria-label="Edit"><Pencil className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => onDuplicate(expense)} aria-label="Duplicate"><Copy className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => remove(expense)} aria-label="Delete"><Trash2 className="h-4 w-4" /></Button></div></td>
           </tr>

@@ -6,6 +6,7 @@ import { appendRow, batchUpdateExpenseFields, deleteRow, deleteRows, getSheet, g
 import { clearLocalCache, readLocalCache, writeLocalCache } from '../lib/localCache'
 import { rememberSheet } from '../lib/recentSheets'
 import type { Expense } from '../lib/types'
+import { categoryName } from '../lib/format'
 
 const LOCAL_CACHE_AGE = 5 * 60 * 1000
 const expensesCacheKey = (sheetId: string) => `expenses.${sheetId}`
@@ -152,7 +153,7 @@ function mergeUnique(defaults: string[], values: string[]) {
 
 export function useCategories() {
   const expenses = useExpenses()
-  return React.useMemo(() => mergeUnique(DEFAULT_CATEGORIES, expenses.data?.map((expense) => expense.category) || []), [expenses.data])
+  return React.useMemo(() => mergeUnique(DEFAULT_CATEGORIES, expenses.data?.map((expense) => categoryName(expense.category)) || []), [expenses.data])
 }
 
 export function usePaymentMethods() {

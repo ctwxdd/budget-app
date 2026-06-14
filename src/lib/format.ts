@@ -6,6 +6,10 @@ import type { DatePreset, Expense } from './types'
 export const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 export const chartPalette = ['#FF8E72', '#FFB199', '#34D399', '#7DD3FC', '#C4B5FD', '#FCD34D', '#F472B6', '#9BC7A8']
 
+export function categoryName(value: string) {
+  return (value || '').trim() || 'Uncategorized'
+}
+
 const categorySwatches = [
   { bg: '#FFF1ED', text: '#C2410C', border: '#FFD8CC', hex: '#FF8E72' },
   { bg: '#FFF7ED', text: '#C05621', border: '#FED7AA', hex: '#FFB199' },
@@ -135,7 +139,11 @@ export function filterByDateRange(expenses: Expense[], start = '', end = '') {
 
 export function groupTotals(expenses: Expense[], field: keyof Pick<Expense, 'category' | 'paymentMethod'>) {
   const totals = new Map<string, number>()
-  expenses.forEach((expense) => totals.set(expense[field] || 'Uncategorized', (totals.get(expense[field] || 'Uncategorized') || 0) + expense.amount))
+  expenses.forEach((expense) => {
+    const rawValue = expense[field]
+    const name = field === 'category' ? categoryName(rawValue) : rawValue.trim() || 'Uncategorized'
+    totals.set(name, (totals.get(name) || 0) + expense.amount)
+  })
   return Array.from(totals, ([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total)
 }
 
