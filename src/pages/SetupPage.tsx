@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle2, FilePlus2, ShieldAlert, Sparkles, Trash2, UserCog } from 'lucide-react'
+import { CheckCircle2, FilePlus2, ShieldAlert, Sparkles, UserCog, X } from 'lucide-react'
 import { DEFAULT_CATEGORIES, DEFAULT_PAYMENT_METHODS, REIMBURSEMENT_OPTIONS, SHEET_ID_KEY } from '../lib/defaults'
 import { createSpreadsheet, getSheetMeta, SheetsHttpError } from '../lib/sheets'
 import { forgetSheet, getRecentSheets, rememberSheet } from '../lib/recentSheets'
@@ -111,9 +111,10 @@ export function SetupPage() {
     } finally { setLoading(false) }
   }
 
-  const remove = (id: string) => {
+  const remove = (id: string, title: string) => {
     forgetSheet(id)
     setRecents(getRecentSheets())
+    toast({ title: 'Removed from this device', description: `${title || 'Spreadsheet'} is still in your Google Drive — only the shortcut here was cleared.` })
   }
 
   const onSwitch = async () => {
@@ -155,7 +156,8 @@ export function SetupPage() {
       <p className="px-1 text-xs text-muted-foreground">Builds <strong>Expense</strong>, <strong>Cards</strong>, and <strong>Giftcard</strong> tabs with headers, date/currency formats, dropdowns for category and payment method, and a protected header row so accidental edits don't break the app.</p>
     </div>
     {recents.length > 0 && <div className="mb-5">
-      <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent sheets</p>
+      <p className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent sheets</p>
+      <p className="mb-2 px-1 text-[11px] text-muted-foreground/80">Saved on this device only. Removing one here doesn't touch the actual Google Sheet.</p>
       <ul className="space-y-2">
         {recents.map((entry) => {
           const isCurrent = entry.id === currentId
@@ -167,7 +169,7 @@ export function SetupPage() {
                 {isCurrent && <span className="text-[10px] font-bold uppercase tracking-wide text-coral">Connected</span>}
               </span>
             </button>
-            <button type="button" onClick={() => remove(entry.id)} aria-label={`Remove ${entry.title}`} className="rounded-full p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+            <button type="button" onClick={() => remove(entry.id, entry.title)} aria-label={`Remove ${entry.title} from this device`} title="Remove from recents (does not delete the Google Sheet)" className="rounded-full p-1.5 text-muted-foreground transition hover:bg-accent hover:text-foreground"><X className="h-4 w-4" /></button>
           </li>
         })}
       </ul>
