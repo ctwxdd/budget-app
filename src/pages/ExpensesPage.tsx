@@ -1,11 +1,11 @@
 import * as React from 'react'
 import { Pencil, Trash2, X } from 'lucide-react'
 import { BatchEditDialog } from '../components/expenses/BatchEditDialog'
-import { ExpenseDialog } from '../components/expenses/ExpenseDialog'
+import { ExpenseDialog, type FormState } from '../components/expenses/ExpenseDialog'
 import { ExpenseFilterBar, ExpenseTable, applyExpenseFilters, defaultFilters } from '../components/expenses/ExpenseTable'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { QueryError } from '../components/layout/QueryError'
-import { Button } from '../components/ui'
+import { Button, ConfirmDialog } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { useBatchDeleteExpenses, useExpenses } from '../hooks/useExpenses'
 import type { Expense } from '../lib/types'
@@ -14,7 +14,10 @@ export function ExpensesPage() {
   const { data = [], isLoading, error, refetch } = useExpenses()
   const [filters, setFilters] = React.useState(defaultFilters)
   const [editing, setEditing] = React.useState<Expense | null>(null)
+  const [template, setTemplate] = React.useState<FormState | null>(null)
+  const [templateOpen, setTemplateOpen] = React.useState(false)
   const [batchEditOpen, setBatchEditOpen] = React.useState(false)
+  const [batchDeleteOpen, setBatchDeleteOpen] = React.useState(false)
   const [selectionMode, setSelectionMode] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<number>>(() => new Set())
   const batchDelete = useBatchDeleteExpenses()
@@ -48,8 +51,7 @@ export function ExpensesPage() {
   }, [])
   const deleteSelected = async () => {
     const count = selectedExpenses.length
-    if (!count) return clearSelection()
-    if (!window.confirm(`Delete ${count} selected expense${count === 1 ? '' : 's'}?`)) return
+    if (!count) { clearSelection(); return }
     try {
       await batchDelete.mutateAsync(selectedExpenses)
       toast({ title: `Deleted ${count} expense${count === 1 ? '' : 's'}` })
@@ -61,12 +63,28 @@ export function ExpensesPage() {
 
   if (isLoading) return <SkeletonCards />
   if (error) return <QueryError error={error} onRetry={() => { void refetch() }} />
+  const duplicate = (expense: Expense) => {
+    const today = new Date()
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    setTemplate({ date: iso, amount: expense.amount, description: expense.description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: expense.reimbursement })
+    setTemplateOpen(true)
+  }
   return <div className="space-y-5">
     <ExpenseFilterBar filters={filters} onChange={setFilters} selectionMode={selectionMode} selectedCount={selectedIds.size} onEnterSelectionMode={() => enterSelectionMode()} onCancelSelection={clearSelection} />
-    <ExpenseTable expenses={filtered} onEdit={setEditing} selectedIds={selectedIds} selectionMode={selectionMode} onToggleSelected={toggleSelected} onSelectMany={selectMany} onEnterSelectionMode={enterSelectionMode} />
-    {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} onClear={clearSelection} onEdit={() => setBatchEditOpen(true)} onDelete={deleteSelected} deleting={batchDelete.isPending} />}
+    <ExpenseTable expenses={filtered} onEdit={setEditing} onDuplicate={duplicate} selectedIds={selectedIds} selectionMode={selectionMode} onToggleSelected={toggleSelected} onSelectMany={selectMany} onEnterSelectionMode={enterSelectionMode} />
+    {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} onClear={clearSelection} onEdit={() => setBatchEditOpen(true)} onDelete={() => setBatchDeleteOpen(true)} deleting={batchDelete.isPending} />}
     {editing && <ExpenseDialog open onOpenChange={(open) => !open && setEditing(null)} expense={editing} />}
+    {templateOpen && <ExpenseDialog open onOpenChange={(open) => { if (!open) { setTemplateOpen(false); setTemplate(null) } }} template={template} />}
     <BatchEditDialog open={batchEditOpen} onOpenChange={setBatchEditOpen} expenses={selectedExpenses} onSaved={clearSelection} />
+    <ConfirmDialog
+      open={batchDeleteOpen}
+      onOpenChange={setBatchDeleteOpen}
+      title={`Delete ${selectedExpenses.length} expense${selectedExpenses.length === 1 ? '' : 's'}?`}
+      description="This permanently removes the rows from your Google Sheet. There is no undo for batch delete."
+      confirmLabel={batchDelete.isPending ? 'Deleting...' : 'Delete'}
+      destructive
+      onConfirm={deleteSelected}
+    />
   </div>
 }
 

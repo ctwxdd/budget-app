@@ -1,10 +1,11 @@
 import * as React from 'react'
-import { ArrowDownUp, Check, Filter, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { ArrowDownUp, Check, Copy, Filter, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
 import type { DatePreset, Expense } from '../../lib/types'
 import { categoryColor, categoryIcon, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
 import { cn } from '../../lib/utils'
 import { Badge, Button, Card, Dialog, Input, Select } from '../ui'
-import { useCategories, useDeleteExpense, usePaymentMethods } from '../../hooks/useExpenses'
+import { useCategories, useDeleteExpense, usePaymentMethods, useSheetId } from '../../hooks/useExpenses'
 import { useToast } from '../ui/Toast'
 
 export type ExpenseFilters = { preset: DatePreset; start: string; end: string; categories: string[]; payments: string[]; reimbursement: string; search: string }
@@ -18,9 +19,28 @@ function ColorBadge({ value, variant = 'category', className = '' }: { value: st
   return <span className={`inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-full border px-3 py-1 align-middle text-xs font-semibold ${className}`} style={{ backgroundColor: color.bg, color: color.text, borderColor: color.border }} title={value}>{value}</span>
 }
 
+function ReimbursementChip({ value }: { value: string }) {
+  const tone = value === 'Reimbursed'
+    ? 'border-mint/40 bg-mint/15 text-emerald-700 dark:text-mint'
+    : 'border-butter/50 bg-butter/25 text-amber-700 dark:text-butter'
+  return <span className={cn('inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold', tone)} title={`Reimbursement: ${value}`}>{value === 'Reimbursed' ? '✓' : '⌛'} {value}</span>
+}
+
 function MultiSelect({ label, values, options, onChange }: { label: string; values: string[]; options: string[]; onChange: (values: string[]) => void }) {
   const [choice, setChoice] = React.useState('')
   return <div className="space-y-2"><div className="flex gap-2"><Select aria-label={label} value={choice} onChange={(event) => { const value = event.target.value; setChoice(''); if (value && !values.includes(value)) onChange([...values, value]) }}><option value="">{label}</option>{options.map((option) => <option key={option}>{option}</option>)}</Select>{values.length > 0 && <Button type="button" variant="ghost" onClick={() => onChange([])}>Clear</Button>}</div>{values.length > 0 && <div className="flex flex-wrap gap-1.5">{values.map((value) => <button key={value} onClick={() => onChange(values.filter((item) => item !== value))}><Badge variant="secondary">{value} ×</Badge></button>)}</div>}</div>
+}
+
+function dayLabel(iso: string) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  if (iso === todayIso) return 'Today'
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayIso = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+  if (iso === yesterdayIso) return 'Yesterday'
+  return displayDate(iso)
 }
 
 export function applyExpenseFilters(expenses: Expense[], filters: ExpenseFilters) {
@@ -90,7 +110,7 @@ function SelectAllCheckbox({ checked, indeterminate, disabled, onChange }: { che
   return <input ref={ref} type="checkbox" aria-label="Select all visible expenses" className="h-4 w-4 rounded border-input accent-coral" checked={checked} disabled={disabled} onChange={onChange} onClick={(event) => event.stopPropagation()} />
 }
 
-function ExpenseCard({ expense, onEdit, onRemove, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (expense: Expense) => void; selected: boolean; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onEnterSelectionMode: (expense: Expense) => void }) {
+function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; selected: boolean; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onEnterSelectionMode: (expense: Expense) => void }) {
   const [open, setOpen] = React.useState(false)
   const color = categoryColor(expense.category)
   const Icon = categoryIcon(expense.category)
@@ -128,9 +148,22 @@ function ExpenseCard({ expense, onEdit, onRemove, selected, selectionMode, onTog
     else onEdit(expense)
   }
 
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onCardClick()
+    }
+  }
+
   return <div
-    className={cn('relative min-w-0 rounded-3xl border bg-card p-4 shadow-soft transition', selected && 'border-coral/40 bg-coral/10 ring-1 ring-coral/20')}
+    role="button"
+    tabIndex={0}
+    aria-label={`${expense.description || 'Expense'} ${currency.format(expense.amount)} on ${displayDate(expense.date)}`}
+    aria-pressed={selectionMode ? selected : undefined}
+    className={cn('relative min-w-0 cursor-pointer rounded-3xl border bg-card p-4 shadow-soft transition motion-safe:active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', selected && 'border-coral/40 bg-coral/10 ring-1 ring-coral/20')}
     onClick={onCardClick}
+    onKeyDown={onKeyDown}
     onTouchStart={onTouchStart}
     onTouchMove={onTouchMove}
     onTouchEnd={clearLongPress}
@@ -138,20 +171,24 @@ function ExpenseCard({ expense, onEdit, onRemove, selected, selectionMode, onTog
   >
     {selected && <span className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-coral text-white shadow-soft"><Check className="h-4 w-4" /></span>}
     <div className="flex min-w-0 items-start justify-between gap-3 pr-7"><div className="flex min-w-0 flex-1 items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>{Icon ? <Icon className="h-5 w-5" strokeWidth={2.2} /> : (expense.category || '?').slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate font-bold">{expense.description || 'No description'}</p><p className="text-sm text-muted-foreground">{displayDate(expense.date)}</p></div></div><p className="shrink-0 whitespace-nowrap font-display text-lg font-extrabold text-coral">{currency.format(expense.amount)}</p></div>
-    <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2"><div className="min-w-0 max-w-[45%]"><ColorBadge value={expense.category || 'Uncategorized'} /></div><div className="min-w-0 max-w-[55%]"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></div>{!selectionMode && <div className="ml-auto"><Button variant="ghost" size="icon" aria-label={open ? 'Close expense actions' : 'Open expense actions'} aria-expanded={open} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value) }}><MoreHorizontal className="h-5 w-5" /></Button></div>}</div>
-    {open && <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/70 pt-3" onClick={(event) => event.stopPropagation()}>
+    <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2"><div className="min-w-0 max-w-[45%]"><ColorBadge value={expense.category || 'Uncategorized'} /></div><div className="min-w-0 max-w-[55%]"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></div>{expense.reimbursement && <ReimbursementChip value={expense.reimbursement} />}{!selectionMode && <div className="ml-auto"><Button variant="ghost" size="icon" aria-label={open ? 'Close expense actions' : 'Open expense actions'} aria-expanded={open} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value) }}><MoreHorizontal className="h-5 w-5" /></Button></div>}</div>
+    {open && <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border/70 pt-3" onClick={(event) => event.stopPropagation()}>
       <Button variant="secondary" className="w-full" onClick={() => { setOpen(false); onEdit(expense) }}><Pencil className="h-4 w-4" />Edit</Button>
+      <Button variant="outline" className="w-full" onClick={() => { setOpen(false); onDuplicate(expense) }}><Copy className="h-4 w-4" />Copy</Button>
       <Button variant="outline" className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { setOpen(false); onRemove(expense) }}><Trash2 className="h-4 w-4" />Delete</Button>
     </div>}
   </div>
 }
 
-export function ExpenseTable({ expenses, onEdit, selectedIds, selectionMode, onToggleSelected, onSelectMany, onEnterSelectionMode }: { expenses: Expense[]; onEdit: (expense: Expense) => void; selectedIds: Set<number>; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onSelectMany: (expenses: Expense[], selected: boolean) => void; onEnterSelectionMode: (expense: Expense) => void }) {
+export function ExpenseTable({ expenses, onEdit, onDuplicate, selectedIds, selectionMode, onToggleSelected, onSelectMany, onEnterSelectionMode }: { expenses: Expense[]; onEdit: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; selectedIds: Set<number>; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onSelectMany: (expenses: Expense[], selected: boolean) => void; onEnterSelectionMode: (expense: Expense) => void }) {
   const [sortKey, setSortKey] = React.useState<SortKey>('date')
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc')
   const [page, setPage] = React.useState(1)
   const deleteExpense = useDeleteExpense()
+  const queryClient = useQueryClient()
+  const sheetId = useSheetId()
   const { toast } = useToast()
+  const pendingDeleteRef = React.useRef<{ timer: number; flush: () => Promise<void> } | null>(null)
   const sorted = React.useMemo(() => [...expenses].sort((a, b) => { const result = sortKey === 'date' ? a.date.localeCompare(b.date) : a.amount - b.amount; return sortDir === 'asc' ? result : -result }), [expenses, sortKey, sortDir])
   const pageSize = 50
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
@@ -160,8 +197,42 @@ export function ExpenseTable({ expenses, onEdit, selectedIds, selectionMode, onT
   const allVisibleSelected = sorted.length > 0 && selectedVisibleCount === sorted.length
   const partiallyVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < sorted.length
   React.useEffect(() => setPage(1), [expenses.length])
+  React.useEffect(() => () => { void pendingDeleteRef.current?.flush() }, [])
   const toggleSort = (key: SortKey) => { setSortDir(sortKey === key && sortDir === 'desc' ? 'asc' : 'desc'); setSortKey(key) }
-  const remove = async (expense: Expense) => { if (!window.confirm(`Delete ${expense.description || 'this expense'}?`)) return; try { await deleteExpense.mutateAsync(expense); toast({ title: 'Expense deleted' }) } catch (error) { toast({ title: 'Could not delete expense', description: error instanceof Error ? error.message : String(error), variant: 'destructive' }) } }
+  const remove = async (expense: Expense) => {
+    if (pendingDeleteRef.current) await pendingDeleteRef.current.flush()
+    const queryKey = ['expenses', sheetId]
+    const previous = queryClient.getQueryData<Expense[]>(queryKey)
+    queryClient.setQueryData<Expense[]>(queryKey, (old) => (old || []).filter((item) => item.rowIndex !== expense.rowIndex))
+    let committed = false
+    const flush = async () => {
+      if (committed) return
+      committed = true
+      window.clearTimeout(timer)
+      if (pendingDeleteRef.current?.flush === flush) pendingDeleteRef.current = null
+      try {
+        await deleteExpense.mutateAsync(expense)
+      } catch (error) {
+        queryClient.setQueryData(queryKey, previous)
+        toast({ title: 'Could not delete expense', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+      }
+    }
+    const undo = () => {
+      if (committed) return
+      committed = true
+      window.clearTimeout(timer)
+      if (pendingDeleteRef.current?.flush === flush) pendingDeleteRef.current = null
+      queryClient.setQueryData(queryKey, previous)
+    }
+    const timer = window.setTimeout(() => { void flush() }, 5000)
+    pendingDeleteRef.current = { timer, flush }
+    toast({
+      title: 'Expense deleted',
+      description: expense.description || expense.category || 'Expense',
+      action: { label: 'Undo', onClick: undo },
+      duration: 5000,
+    })
+  }
 
   return <Card className="overflow-hidden">
     <div className="hidden overflow-x-auto md:block">
@@ -181,12 +252,24 @@ export function ExpenseTable({ expenses, onEdit, selectedIds, selectionMode, onT
             <td className="p-4">{expense.description || <span className="text-muted-foreground">No description</span>}</td>
             <td className="p-4"><ColorBadge value={expense.category || 'Uncategorized'} /></td>
             <td className="p-4"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></td>
-            <td className="p-4" onClick={(event) => event.stopPropagation()}><div className="flex justify-end gap-1"><Button variant="ghost" size="icon" onClick={() => onEdit(expense)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => remove(expense)}><Trash2 className="h-4 w-4" /></Button></div></td>
+            <td className="p-4" onClick={(event) => event.stopPropagation()}><div className="flex justify-end gap-1"><Button variant="ghost" size="icon" onClick={() => onEdit(expense)} aria-label="Edit"><Pencil className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => onDuplicate(expense)} aria-label="Duplicate"><Copy className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => remove(expense)} aria-label="Delete"><Trash2 className="h-4 w-4" /></Button></div></td>
           </tr>
         })}</tbody>
       </table>
     </div>
-    <div className="grid gap-3 p-3 md:hidden">{current.map((expense) => <ExpenseCard key={expense.rowIndex} expense={expense} onEdit={onEdit} onRemove={remove} selected={selectedIds.has(expense.rowIndex)} selectionMode={selectionMode} onToggleSelected={onToggleSelected} onEnterSelectionMode={onEnterSelectionMode} />)}</div>
+    <div className="grid gap-3 p-3 md:hidden">{(() => {
+      let lastDate = ''
+      const items: React.ReactNode[] = []
+      const groupedByDate = sortKey === 'date'
+      for (const expense of current) {
+        if (groupedByDate && expense.date !== lastDate) {
+          lastDate = expense.date
+          items.push(<div key={`day-${expense.date}`} className="mt-2 px-1 pt-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground first:mt-0">{dayLabel(expense.date)}</div>)
+        }
+        items.push(<ExpenseCard key={expense.rowIndex} expense={expense} onEdit={onEdit} onRemove={remove} onDuplicate={onDuplicate} selected={selectedIds.has(expense.rowIndex)} selectionMode={selectionMode} onToggleSelected={onToggleSelected} onEnterSelectionMode={onEnterSelectionMode} />)
+      }
+      return items
+    })()}</div>
     {current.length === 0 && <div className="p-8 text-center md:p-12"><div className="mx-auto max-w-sm rounded-3xl border border-dashed bg-accent/40 p-6 text-muted-foreground">🌱 Nothing here yet — add your first expense!<br />尚無資料</div></div>}
     <div className="flex flex-col gap-3 border-t p-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>Showing {sorted.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, sorted.length)} of {sorted.length} · Total {currency.format(sumExpenses(sorted))}</span><div className="flex gap-2"><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button><Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button></div></div>
   </Card>

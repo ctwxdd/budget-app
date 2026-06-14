@@ -2,7 +2,7 @@ import * as React from 'react'
 import { Pencil, Plus, Trash2, WalletCards } from 'lucide-react'
 import { PageErrorBoundary } from '../components/ErrorBoundary'
 import { SkeletonCards } from '../components/layout/Skeletons'
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Dialog, Input, Textarea } from '../components/ui'
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, Dialog, Input, Textarea } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { useAddCard, useCards, useCreateCardsTab, useDeleteCard, useUpdateCard, type CardRow } from '../hooks/useCards'
 import { cn } from '../lib/utils'
@@ -90,12 +90,19 @@ function ActiveToggle({ card }: { card: CardRow }) {
 
 function RowActions({ card, onEdit }: { card: CardRow; onEdit: (card: CardRow) => void }) {
   const deleteCard = useDeleteCard()
-  const remove = () => {
-    if (window.confirm(`Delete ${card.name}?`)) deleteCard.mutate(card)
-  }
+  const [confirmOpen, setConfirmOpen] = React.useState(false)
   return <div className="flex justify-end gap-1">
     <Button type="button" variant="ghost" size="icon" className="h-9 w-9" onClick={() => onEdit(card)} aria-label={`Edit ${card.name}`}><Pencil className="h-4 w-4" /></Button>
-    <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" onClick={remove} disabled={deleteCard.isPending} aria-label={`Delete ${card.name}`}><Trash2 className="h-4 w-4" /></Button>
+    <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" onClick={() => setConfirmOpen(true)} disabled={deleteCard.isPending} aria-label={`Delete ${card.name}`}><Trash2 className="h-4 w-4" /></Button>
+    <ConfirmDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      title={`Delete ${card.name}?`}
+      description="This removes the card from your Google Sheet. Past expenses paid with it stay."
+      confirmLabel="Delete"
+      destructive
+      onConfirm={async () => { await deleteCard.mutateAsync(card) }}
+    />
   </div>
 }
 

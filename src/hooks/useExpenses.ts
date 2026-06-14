@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import * as React from 'react'
 import { DEFAULT_CATEGORIES, DEFAULT_PAYMENT_METHODS, SHEET_ID_KEY } from '../lib/defaults'
 import { expenseToRow, parseExpenseRows } from '../lib/parse'
 import { appendRow, batchUpdateExpenseFields, deleteRow, deleteRows, getSheet, getSheetMeta, isRateLimitError, updateRow } from '../lib/sheets'
@@ -24,7 +25,7 @@ export function useSheetMeta() {
 
 export function useExpenses() {
   const sheetId = useSheetId()
-  const cached = readLocalCache<Expense[]>(expensesCacheKey(sheetId), LOCAL_CACHE_AGE)
+  const cached = React.useMemo(() => readLocalCache<Expense[]>(expensesCacheKey(sheetId), LOCAL_CACHE_AGE), [sheetId])
   return useQuery({
     queryKey: ['expenses', sheetId],
     queryFn: async () => {
@@ -47,7 +48,19 @@ export function useAddExpense() {
   const sheetId = useSheetId()
   return useMutation({
     mutationFn: (expense: Omit<Expense, 'rowIndex'>) => appendRow(sheetId, 'Expense!A:F', expenseToRow(expense)),
-    onSuccess: () => {
+    onMutate: async (expense) => {
+      const queryKey = ['expenses', sheetId]
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<Expense[]>(queryKey)
+      const optimisticRowIndex = -Date.now()
+      const optimistic: Expense = { ...expense, rowIndex: optimisticRowIndex }
+      queryClient.setQueryData<Expense[]>(queryKey, (old) => [...(old || []), optimistic])
+      return { previous }
+    },
+    onError: (_error, _expense, context) => {
+      if (context?.previous !== undefined) queryClient.setQueryData(['expenses', sheetId], context.previous)
+    },
+    onSettled: () => {
       clearLocalCache(expensesCacheKey(sheetId), giftcardsCacheKey(sheetId))
       queryClient.invalidateQueries({ queryKey: ['expenses', sheetId] })
       queryClient.invalidateQueries({ queryKey: ['giftcards', sheetId] })
@@ -60,7 +73,17 @@ export function useUpdateExpense() {
   const sheetId = useSheetId()
   return useMutation({
     mutationFn: (expense: Expense) => updateRow(sheetId, `Expense!A${expense.rowIndex}:F${expense.rowIndex}`, expenseToRow(expense)),
-    onSuccess: () => {
+    onMutate: async (expense) => {
+      const queryKey = ['expenses', sheetId]
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<Expense[]>(queryKey)
+      queryClient.setQueryData<Expense[]>(queryKey, (old) => (old || []).map((item) => item.rowIndex === expense.rowIndex ? expense : item))
+      return { previous }
+    },
+    onError: (_error, _expense, context) => {
+      if (context?.previous !== undefined) queryClient.setQueryData(['expenses', sheetId], context.previous)
+    },
+    onSettled: () => {
       clearLocalCache(expensesCacheKey(sheetId), giftcardsCacheKey(sheetId))
       queryClient.invalidateQueries({ queryKey: ['expenses', sheetId] })
       queryClient.invalidateQueries({ queryKey: ['giftcards', sheetId] })
@@ -124,10 +147,10 @@ function mergeUnique(defaults: string[], values: string[]) {
 
 export function useCategories() {
   const expenses = useExpenses()
-  return mergeUnique(DEFAULT_CATEGORIES, expenses.data?.map((expense) => expense.category) || [])
+  return React.useMemo(() => mergeUnique(DEFAULT_CATEGORIES, expenses.data?.map((expense) => expense.category) || []), [expenses.data])
 }
 
 export function usePaymentMethods() {
   const expenses = useExpenses()
-  return mergeUnique(DEFAULT_PAYMENT_METHODS, expenses.data?.map((expense) => expense.paymentMethod) || [])
+  return React.useMemo(() => mergeUnique(DEFAULT_PAYMENT_METHODS, expenses.data?.map((expense) => expense.paymentMethod) || []), [expenses.data])
 }

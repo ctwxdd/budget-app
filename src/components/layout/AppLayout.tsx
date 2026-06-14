@@ -255,8 +255,8 @@ function PullToRefresh() {
   if (phase === 'idle') return null
   const progress = phase === 'refreshing' ? 1 : Math.min(1, distance / threshold)
   const reveal = progress * (SPOKE_COUNT + 0.4)
-  return <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+1rem)] z-[60] flex justify-center">
-    <div className={`relative h-6 w-6 ${phase === 'refreshing' ? 'animate-spoke-spin' : ''}`}>
+  return <div role="status" aria-live="polite" aria-label={phase === 'refreshing' ? 'Refreshing' : 'Pull to refresh'} className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+1rem)] z-[60] flex justify-center">
+    <div className={`relative h-6 w-6 ${phase === 'refreshing' ? 'motion-safe:animate-spoke-spin' : ''}`}>
       {SPOKE_COLORS.map((color, i) => {
         const angle = (i * 360) / SPOKE_COUNT
         const opacity = phase === 'refreshing' ? 1 - (i / SPOKE_COUNT) * 0.78 : Math.max(0, Math.min(1, reveal - i))
@@ -270,6 +270,7 @@ function PullToRefresh() {
         />
       })}
     </div>
+    <span className="sr-only">{phase === 'refreshing' ? 'Refreshing your expenses' : 'Pull down to refresh'}</span>
   </div>
 }
 

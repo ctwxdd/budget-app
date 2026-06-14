@@ -11,7 +11,7 @@ import { currency } from '../../lib/format'
 import { cn } from '../../lib/utils'
 import { useToast } from '../ui/Toast'
 
-type FormState = Omit<Expense, 'rowIndex'>
+export type FormState = Omit<Expense, 'rowIndex'>
 const emptyForm = (): FormState => ({ date: format(new Date(), 'yyyy-MM-dd'), amount: 0, description: '', category: '', paymentMethod: 'Credit Card', reimbursement: '' })
 const emptyGiftcardParts = (): GiftcardDescriptionParts => ({ vendor: '', face: '', source: '' })
 const paymentTypes: { type: PaymentMethodType; label: string; emoji: string }[] = [
@@ -22,6 +22,33 @@ const paymentTypes: { type: PaymentMethodType; label: string; emoji: string }[] 
 
 function DatalistInput({ id, value, onChange, options, placeholder }: { id: string; value: string; onChange: (value: string) => void; options: string[]; placeholder?: string }) {
   return <><Input list={id} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} /><datalist id={id}>{options.map((option) => <option key={option} value={option} />)}</datalist></>
+}
+
+function isoDaysAgo(days: number) {
+  const date = new Date()
+  date.setHours(0, 0, 0, 0)
+  date.setDate(date.getDate() - days)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function DateQuickChips({ selected, onPick }: { selected: string; onPick: (value: string) => void }) {
+  const chips = React.useMemo(() => [
+    { label: 'Today', value: isoDaysAgo(0) },
+    { label: 'Yesterday', value: isoDaysAgo(1) },
+    { label: '2d ago', value: isoDaysAgo(2) },
+  ], [])
+  return <div className="flex flex-wrap gap-1.5 pt-1">{chips.map((chip) => {
+    const active = selected === chip.value
+    return <button
+      key={chip.label}
+      type="button"
+      onClick={() => onPick(chip.value)}
+      className={cn('rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition motion-safe:active:scale-[0.96]', active ? 'border-coral/40 bg-coral/15 text-coral' : 'border-border bg-accent/40 text-muted-foreground hover:bg-accent/70')}
+    >{chip.label}</button>
+  })}</div>
 }
 
 type DescriptionSuggestion = { display: string; count: number; sameCategory: number; lastDate: string }
@@ -104,7 +131,7 @@ function DescriptionAutosuggest({ value, onChange, suggestions, placeholder, cur
   </div>
 }
 
-export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; onOpenChange: (open: boolean) => void; expense?: Expense | null }) {
+export function ExpenseDialog({ open, onOpenChange, expense, template }: { open: boolean; onOpenChange: (open: boolean) => void; expense?: Expense | null; template?: FormState | null }) {
   const categories = useCategories()
   const paymentMethods = usePaymentMethods()
   const expensesQuery = useExpenses()
@@ -124,7 +151,11 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
 
   React.useEffect(() => {
     if (!open) return
-    const next = expense ? { date: expense.date, amount: expense.amount, description: expense.description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: expense.reimbursement } : emptyForm()
+    const next = expense
+      ? { date: expense.date, amount: expense.amount, description: expense.description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: expense.reimbursement }
+      : template
+        ? { ...template }
+        : emptyForm()
     const description = splitDescriptionNote(next.description)
     next.description = description.base
     setForm(next)
@@ -206,7 +237,7 @@ export function ExpenseDialog({ open, onOpenChange, expense }: { open: boolean; 
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>}
   >
     <form id={formId} onSubmit={submit} className="grid min-w-0 gap-x-5 gap-y-4 pb-2 sm:grid-cols-2 sm:gap-y-5">
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Amount</span><Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} /></label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="block">Description</span>
