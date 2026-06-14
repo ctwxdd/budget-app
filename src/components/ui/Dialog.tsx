@@ -29,10 +29,35 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
   React.useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onOpenChange(false)
-    const originalOverflow = document.body.style.overflow
+    const scrollY = window.scrollY
+    const bodyStyle = document.body.style
+    const original = {
+      overflow: bodyStyle.overflow,
+      position: bodyStyle.position,
+      top: bodyStyle.top,
+      left: bodyStyle.left,
+      right: bodyStyle.right,
+      width: bodyStyle.width,
+    }
     document.body.style.overflow = 'hidden'
+    bodyStyle.position = 'fixed'
+    bodyStyle.top = `-${scrollY}px`
+    bodyStyle.left = '0'
+    bodyStyle.right = '0'
+    bodyStyle.width = '100%'
+    document.documentElement.dataset.dialogOpen = 'true'
     window.addEventListener('keydown', onKey)
-    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = originalOverflow }
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      bodyStyle.overflow = original.overflow
+      bodyStyle.position = original.position
+      bodyStyle.top = original.top
+      bodyStyle.left = original.left
+      bodyStyle.right = original.right
+      bodyStyle.width = original.width
+      delete document.documentElement.dataset.dialogOpen
+      window.scrollTo(0, scrollY)
+    }
   }, [open, onOpenChange])
 
   React.useEffect(() => { if (open) { dragYRef.current = 0; setDragY(0); setIsDragging(false); dragStart.current = null } }, [open])

@@ -148,8 +148,9 @@ function MobileMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open
 function AccountMenu({ onLogout }: { onLogout: () => void }) {
   const [open, setOpen] = React.useState(false)
   const { user } = useAuth()
-  const name = user?.name || user?.email || 'Account'
-  const initial = name.slice(0, 1).toUpperCase()
+  const firstName = user?.name?.trim().split(/\s+/)[0]
+  const displayName = firstName || user?.email || 'Account'
+  const initial = displayName.slice(0, 1).toUpperCase()
 
   React.useEffect(() => {
     if (!open) return
@@ -161,7 +162,7 @@ function AccountMenu({ onLogout }: { onLogout: () => void }) {
   return <div className="relative" onClick={(event) => event.stopPropagation()}>
     <button title={user?.email} aria-label="Open account menu" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="grid h-10 w-10 place-items-center rounded-full bg-coral text-sm font-bold text-foreground ring-1 ring-coral/20 shadow-lift dark:text-white">{initial}</button>
     {open && <div className="absolute right-0 z-40 mt-2 w-64 overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-2xl">
-      <div className="border-b border-border px-3 py-2.5"><p className="truncate text-sm font-bold">{name}</p>{user?.email && user.email !== name && <p className="truncate text-xs text-muted-foreground">{user.email}</p>}</div>
+      <div className="border-b border-border px-3 py-2.5"><p className="truncate text-sm font-bold">{displayName}</p>{user?.email && user.email !== displayName && <p className="truncate text-xs text-muted-foreground">{user.email}</p>}</div>
       <Link to="/settings" onClick={() => setOpen(false)} className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold hover:bg-accent"><Settings className="h-4 w-4" />Settings</Link>
       <button onClick={onLogout} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-destructive hover:bg-destructive/10"><LogOut className="h-4 w-4" />Sign out</button>
     </div>}

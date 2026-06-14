@@ -11,6 +11,7 @@
   }
   html { background: hsl(var(--background)); }
   body { min-height: 100dvh; }
+  html[data-dialog-open='true'] { overscroll-behavior: none; }
   :root {
     --background: 20 33% 97%;
     --foreground: 257 21% 18%;
