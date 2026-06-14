@@ -158,14 +158,11 @@ function PullToRefresh() {
     }
   }, [queryClient])
 
-  if (phase === 'idle' && distance === 0) return null
-  const progress = Math.min(1, distance / threshold)
-  const ready = distance >= threshold
-  const showSpinner = phase === 'refreshing'
-  return <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[60] flex justify-center" style={{ transform: `translateY(${Math.max(-48, distance - 56)}px)`, opacity: Math.min(1, 0.4 + progress * 0.6), transition: phase === 'idle' ? 'transform 420ms cubic-bezier(0.22, 1.25, 0.36, 1), opacity 220ms ease' : 'opacity 180ms ease' }}>
+  if (phase !== 'refreshing') return null
+  return <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[60] flex justify-center" style={{ transition: 'opacity 180ms ease' }}>
     <div className="flex items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-2 text-xs font-semibold text-muted-foreground shadow-lift backdrop-blur-xl">
-      <RefreshCw className={`h-4 w-4 text-coral ${showSpinner ? 'animate-spin' : ''}`} style={showSpinner ? undefined : { transform: `rotate(${progress * 180}deg)`, transition: 'transform 120ms ease-out' }} />
-      {showSpinner ? 'Refreshing…' : ready ? 'Release to refresh' : 'Pull to refresh'}
+      <RefreshCw className="h-4 w-4 animate-spin text-coral" />
+      Refreshing…
     </div>
   </div>
 }
