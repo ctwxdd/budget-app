@@ -68,6 +68,11 @@
   .soft-blob { @apply pointer-events-none absolute -z-10 rounded-full blur-3xl; }
 }
 
+@media (display-mode: standalone) and (max-width: 767px) {
+  .mobile-bottom-items { transform: translateY(6px); }
+  .mobile-bottom-add { margin-top: 6px; }
+}
+
 @layer utilities {
   @keyframes sheet-slide-up {
     from { transform: translateY(100%); }

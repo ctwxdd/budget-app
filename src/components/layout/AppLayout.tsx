@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, CreditCard, Gift, Home, List, LogOut, Menu, Moon, Plus, Settings, Sun, X } from 'lucide-react'
+import { BarChart3, CreditCard, Gift, Home, List, LogOut, Menu, Moon, Plus, RefreshCw, Settings, Sun, X } from 'lucide-react'
 import { SHEET_ID_KEY } from '../../lib/defaults'
 import { useAuth } from '../../lib/auth'
 import { useTheme } from '../../hooks/useTheme'
@@ -34,14 +34,74 @@ function BottomNav({ onAdd }: { onAdd: () => void }) {
   const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 pb-1 pt-2 text-[10px] font-bold transition sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="max-w-full truncate leading-none">{item.label}</span></NavLink>
   return <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden">
     <div className="relative mx-auto h-[calc(68px+env(safe-area-inset-bottom))] w-full border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl">
-      <div className="grid h-[68px] grid-cols-5 items-stretch px-1">
+      <div className="mobile-bottom-items grid h-[68px] grid-cols-5 items-stretch px-1">
         {mobileNav.slice(0, 2).map(renderItem)}
         <div className="h-full" aria-hidden />
         {mobileNav.slice(2).map(renderItem)}
       </div>
-      <Button aria-label="Add expense" variant="gradient" onClick={onAdd} className="absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full p-0 shadow-lift ring-4 ring-background transition hover:scale-[1.03]"><Plus className="h-7 w-7" /></Button>
+      <Button aria-label="Add expense" variant="gradient" onClick={onAdd} className="mobile-bottom-add absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full p-0 shadow-lift ring-4 ring-background transition hover:scale-[1.03]"><Plus className="h-7 w-7" /></Button>
     </div>
   </nav>
+}
+
+function PullToRefresh() {
+  const [distance, setDistance] = React.useState(0)
+  const [refreshing, setRefreshing] = React.useState(false)
+  const startY = React.useRef<number | null>(null)
+  const distanceRef = React.useRef(0)
+  const refreshingRef = React.useRef(false)
+  const threshold = 64
+
+  React.useEffect(() => {
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true
+    if (!standalone) return
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (refreshingRef.current || event.touches.length !== 1 || window.scrollY > 0 || document.body.style.overflow === 'hidden') return
+      startY.current = event.touches[0].clientY
+    }
+    const onTouchMove = (event: TouchEvent) => {
+      if (startY.current === null || window.scrollY > 0) return
+      const delta = event.touches[0].clientY - startY.current
+      if (delta <= 0) { distanceRef.current = 0; setDistance(0); return }
+      event.preventDefault()
+      distanceRef.current = Math.min(82, delta * 0.45)
+      setDistance(distanceRef.current)
+    }
+    const onTouchEnd = () => {
+      if (startY.current === null) return
+      startY.current = null
+      if (distanceRef.current >= threshold) {
+        refreshingRef.current = true
+        setRefreshing(true)
+        distanceRef.current = 72
+        setDistance(72)
+        window.setTimeout(() => window.location.reload(), 180)
+      } else {
+        distanceRef.current = 0
+        setDistance(0)
+      }
+    }
+
+    window.addEventListener('touchstart', onTouchStart, { passive: true })
+    window.addEventListener('touchmove', onTouchMove, { passive: false })
+    window.addEventListener('touchend', onTouchEnd, { passive: true })
+    window.addEventListener('touchcancel', onTouchEnd, { passive: true })
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', onTouchEnd)
+      window.removeEventListener('touchcancel', onTouchEnd)
+    }
+  }, [])
+
+  if (!distance && !refreshing) return null
+  return <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[60] flex justify-center" style={{ transform: `translateY(${Math.max(0, distance - 48)}px)` }}>
+    <div className="flex items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-2 text-xs font-semibold text-muted-foreground shadow-lift backdrop-blur-xl">
+      <RefreshCw className={`h-4 w-4 text-coral ${refreshing ? 'animate-spin' : distance >= threshold ? 'rotate-180' : ''}`} />
+      {refreshing ? 'Refreshing...' : distance >= threshold ? 'Release to refresh' : 'Pull to refresh'}
+    </div>
+  </div>
 }
 
 function MobileMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -103,6 +163,7 @@ export function AppLayout() {
   const cycleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
   const logout = () => { signOut(); localStorage.removeItem(SHEET_ID_KEY); navigate('/login') }
   return <div className="min-h-[100dvh] bg-background text-foreground [overflow-x:hidden] [overflow-x:clip]">
+    <PullToRefresh />
     <div className="fixed inset-y-0 left-0 hidden md:block"><Sidebar /></div>
     <div className="md:pl-72">
       <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between relative border-b border-border/70 bg-background/85 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:h-20 md:px-8 md:pt-0">
