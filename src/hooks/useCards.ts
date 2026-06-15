@@ -77,10 +77,59 @@ export function useCards() {
 }
 
 // Shared comparator so the Cards (summary) page and the payment-method
-// picker always present cards in the same order: active cards first,
-// then alphabetical by name (case-insensitive).
-export function compareCardsForDisplay(a: CardRow, b: CardRow) {
-  return Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+// picker always present cards in the same order. Primary source of truth
+// is the user's Summary!G17:G list (passed in as `order`). Anything not
+// listed there falls back to active-first, then alphabetical, so newly
+// added cards still slot in predictably.
+export function makeCardComparator(order: string[]) {
+  const indexByName = new Map<string, number>()
+  order.forEach((name, index) => {
+    const key = name.trim().toLocaleLowerCase()
+    if (key && !indexByName.has(key)) indexByName.set(key, index)
+  })
+  const positionOf = (name: string) => {
+    const i = indexByName.get(name.trim().toLocaleLowerCase())
+    return i === undefined ? Number.POSITIVE_INFINITY : i
+  }
+  return (a: CardRow, b: CardRow) => {
+    const ai = positionOf(a.name)
+    const bi = positionOf(b.name)
+    if (ai !== bi) return ai - bi
+    return Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  }
+}
+
+// Deprecated alias kept for backwards compatibility (no Summary order known).
+export const compareCardsForDisplay = makeCardComparator([])
+// The user keeps the canonical card list in the Summary tab, column G,
+// starting at row 17. We treat that list as the source of truth for
+// display ordering; if the tab/column is missing we silently fall back
+// to the default comparator above.
+export function useCardOrder() {
+  const sheetId = useSheetId()
+  const cacheKey = `cardOrder.${sheetId}`
+  const cached = readLocalCache<string[]>(cacheKey, LOCAL_CACHE_AGE)
+  const query = useQuery<string[]>({
+    queryKey: ['cardOrder', sheetId],
+    queryFn: async () => {
+      try {
+        const values = (await getSheet(sheetId, 'Summary!G17:G')).values || []
+        const order = values
+          .map((row) => (row?.[0] ?? '').toString().trim())
+          .filter(Boolean)
+        writeLocalCache(cacheKey, order)
+        return order
+      } catch {
+        return []
+      }
+    },
+    enabled: Boolean(sheetId),
+    initialData: cached?.data,
+    initialDataUpdatedAt: cached?.savedAt,
+    staleTime: LOCAL_CACHE_AGE,
+    refetchOnWindowFocus: false,
+  })
+  return query.data || []
 }
 
 export function useCreateCardsTab() {

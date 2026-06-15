@@ -4,7 +4,7 @@ import { PageErrorBoundary } from '../components/ErrorBoundary'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, Dialog, Input, Textarea } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
-import { useAddCard, useCards, useCreateCardsTab, useDeleteCard, useUpdateCard, compareCardsForDisplay, type CardRow } from '../hooks/useCards'
+import { useAddCard, useCards, useCreateCardsTab, useDeleteCard, useUpdateCard, useCardOrder, makeCardComparator, type CardRow } from '../hooks/useCards'
 import { cn } from '../lib/utils'
 
 type CardForm = Omit<CardRow, 'rowIndex'>
@@ -16,6 +16,7 @@ export function CardsPage() {
 
 function CardsContent() {
   const { cards, tabMissing, isLoading, error } = useCards()
+  const cardOrder = useCardOrder()
   const createTab = useCreateCardsTab()
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<CardRow | null>(null)
@@ -25,7 +26,7 @@ function CardsContent() {
   if (tabMissing) return <EmptyState title="Set up Cards tab in your sheet" text="Create a Cards tab with Name, Issuer, Last4, Active, and Note columns." action={<Button onClick={() => createTab.mutate()} disabled={createTab.isPending}>{createTab.isPending ? 'Creating...' : 'Create Cards tab'}</Button>} />
 
   const activeCards = cards.filter((card) => card.active).length
-  const sortedCards = [...cards].sort(compareCardsForDisplay)
+  const sortedCards = [...cards].sort(makeCardComparator(cardOrder))
 
   const openAdd = () => { setEditing(null); setDialogOpen(true) }
   const openEdit = (card: CardRow) => { setEditing(card); setDialogOpen(true) }

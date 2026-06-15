@@ -4,7 +4,7 @@ import type { Expense } from '../../lib/types'
 import { Button, Dialog, FadeScroll, Input, Select } from '../ui'
 import { useAddExpense, useCategories, useExpenses, usePaymentMethods, useUpdateExpense } from '../../hooks/useExpenses'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../../hooks/useGiftcards'
-import { useCards, compareCardsForDisplay } from '../../hooks/useCards'
+import { useCards, useCardOrder, makeCardComparator } from '../../hooks/useCards'
 import type { CardRow } from '../../hooks/useCards'
 import { appendNoteToDescription, classifyPaymentMethod, composeGiftcardDescription, parseGiftcardDescription, splitDescriptionNote, type GiftcardDescriptionParts, type PaymentMethodType } from '../../lib/giftcards'
 import { currency } from '../../lib/format'
@@ -198,6 +198,12 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const expensesQuery = useExpenses()
   const giftcards = useGiftcards()
   const managedCards = useCards()
+  const cardOrder = useCardOrder()
+  const cardComparator = React.useMemo(() => makeCardComparator(cardOrder), [cardOrder])
+  const sortedCardOptions = React.useMemo(
+    () => [...managedCards.cards].filter((card) => card.active && card.name).sort(cardComparator),
+    [managedCards.cards, cardComparator],
+  )
   const addExpense = useAddExpense()
   const updateExpense = useUpdateExpense()
   const { toast } = useToast()
@@ -340,7 +346,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
         {paymentType !== 'cash' && <div className="pt-2">
           {paymentType === 'giftcard'
             ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
-            : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={[...managedCards.cards].filter((card) => card.active && card.name).sort(compareCardsForDisplay)} fallback={filteredPaymentMethods} />}
+            : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} fallback={filteredPaymentMethods} />}
         </div>}
       </div>
     </form>
