@@ -180,19 +180,67 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
               shape={(props, index) => <DonutSector {...props} isActive={index === selectedIndex} />}
               onClick={(_, index) => setSelectedIndex(index)}
             >
-              {rows.map((_, index) => <Cell key={index} fill={chartPalette[index % chartPalette.length]} />)}
+              {rows.map((row) => <Cell key={row.name} fill={categoryColor(row.name).hex} />)}
             </Pie>
           </PieChart>
         </ResponsiveContainer>
-        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+        <div className="pointer-events-none absolute inset-0">
           {/*
-            Icon is sized to fill the donut's inner hole so the whole thing
-            reads as a solid pie disk (no empty center). Scales with the chart
-            wrapper, so it tracks the hole at every progress value.
+            Icon lives inside the scaled chart wrapper so it tracks the
+            donut's geometric center. Intrinsic size grows with --p so that
+            after the wrapper's scale (1 -> 0.4) the visible icon goes from
+            ~44px (rest, sits inside the donut hole as a small badge) to
+            ~96px (pinned, fills the hole — donut + icon read as a solid
+            pie disk). Box-shadow halo in the card color leaves a small
+            symmetric "moat" between the icon and the donut ring so the
+            icon reads as confidently centered rather than crowded against
+            the sectors.
           */}
-          <span className="grid h-32 w-32 place-items-center rounded-full shadow-soft md:h-36 md:w-36" style={{ backgroundColor: color.bg, color: color.text }}>
-            {Icon ? <Icon className="h-14 w-14 md:h-16 md:w-16" strokeWidth={2} /> : <span className="font-display text-5xl font-extrabold md:text-6xl">{selected.name.slice(0, 1).toUpperCase()}</span>}
+          <span
+            className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full"
+            style={{
+              width: 'calc(2.75rem + var(--p) * 12.25rem)',
+              height: 'calc(2.75rem + var(--p) * 12.25rem)',
+              backgroundColor: color.bg,
+              color: color.text,
+              boxShadow: '0 0 0 calc(0.25rem + var(--p) * 1rem) hsl(var(--card))',
+            }}
+          >
+            {Icon ? (
+              <span
+                className="grid place-items-center"
+                style={{
+                  width: 'calc(1.125rem + var(--p) * 6.5rem)',
+                  height: 'calc(1.125rem + var(--p) * 6.5rem)',
+                }}
+              >
+                <Icon className="h-full w-full" strokeWidth={2.2} />
+              </span>
+            ) : (
+              <span
+                className="font-display font-extrabold leading-none"
+                style={{ fontSize: 'calc(1rem + var(--p) * 5rem)' }}
+              >
+                {selected.name.slice(0, 1).toUpperCase()}
+              </span>
+            )}
           </span>
+          {/*
+            Center info (name / amount / %) sits just below the small
+            rest-state icon. Fades out as --p grows so the growing icon can
+            take over the hole without overlap.
+          */}
+          <div
+            className="absolute left-1/2 top-1/2 flex max-w-36 flex-col items-center text-center"
+            style={{
+              transform: 'translate(-50%, 1.75rem)',
+              opacity: 'calc(1 - var(--p))',
+            }}
+          >
+            <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
+            <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
+            <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
+          </div>
         </div>
       </div>
       <div
