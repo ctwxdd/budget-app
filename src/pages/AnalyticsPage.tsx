@@ -184,44 +184,65 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
             </PieChart>
           </ResponsiveContainer>
 
-          <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <div
+            className="pointer-events-none absolute inset-0 grid place-items-center"
+            style={{ opacity: 'calc(1 - var(--p) * 1.6)' }}
+          >
             <div className="flex max-w-[8rem] flex-col items-center text-center">
               <span
-                className="grid place-items-center rounded-full"
+                className="grid h-12 w-12 place-items-center rounded-full"
                 style={{
-                  width: 'calc(3rem + var(--p) * 6rem)',
-                  height: 'calc(3rem + var(--p) * 6rem)',
-                  transform: 'translateY(calc(var(--p) * 2rem))',
                   backgroundColor: color.bg,
                   color: color.text,
-                  boxShadow: '0 0 0 calc(0.25rem + var(--p) * 0.5rem) hsl(var(--card))',
+                  boxShadow: '0 0 0 0.25rem hsl(var(--card))',
                 }}
               >
                 {Icon ? (
-                  <span
-                    className="grid place-items-center"
-                    style={{
-                      width: 'calc(1.5rem + var(--p) * 3.5rem)',
-                      height: 'calc(1.5rem + var(--p) * 3.5rem)',
-                    }}
-                  >
-                    <Icon className="h-full w-full" strokeWidth={2.2} />
-                  </span>
+                  <Icon className="h-6 w-6" strokeWidth={2.2} />
                 ) : (
                   <span className="font-display text-2xl font-extrabold leading-none">
                     {selected.name.slice(0, 1).toUpperCase()}
                   </span>
                 )}
               </span>
-              <div
-                className="mt-1.5 w-full"
-                style={{ opacity: 'calc(1 - var(--p) * 1.8)' }}
-              >
+              <div className="mt-1.5 w-full">
                 <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
                 <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
                 <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}%</p>
               </div>
             </div>
+          </div>
+
+          <div
+            className="pointer-events-none absolute inset-0 grid place-items-center"
+            style={{ opacity: 'calc(var(--p) * 1.35)' }}
+          >
+            <span
+              className="grid place-items-center rounded-full"
+              style={{
+                width: 'calc(3rem + var(--p) * 4rem)',
+                height: 'calc(3rem + var(--p) * 4rem)',
+                backgroundColor: color.bg,
+                color: color.text,
+                boxShadow: '0 0 0 calc(0.25rem + var(--p) * 0.5rem) hsl(var(--card))',
+              }}
+            >
+              {Icon ? (
+                <span
+                  className="grid place-items-center"
+                  style={{
+                    width: 'calc(1.5rem + var(--p) * 2.25rem)',
+                    height: 'calc(1.5rem + var(--p) * 2.25rem)',
+                  }}
+                >
+                  <Icon className="h-full w-full" strokeWidth={2.2} />
+                </span>
+              ) : (
+                <span className="font-display text-2xl font-extrabold leading-none">
+                  {selected.name.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+            </span>
           </div>
         </div>
       </div>
