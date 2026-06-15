@@ -140,13 +140,17 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className={`flex flex-col items-center text-center transition-all duration-300 ${isStuck ? 'max-w-24 gap-0' : 'max-w-32'}`}>
-            <span className={`grid place-items-center rounded-full transition-all duration-300 ${isStuck ? 'mb-0.5 h-6 w-6' : 'mb-1.5 h-9 w-9'}`} style={{ backgroundColor: color.bg, color: color.text }}>
-              {Icon ? <Icon className={isStuck ? 'h-3 w-3' : 'h-[18px] w-[18px]'} strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
+          <div className={`flex flex-col items-center text-center transition-all duration-300 ${isStuck ? 'gap-0' : 'max-w-32'}`}>
+            <span className={`grid place-items-center rounded-full shadow-soft transition-all duration-300 ${isStuck ? 'h-11 w-11' : 'mb-1.5 h-9 w-9'}`} style={{ backgroundColor: color.bg, color: color.text }}>
+              {Icon ? <Icon className={`transition-all duration-300 ${isStuck ? 'h-6 w-6' : 'h-[18px] w-[18px]'}`} strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
             </span>
-            <p className={`max-w-full truncate font-bold transition-[font-size] duration-300 ${isStuck ? 'text-[11px]' : 'text-sm'}`} title={selected.name}>{selected.name}</p>
-            <p className={`font-display font-extrabold tabular-nums transition-[font-size] duration-300 ${isStuck ? 'mt-0 text-xs' : 'mt-0.5 text-base'}`} style={{ color: color.text }}>{currency.format(selected.total)}</p>
-            <p className={`mt-0.5 font-semibold text-muted-foreground transition-[font-size,opacity,max-height] duration-300 ${isStuck ? 'pointer-events-none max-h-0 text-[0px] opacity-0' : 'max-h-4 text-xs opacity-100'}`}>{percentage.toFixed(1)}% of total</p>
+            <div className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ${isStuck ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`} aria-hidden={isStuck}>
+              <div className="min-h-0 flex flex-col items-center">
+                <p className="max-w-32 truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
+                <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
+                <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
