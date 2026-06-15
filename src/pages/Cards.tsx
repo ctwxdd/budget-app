@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Pencil, Plus, Trash2, WalletCards } from 'lucide-react'
+import { ChevronDown, Pencil, Plus, Search, Trash2, WalletCards, X } from 'lucide-react'
 import { PageErrorBoundary } from '../components/ErrorBoundary'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, Dialog, Input, Textarea } from '../components/ui'
@@ -9,11 +9,46 @@ import { useExpenses } from '../hooks/useExpenses'
 import { currency, filterByDateRange, getPresetRange } from '../lib/format'
 import { cn } from '../lib/utils'
 
-type CardForm = Omit<CardRow, 'rowIndex'>
+type CardForm = Pick<CardRow, 'name' | 'issuer' | 'last4' | 'active' | 'note' | 'annualFee'>
 const emptyCard = (): CardForm => ({ name: '', issuer: '', last4: '', active: true, note: '', annualFee: 0 })
 
 type CardSpend = { month: number; total: number; count: number }
 const zeroSpend: CardSpend = { month: 0, total: 0, count: 0 }
+
+type SubStatus = {
+  spent: number
+  remaining: number
+  daysLeft: number
+  totalDays: number
+  progress: number       // 0..1, spend / required
+  paceProgress: number   // 0..1, time elapsed / total
+  state: 'met' | 'on-track' | 'behind' | 'expired' | 'upcoming'
+  label: string
+  emoji: string
+}
+
+const TODAY = () => new Date().toISOString().slice(0, 10)
+const daysBetween = (a: string, b: string) => Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000)
+
+function computeSubStatus(card: CardRow, spentInWindow: number): SubStatus | null {
+  if (!card.subRequired || !card.subStart || !card.subDeadline) return null
+  const today = TODAY()
+  const totalDays = Math.max(1, daysBetween(card.subStart, card.subDeadline))
+  const elapsedDays = Math.max(0, Math.min(totalDays, daysBetween(card.subStart, today)))
+  const remaining = Math.max(0, card.subRequired - spentInWindow)
+  const daysLeft = Math.max(0, daysBetween(today, card.subDeadline))
+  const progress = Math.min(1, spentInWindow / card.subRequired)
+  const paceProgress = Math.min(1, elapsedDays / totalDays)
+
+  if (spentInWindow >= card.subRequired) return { spent: spentInWindow, remaining: 0, daysLeft, totalDays, progress: 1, paceProgress, state: 'met', label: 'Met', emoji: '✅' }
+  if (today < card.subStart) return { spent: spentInWindow, remaining, daysLeft, totalDays, progress, paceProgress, state: 'upcoming', label: 'Upcoming', emoji: '🕒' }
+  if (today > card.subDeadline) return { spent: spentInWindow, remaining, daysLeft: 0, totalDays, progress, paceProgress: 1, state: 'expired', label: 'Expired', emoji: '❌' }
+  // Active window: compare spend pace vs. time pace
+  const onTrack = progress >= paceProgress - 0.02
+  return { spent: spentInWindow, remaining, daysLeft, totalDays, progress, paceProgress, state: onTrack ? 'on-track' : 'behind', label: onTrack ? 'On track' : 'Behind', emoji: onTrack ? '🟢' : '🟠' }
+}
+
+const isSubActive = (status: SubStatus | null) => status?.state === 'on-track' || status?.state === 'behind'
 
 export function CardsPage() {
   return <PageErrorBoundary><CardsContent /></PageErrorBoundary>
@@ -25,7 +60,20 @@ function CardsContent() {
   const createTab = useCreateCardsTab()
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<CardRow | null>(null)
+  const [search, setSearch] = React.useState('')
+  const [hideInactive, setHideInactive] = React.useState(true)
+  const [expanded, setExpanded] = React.useState<Set<number>>(() => new Set())
 
+  const toggleExpanded = React.useCallback((rowIndex: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(rowIndex)) next.delete(rowIndex)
+      else next.add(rowIndex)
+      return next
+    })
+  }, [])
+
+  // Aggregate expenses by payment method: month + all-time spend.
   const spendByCard = React.useMemo(() => {
     const data = expensesQuery.data || []
     const range = getPresetRange('thisMonth')
@@ -43,17 +91,78 @@ function CardsContent() {
     return map
   }, [expensesQuery.data])
 
+  // Aggregate spend per card within its SUB window — only computed for
+  // cards that actually have a window defined.
+  const subSpendByRow = React.useMemo(() => {
+    const data = expensesQuery.data || []
+    const windows = cards
+      .filter((card) => card.subRequired && card.subStart && card.subDeadline)
+      .map((card) => ({ rowIndex: card.rowIndex, key: card.name.trim().toLocaleLowerCase(), start: card.subStart, end: card.subDeadline }))
+    const map = new Map<number, number>()
+    windows.forEach((w) => map.set(w.rowIndex, 0))
+    if (!windows.length) return map
+    data.forEach((expense) => {
+      const key = expense.paymentMethod.trim().toLocaleLowerCase()
+      if (!key) return
+      for (const w of windows) {
+        if (w.key !== key) continue
+        if (expense.date < w.start || expense.date > w.end) continue
+        map.set(w.rowIndex, (map.get(w.rowIndex) || 0) + expense.amount)
+      }
+    })
+    return map
+  }, [cards, expensesQuery.data])
+
+  const subStatusByRow = React.useMemo(() => {
+    const map = new Map<number, SubStatus>()
+    cards.forEach((card) => {
+      const status = computeSubStatus(card, subSpendByRow.get(card.rowIndex) || 0)
+      if (status) map.set(card.rowIndex, status)
+    })
+    return map
+  }, [cards, subSpendByRow])
+
   const getSpend = React.useCallback(
     (name: string) => spendByCard.get(name.trim().toLocaleLowerCase()) || zeroSpend,
     [spendByCard],
   )
 
+  // Filter (search + hide-inactive) then sort.
+  const visibleCards = React.useMemo(() => {
+    const q = search.trim().toLocaleLowerCase()
+    const filtered = cards.filter((card) => {
+      if (hideInactive && !card.active) return false
+      if (!q) return true
+      return [card.name, card.issuer, card.last4, card.note, card.subBonus]
+        .some((field) => field && field.toLocaleLowerCase().includes(q))
+    })
+    return filtered.sort((a, b) => {
+      const aSub = subStatusByRow.get(a.rowIndex) || null
+      const bSub = subStatusByRow.get(b.rowIndex) || null
+      const aActive = isSubActive(aSub) ? 1 : 0
+      const bActive = isSubActive(bSub) ? 1 : 0
+      if (aActive !== bActive) return bActive - aActive
+      if (aActive && bActive) {
+        // Earliest deadline first when both are open
+        const cmp = a.subDeadline.localeCompare(b.subDeadline)
+        if (cmp !== 0) return cmp
+      }
+      // Reverse time order — newest SUB start first; cards without a SUB
+      // start fall through to rowIndex desc so newly-added rows surface.
+      const aStart = a.subStart || ''
+      const bStart = b.subStart || ''
+      if (aStart !== bStart) return bStart.localeCompare(aStart)
+      return b.rowIndex - a.rowIndex
+    })
+  }, [cards, search, hideInactive, subStatusByRow])
+
   if (isLoading) return <SkeletonCards />
   if (error) return <EmptyState title="Could not load cards" text={error.message} />
-  if (tabMissing) return <EmptyState title="Set up Cards tab in your sheet" text="Create a Cards tab with Name, Issuer, Last4, Active, Note, and Annual Fee columns." action={<Button onClick={() => createTab.mutate()} disabled={createTab.isPending}>{createTab.isPending ? 'Creating...' : 'Create Cards tab'}</Button>} />
+  if (tabMissing) return <EmptyState title="Set up Cards tab in your sheet" text="Create a Cards tab with Name, Issuer, Last4, Active, Note, Annual Fee, SUB Required, SUB Start, SUB Deadline, and SUB Bonus columns." action={<Button onClick={() => createTab.mutate()} disabled={createTab.isPending}>{createTab.isPending ? 'Creating...' : 'Create Cards tab'}</Button>} />
 
-  const monthTotal = cards.reduce((sum, card) => sum + getSpend(card.name).month, 0)
+  const monthTotal = cards.reduce((sum, card) => sum + (card.active ? getSpend(card.name).month : 0), 0)
   const annualFeeTotal = cards.reduce((sum, card) => sum + (card.active ? card.annualFee || 0 : 0), 0)
+  const subActiveCount = cards.filter((card) => isSubActive(subStatusByRow.get(card.rowIndex) || null)).length
 
   const openAdd = () => { setEditing(null); setDialogOpen(true) }
   const openEdit = (card: CardRow) => { setEditing(card); setDialogOpen(true) }
@@ -69,18 +178,32 @@ function CardsContent() {
     </div>
     <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
       <Kpi label="Cards on list" emoji="💳" value={String(cards.length)} tint="from-sky/15 to-lavender/10" />
-      <Kpi label="Active" emoji="✨" value={String(cards.filter((card) => card.active).length)} tint="from-mint/15 to-sage/15" />
-      <Kpi label="This month" emoji="💸" value={currency.format(monthTotal)} tint="from-coral/15 to-peach/20" />
+      <Kpi label="SUB open" emoji="🎁" value={String(subActiveCount)} tint="from-coral/15 to-peach/20" />
+      <Kpi label="This month" emoji="💸" value={currency.format(monthTotal)} tint="from-mint/15 to-sage/15" />
       <Kpi label="Annual fees" emoji="🧾" value={currency.format(annualFeeTotal)} tint="from-amber-200/30 to-peach/20" />
     </div>
-    {!cards.length ? <EmptyState title="No cards yet" text="Add credit cards here so they show up first in the Expense payment method picker." /> : <Card className="overflow-hidden rounded-2xl">
-      <div className="hidden md:block">
-        <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_6rem_6rem] gap-3 border-b border-border/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-          <span>Name</span><span>Issuer</span><span className="text-right">AF</span><span className="text-right">This month</span><span className="text-right">All time</span><span>Status</span><span>Actions</span>
-        </div>
-        {cards.map((card) => <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} onEdit={openEdit} />)}
+
+    <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-white/60 p-2 dark:bg-card/60 sm:flex-row sm:items-center">
+      <div className="relative flex-1">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name, issuer, last4, note…" className="pl-9 pr-9" />
+        {search && <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-accent" aria-label="Clear search"><X className="h-4 w-4" /></button>}
       </div>
-      <div className="space-y-2 p-2 md:hidden">{cards.map((card) => <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} onEdit={openEdit} />)}</div>
+      <label className="flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold text-muted-foreground sm:px-2">
+        <input type="checkbox" checked={hideInactive} onChange={(event) => setHideInactive(event.target.checked)} className="h-4 w-4 accent-coral" />
+        Hide inactive
+      </label>
+      <span className="hidden text-xs font-medium text-muted-foreground sm:inline sm:pr-2">{visibleCards.length} of {cards.length}</span>
+    </div>
+
+    {!visibleCards.length ? <EmptyState title={search || hideInactive ? 'No matches' : 'No cards yet'} text={search ? `Nothing matches "${search}".` : hideInactive ? 'All your cards are marked inactive — uncheck "Hide inactive" to see them.' : 'Add credit cards here so they show up first in the Expense payment method picker.'} /> : <Card className="overflow-hidden rounded-2xl">
+      <div className="hidden md:block">
+        <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] gap-3 border-b border-border/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+          <span /><span>Name</span><span>Issuer</span><span className="text-right">AF</span><span className="text-right">This month</span><span className="text-right">All time</span><span>SUB</span><span>Status</span><span>Actions</span>
+        </div>
+        {visibleCards.map((card) => <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={subStatusByRow.get(card.rowIndex) || null} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} />)}
+      </div>
+      <div className="space-y-2 p-2 md:hidden">{visibleCards.map((card) => <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={subStatusByRow.get(card.rowIndex) || null} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} />)}</div>
     </Card>}
     <CardDialog open={dialogOpen} onOpenChange={setDialogOpen} card={editing} />
   </div>
@@ -90,19 +213,70 @@ function Kpi({ label, emoji, value, tint }: { label: string; emoji: string; valu
   return <Card className={`overflow-hidden rounded-2xl bg-gradient-to-br ${tint}`}><CardHeader className="p-3 pb-1 md:p-4 md:pb-1.5"><CardTitle className="flex items-center gap-1.5 text-[11px] text-muted-foreground md:text-xs"><span>{emoji}</span>{label}</CardTitle></CardHeader><CardContent className="px-3 pb-3 pt-0 md:px-4 md:pb-4"><div className="font-display text-lg font-extrabold md:text-2xl">{value}</div></CardContent></Card>
 }
 
-function CardListRow({ card, spend, onEdit }: { card: CardRow; spend: CardSpend; onEdit: (card: CardRow) => void }) {
-  return <div className={cn('grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_6rem_6rem] items-center gap-3 border-b border-border/50 px-4 py-2.5 text-sm last:border-b-0', !card.active && 'opacity-55')}>
-    <div className="min-w-0"><p className="truncate font-semibold">{card.name}</p><p className="text-xs text-muted-foreground">{card.last4 ? `••••${card.last4}` : 'No last4'}</p></div>
-    <span className="truncate text-muted-foreground">{card.issuer || '—'}</span>
-    <span className="text-right tabular-nums text-muted-foreground">{card.annualFee > 0 ? <span className="font-medium text-foreground">{currency.format(card.annualFee)}</span> : '—'}</span>
-    <span className="text-right font-display font-bold text-coral tabular-nums">{spend.month > 0 ? currency.format(spend.month) : <span className="font-sans text-xs font-medium text-muted-foreground">—</span>}</span>
-    <span className="text-right tabular-nums text-muted-foreground">{spend.total > 0 ? <><span className="font-semibold text-foreground">{currency.format(spend.total)}</span><span className="ml-1 text-[11px]">· {spend.count}</span></> : '—'}</span>
-    <ActiveToggle card={card} />
-    <RowActions card={card} onEdit={onEdit} />
+function SubChip({ sub, compact }: { sub: SubStatus; compact?: boolean }) {
+  const tone =
+    sub.state === 'met' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200' :
+    sub.state === 'on-track' ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-200' :
+    sub.state === 'behind' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200' :
+    sub.state === 'expired' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200' :
+    'bg-muted text-muted-foreground'
+  return <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold', tone)}>
+    <span>{sub.emoji}</span>{compact ? sub.label : `${sub.label}${sub.state === 'on-track' || sub.state === 'behind' ? ` · ${sub.daysLeft}d` : ''}`}
+  </span>
+}
+
+function SubTracker({ card, sub }: { card: CardRow; sub: SubStatus }) {
+  const pct = Math.round(sub.progress * 100)
+  const pacePct = Math.round(sub.paceProgress * 100)
+  return <div className="mt-2 rounded-2xl border border-border/60 bg-accent/30 p-3 text-xs">
+    <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
+      <div className="flex items-center gap-2">
+        <SubChip sub={sub} />
+        {card.subBonus && <span className="text-muted-foreground">🎁 {card.subBonus}</span>}
+      </div>
+      <span className="text-muted-foreground">{card.subStart} → {card.subDeadline}</span>
+    </div>
+    <div className="relative h-2 overflow-hidden rounded-full bg-border/60">
+      <div className={cn('absolute inset-y-0 left-0 rounded-full transition-all',
+        sub.state === 'met' ? 'bg-emerald-500' :
+        sub.state === 'on-track' ? 'bg-teal-500' :
+        sub.state === 'behind' ? 'bg-amber-500' :
+        sub.state === 'expired' ? 'bg-rose-500' :
+        'bg-muted-foreground')} style={{ width: `${pct}%` }} />
+      {sub.state !== 'met' && sub.state !== 'expired' && sub.state !== 'upcoming' && (
+        <div className="absolute top-0 h-2 w-px bg-foreground/40" style={{ left: `${pacePct}%` }} title={`Time pace ${pacePct}%`} />
+      )}
+    </div>
+    <div className="mt-1.5 grid grid-cols-3 gap-2 tabular-nums">
+      <div><p className="text-[10px] uppercase tracking-wide text-muted-foreground">Spent</p><p className="font-semibold text-foreground">{currency.format(sub.spent)} <span className="text-[10px] font-normal text-muted-foreground">/ {currency.format(card.subRequired)}</span></p></div>
+      <div className="text-center"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">{sub.state === 'met' ? 'Done' : 'To go'}</p><p className="font-semibold text-foreground">{currency.format(sub.remaining)}</p></div>
+      <div className="text-right"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">Days left</p><p className="font-semibold text-foreground">{sub.daysLeft}</p></div>
+    </div>
   </div>
 }
 
-function CardMobileRow({ card, spend, onEdit }: { card: CardRow; spend: CardSpend; onEdit: (card: CardRow) => void }) {
+function CardListRow({ card, spend, sub, expanded, onToggle, onEdit }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void }) {
+  const hasSub = Boolean(sub)
+  return <div className={cn('border-b border-border/50 last:border-b-0', !card.active && 'opacity-55')}>
+    <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] items-center gap-3 px-4 py-2.5 text-sm">
+      <button type="button" onClick={onToggle} disabled={!hasSub} className={cn('inline-flex h-7 w-7 items-center justify-center rounded-full transition', hasSub ? 'text-foreground hover:bg-accent' : 'text-muted-foreground/30 cursor-default')} aria-label={expanded ? 'Collapse' : 'Expand SUB tracker'}>
+        <ChevronDown className={cn('h-4 w-4 transition-transform', expanded && 'rotate-180')} />
+      </button>
+      <div className="min-w-0"><p className="truncate font-semibold">{card.name}</p><p className="text-xs text-muted-foreground">{card.last4 ? `••••${card.last4}` : 'No last4'}</p></div>
+      <span className="truncate text-muted-foreground">{card.issuer || '—'}</span>
+      <span className="text-right tabular-nums text-muted-foreground">{card.annualFee > 0 ? <span className="font-medium text-foreground">{currency.format(card.annualFee)}</span> : '—'}</span>
+      <span className="text-right font-display font-bold text-coral tabular-nums">{spend.month > 0 ? currency.format(spend.month) : <span className="font-sans text-xs font-medium text-muted-foreground">—</span>}</span>
+      <span className="text-right tabular-nums text-muted-foreground">{spend.total > 0 ? <><span className="font-semibold text-foreground">{currency.format(spend.total)}</span><span className="ml-1 text-[11px]">· {spend.count}</span></> : '—'}</span>
+      <span>{sub ? <SubChip sub={sub} compact /> : <span className="text-xs text-muted-foreground">—</span>}</span>
+      <ActiveToggle card={card} />
+      <RowActions card={card} onEdit={onEdit} />
+    </div>
+    {expanded && sub && <div className="px-4 pb-3"><SubTracker card={card} sub={sub} /></div>}
+  </div>
+}
+
+function CardMobileRow({ card, spend, sub, expanded, onToggle, onEdit }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void }) {
+  const hasSub = Boolean(sub)
   const subtitle = [card.issuer, card.last4 && `••••${card.last4}`, card.annualFee > 0 && `${currency.format(card.annualFee)}/yr`].filter(Boolean).join(' · ')
   return <div className={cn('rounded-2xl border border-border/70 bg-white/70 p-3 shadow-sm dark:bg-card/70', !card.active && 'opacity-55')}>
     <div className="flex items-start justify-between gap-3">
@@ -114,7 +288,14 @@ function CardMobileRow({ card, spend, onEdit }: { card: CardRow; spend: CardSpen
       <div className="text-right"><p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">All time</p><p className="font-display text-base font-bold tabular-nums">{currency.format(spend.total)}<span className="ml-1 text-[10px] font-medium text-muted-foreground">· {spend.count}</span></p></div>
     </div>
     {card.note && <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{card.note}</p>}
-    <div className="mt-3"><ActiveToggle card={card} /></div>
+    <div className="mt-3 flex items-center justify-between gap-2">
+      <ActiveToggle card={card} />
+      {hasSub && sub && <button type="button" onClick={onToggle} className="inline-flex items-center gap-1 rounded-full bg-accent/60 px-2.5 py-1 text-[11px] font-semibold text-foreground transition hover:bg-accent">
+        <SubChip sub={sub} compact />
+        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
+      </button>}
+    </div>
+    {expanded && sub && <SubTracker card={card} sub={sub} />}
   </div>
 }
 
@@ -159,8 +340,13 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
     const payload = { ...form, name: form.name.trim(), issuer: form.issuer.trim(), last4: form.last4.trim(), note: form.note.trim(), annualFee: Number(form.annualFee) || 0 }
     if (!payload.name) return toast({ title: 'Card name is required.', variant: 'destructive' })
     try {
-      if (isExisting && card) await updateCard.mutateAsync({ ...payload, rowIndex: card.rowIndex })
-      else await addCard.mutateAsync(payload)
+      if (isExisting && card) {
+        // Preserve the SUB fields the sheet owns — the dialog only edits
+        // the base columns A:F.
+        await updateCard.mutateAsync({ ...payload, rowIndex: card.rowIndex, subRequired: card.subRequired, subStart: card.subStart, subDeadline: card.subDeadline, subBonus: card.subBonus })
+      } else {
+        await addCard.mutateAsync({ ...payload, subRequired: 0, subStart: '', subDeadline: '', subBonus: '' })
+      }
       toast({ title: isExisting ? 'Card updated' : 'Card added' })
       onOpenChange(false)
     } catch (error) {
@@ -177,6 +363,9 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Annual fee<Input inputMode="decimal" type="number" min="0" step="0.01" value={form.annualFee || ''} onChange={(event) => setForm({ ...form, annualFee: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="0" /></label>
       <label className="flex items-center gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 text-sm font-semibold text-muted-foreground dark:bg-card/70 sm:col-span-2"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4 accent-coral" />Active</label>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Note<Textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="Benefits, reminders..." /></label>
+      {isExisting && card && (card.subRequired || card.subStart) && <div className="rounded-2xl border border-dashed border-border/60 bg-accent/20 p-3 text-xs text-muted-foreground sm:col-span-2">
+        🎁 Sign-up bonus fields (Required / Start / Deadline / Bonus) are maintained in the <strong>Cards</strong> sheet directly so formulas can compute progress. Edit them there to keep both views in sync.
+      </div>}
       <div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:col-span-2 sm:-mx-7 sm:-mb-8 sm:flex-row sm:justify-end sm:pb-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" disabled={saving}>{saving ? 'Saving...' : (isExisting ? 'Save changes' : 'Add card')}</Button></div>
     </form>
   </Dialog>

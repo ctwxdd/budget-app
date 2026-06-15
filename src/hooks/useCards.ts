@@ -12,6 +12,10 @@ export type CardRow = {
   active: boolean
   note: string
   annualFee: number
+  subRequired: number
+  subStart: string
+  subDeadline: string
+  subBonus: string
 }
 
 type CardsData = { cards: CardRow[]; tabMissing: boolean }
@@ -39,10 +43,23 @@ function isMissingCardsTab(error: unknown) {
   return /Unable to parse range|Cannot find range|not found/i.test(message) && /Cards/i.test(message)
 }
 
+function parseDate(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10)
+  const text = String(value).trim()
+  if (!text) return ''
+  // Already ISO?
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10)
+  // Try generic parse — accepts "M/D/YYYY", "Mon DD, YYYY", etc.
+  const parsed = new Date(text)
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10)
+  return text
+}
+
 function parseCards(rows: string[][] = []): CardRow[] {
   return rows
     .map((row, index) => {
-      const [name = '', issuer = '', last4 = '', active = '', note = '', annualFee = ''] = row
+      const [name = '', issuer = '', last4 = '', active = '', note = '', annualFee = '', subRequired = '', subStart = '', subDeadline = '', subBonus = ''] = row
       return {
         rowIndex: index + 2,
         name: String(name || '').trim(),
@@ -51,6 +68,10 @@ function parseCards(rows: string[][] = []): CardRow[] {
         active: parseBoolean(active, true),
         note: String(note || '').trim(),
         annualFee: parseNumber(annualFee),
+        subRequired: parseNumber(subRequired),
+        subStart: parseDate(subStart),
+        subDeadline: parseDate(subDeadline),
+        subBonus: String(subBonus || '').trim(),
       }
     })
     .filter((card) => card.name || card.issuer || card.last4 || card.note)
@@ -58,13 +79,13 @@ function parseCards(rows: string[][] = []): CardRow[] {
 
 export function useCards() {
   const sheetId = useSheetId()
-  const cacheKey = `cards.v2.${sheetId}`
+  const cacheKey = `cards.v3.${sheetId}`
   const cached = readLocalCache<CardsData>(cacheKey, LOCAL_CACHE_AGE)
   const query = useQuery<CardsData>({
-    queryKey: ['cards', 'v2', sheetId],
+    queryKey: ['cards', 'v3', sheetId],
     queryFn: async () => {
       try {
-        const data = { cards: parseCards((await getSheet(sheetId, 'Cards!A2:F1000')).values || []), tabMissing: false }
+        const data = { cards: parseCards((await getSheet(sheetId, 'Cards!A2:J1000')).values || []), tabMissing: false }
         writeLocalCache(cacheKey, data)
         return data
       } catch (error) {
@@ -101,8 +122,8 @@ export function useCreateCardsTab() {
   return useMutation({
     mutationFn: () => createCardsTab(sheetId),
     onSuccess: () => {
-      clearLocalCache(`cards.v2.${sheetId}`)
-      queryClient.invalidateQueries({ queryKey: ['cards', 'v2', sheetId] })
+      clearLocalCache(`cards.v3.${sheetId}`)
+      queryClient.invalidateQueries({ queryKey: ['cards', 'v3', sheetId] })
       queryClient.invalidateQueries({ queryKey: ['sheetMeta', sheetId] })
     },
   })
@@ -113,7 +134,7 @@ export function useAddCard() {
   const sheetId = useSheetId()
   return useMutation({
     mutationFn: (card: CardSheetInput) => addCard(sheetId, card),
-    onSuccess: () => { clearLocalCache(`cards.v2.${sheetId}`); queryClient.invalidateQueries({ queryKey: ['cards', 'v2', sheetId] }) },
+    onSuccess: () => { clearLocalCache(`cards.v3.${sheetId}`); queryClient.invalidateQueries({ queryKey: ['cards', 'v3', sheetId] }) },
   })
 }
 
@@ -122,7 +143,7 @@ export function useUpdateCard() {
   const sheetId = useSheetId()
   return useMutation({
     mutationFn: (card: CardRow) => updateCard(sheetId, card),
-    onSuccess: () => { clearLocalCache(`cards.v2.${sheetId}`); queryClient.invalidateQueries({ queryKey: ['cards', 'v2', sheetId] }) },
+    onSuccess: () => { clearLocalCache(`cards.v3.${sheetId}`); queryClient.invalidateQueries({ queryKey: ['cards', 'v3', sheetId] }) },
   })
 }
 
@@ -136,6 +157,6 @@ export function useDeleteCard() {
       if (sheetGid === undefined) throw new Error('Could not find a Cards tab in this spreadsheet.')
       return deleteCard(sheetId, sheetGid, card.rowIndex)
     },
-    onSuccess: () => { clearLocalCache(`cards.v2.${sheetId}`); queryClient.invalidateQueries({ queryKey: ['cards', 'v2', sheetId] }) },
+    onSuccess: () => { clearLocalCache(`cards.v3.${sheetId}`); queryClient.invalidateQueries({ queryKey: ['cards', 'v3', sheetId] }) },
   })
 }

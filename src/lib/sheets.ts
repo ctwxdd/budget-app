@@ -181,12 +181,19 @@ export type CardSheetRow = {
   active: boolean
   note: string
   annualFee: number
+  subRequired: number
+  subStart: string
+  subDeadline: string
+  subBonus: string
 }
 
 export type CardSheetInput = Omit<CardSheetRow, 'rowIndex'>
 
-export const cardsHeaders = ['Name', 'Issuer', 'Last4', 'Active', 'Note', 'Annual Fee']
+export const cardsHeaders = ['Name', 'Issuer', 'Last4', 'Active', 'Note', 'Annual Fee', 'SUB Required', 'SUB Start', 'SUB Deadline', 'SUB Bonus']
 
+// Writes only touch the base columns the in-app dialog edits (A:F). The
+// SUB tracking columns (G:J) are maintained directly in the sheet, so we
+// deliberately leave them untouched on update / append.
 export function cardToRow(card: CardSheetInput | CardSheetRow): (string | number | boolean)[] {
   return [card.name, card.issuer, card.last4, card.active, card.note, card.annualFee || '']
 }
@@ -334,10 +341,17 @@ export async function createSpreadsheet({ title, categories, paymentMethods, rei
         listValidation(EXPENSE_GID, 3, categories),
         listValidation(EXPENSE_GID, 4, paymentMethods),
         listValidation(EXPENSE_GID, 5, reimbursements),
-        // Cards: Active as checkbox, Annual Fee as currency
+        // Cards: Active as checkbox, Annual Fee + SUB Required as currency,
+        // SUB Start/Deadline as dates.
         booleanCheckbox(CARDS_GID, 3),
         currencyFormat(CARDS_GID, 5),
         nonNegativeNumberValidation(CARDS_GID, 5),
+        currencyFormat(CARDS_GID, 6),
+        nonNegativeNumberValidation(CARDS_GID, 6),
+        dateFormat(CARDS_GID, 7),
+        dateValidation(CARDS_GID, 7),
+        dateFormat(CARDS_GID, 8),
+        dateValidation(CARDS_GID, 8),
         // Giftcard: date + currency formats, non-negative validation
         dateFormat(GIFTCARD_GID, 1),
         currencyFormat(GIFTCARD_GID, 2),
