@@ -14,7 +14,7 @@ type CardForm = Pick<CardRow, 'name' | 'issuer' | 'last4' | 'active' | 'note' | 
   subStart: string
   subPeriodMonths: number
 }
-const emptyCard = (): CardForm => ({ name: '', issuer: '', last4: '', active: true, note: '', annualFee: 0, subRequired: 0, subStart: '', subPeriodMonths: 3, subBonus: '' })
+const emptyCard = (): CardForm => ({ name: '', issuer: '', last4: '', active: true, note: '', annualFee: 0, subRequired: 0, subStart: '', subPeriodMonths: 0, subBonus: '' })
 
 // Adds `months` whole months to a YYYY-MM-DD string (UTC, day-clamped).
 function addMonthsISO(iso: string, months: number): string {
@@ -346,6 +346,7 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
   const updateCard = useUpdateCard()
   const { toast } = useToast()
   const [form, setForm] = React.useState<CardForm>(emptyCard)
+  const [showSub, setShowSub] = React.useState(false)
   const isExisting = !!card
 
   React.useEffect(() => {
@@ -358,9 +359,10 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
       annualFee: card.annualFee,
       subRequired: card.subRequired,
       subStart: card.subStart,
-      subPeriodMonths: monthsBetweenISO(card.subStart, card.subDeadline) || 3,
+      subPeriodMonths: monthsBetweenISO(card.subStart, card.subDeadline),
       subBonus: card.subBonus,
     } : emptyCard())
+    if (open) setShowSub(card ? Boolean(card.subRequired || card.subStart) : false)
   }, [open, card])
 
   const subDeadlinePreview = form.subStart && form.subPeriodMonths > 0 ? addMonthsISO(form.subStart, form.subPeriodMonths) : ''
@@ -409,18 +411,23 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
       <label className="flex items-center gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 text-sm font-semibold text-muted-foreground dark:bg-card/70 sm:col-span-2"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4 accent-coral" />Active</label>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Note<Textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="Benefits, reminders..." /></label>
 
-      <fieldset className="rounded-3xl border border-border/70 bg-accent/15 p-3 sm:col-span-2">
-        <legend className="px-1 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">🎁 Sign-up bonus</legend>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Open date<Input type="date" value={form.subStart} onChange={(event) => setForm({ ...form, subStart: event.target.value })} /></label>
-          <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Target spend<Input inputMode="decimal" type="number" min="0" step="100" value={form.subRequired || ''} onChange={(event) => setForm({ ...form, subRequired: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="4000" /></label>
-          <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Period (mo)<Input inputMode="numeric" type="number" min="0" max="36" step="1" value={form.subPeriodMonths || ''} onChange={(event) => setForm({ ...form, subPeriodMonths: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="3" /></label>
-          <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-3">Bonus<Input value={form.subBonus} onChange={(event) => setForm({ ...form, subBonus: event.target.value })} placeholder="60,000 points" /></label>
-        </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          {subDeadlinePreview ? <>Deadline: <span className="font-semibold text-foreground">{subDeadlinePreview}</span></> : 'Leave target spend or period blank to skip SUB tracking.'}
-        </p>
-      </fieldset>
+      <div className="rounded-3xl border border-border/70 bg-accent/15 sm:col-span-2">
+        <button type="button" onClick={() => setShowSub((v) => !v)} className="flex w-full items-center justify-between gap-2 rounded-3xl px-4 py-3 text-left text-sm font-semibold text-foreground transition hover:bg-accent/30" aria-expanded={showSub}>
+          <span className="flex items-center gap-2">🎁 Sign-up bonus tracking <span className="text-xs font-medium text-muted-foreground">(optional)</span></span>
+          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', showSub && 'rotate-180')} />
+        </button>
+        {showSub && <div className="border-t border-border/60 p-3">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Open date<Input type="date" value={form.subStart} onChange={(event) => setForm({ ...form, subStart: event.target.value })} /></label>
+            <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Target spend<Input inputMode="decimal" type="number" min="0" step="100" value={form.subRequired || ''} onChange={(event) => setForm({ ...form, subRequired: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="4000" /></label>
+            <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Period (mo)<Input inputMode="numeric" type="number" min="0" max="36" step="1" value={form.subPeriodMonths || ''} onChange={(event) => setForm({ ...form, subPeriodMonths: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="3" /></label>
+            <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-3">Bonus<Input value={form.subBonus} onChange={(event) => setForm({ ...form, subBonus: event.target.value })} placeholder="60,000 points" /></label>
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {subDeadlinePreview ? <>Deadline: <span className="font-semibold text-foreground">{subDeadlinePreview}</span></> : 'Fill open date, target spend and period to enable SUB tracking.'}
+          </p>
+        </div>}
+      </div>
 
       <div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:col-span-2 sm:-mx-7 sm:-mb-8 sm:flex-row sm:justify-end sm:pb-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" disabled={saving}>{saving ? 'Saving...' : (isExisting ? 'Save changes' : 'Add card')}</Button></div>
     </form>
