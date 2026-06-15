@@ -40,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(() => JSON.parse(localStorage.getItem('budget.user') || 'null'))
   const pendingLogin = useRef<(() => void) | null>(null)
   const pendingError = useRef<((error: unknown) => void) | null>(null)
+  const tokenRequest = useRef<Promise<void> | null>(null)
 
   const persistToken = useCallback((accessToken: string, expiresIn = 3600, scope = '') => {
     const safeExpiresAt = Date.now() + expiresIn * 1000 - 60000
@@ -109,8 +110,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(() => new Promise<void>((resolve, reject) => {
     pendingLogin.current = resolve
     pendingError.current = reject
-    googleLogin()
-  }), [googleLogin])
+    googleLogin(user?.email ? { prompt: '', hint: user.email } : { prompt: 'select_account' })
+  }), [googleLogin, user?.email])
 
   const switchAccount = useCallback(() => new Promise<void>((resolve, reject) => {
     localStorage.removeItem(TOKEN_KEY)
@@ -143,31 +144,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setGrantedScope('')
   }, [])
 
+  const clearAccessToken = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(TOKEN_EXPIRES_KEY)
+    setToken('')
+    setExpiresAt(0)
+  }, [])
+
   const withFreshToken = useCallback(async () => {
     const latest = readToken()
     if (latest.token && latest.expiresAt > Date.now()) return latest.token
-    await login()
+    if (!tokenRequest.current) {
+      tokenRequest.current = login().finally(() => { tokenRequest.current = null })
+    }
+    await tokenRequest.current
     const refreshed = readToken()
     if (!refreshed.token) throw new Error('Google sign-in is required.')
     return refreshed.token
   }, [login])
 
   useEffect(() => {
-    setSheetsAuth({ getToken: withFreshToken, onUnauthorized: signOut })
-  }, [withFreshToken, signOut])
+    setSheetsAuth({ getToken: withFreshToken, onUnauthorized: clearAccessToken })
+  }, [withFreshToken, clearAccessToken])
+
+  const rememberedAuthorization = Boolean(user && hasSheets(grantedScope))
 
   const value = useMemo(() => ({
     token,
     expiresAt,
     user,
-    isAuthenticated: Boolean(token && expiresAt > Date.now()),
+    isAuthenticated: Boolean(token && expiresAt > Date.now()) || rememberedAuthorization,
     hasSheetsScope: hasSheets(grantedScope),
     login,
     switchAccount,
     reauthorize,
     signOut,
     withFreshToken,
-  }), [token, expiresAt, user, grantedScope, login, switchAccount, reauthorize, signOut, withFreshToken])
+  }), [token, expiresAt, user, grantedScope, rememberedAuthorization, login, switchAccount, reauthorize, signOut, withFreshToken])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
