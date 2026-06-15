@@ -2,7 +2,7 @@ import * as React from 'react'
 import { format } from 'date-fns'
 import type { Expense } from '../../lib/types'
 import { Button, Dialog, FadeScroll, Input, Select } from '../ui'
-import { useAddExpense, useCategories, useExpenses, usePaymentMethods, useUpdateExpense } from '../../hooks/useExpenses'
+import { useAddExpense, useCategories, useExpenses, useUpdateExpense } from '../../hooks/useExpenses'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../../hooks/useGiftcards'
 import { useCards } from '../../hooks/useCards'
 import type { CardRow } from '../../hooks/useCards'
@@ -130,8 +130,10 @@ function buildDescriptionSuggestions(expenses: Expense[], category: string): Des
   })
 }
 
-function DescriptionAutosuggest({ value, onChange, suggestions, placeholder, currentCategory }: { value: string; onChange: (value: string) => void; suggestions: DescriptionSuggestion[]; placeholder?: string; currentCategory: string }) {
-  const [focused, setFocused] = React.useState(false)
+function DescriptionAutosuggest({ value, onChange, suggestions, placeholder, currentCategory, isOpen, onOpenChange }: { value: string; onChange: (value: string) => void; suggestions: DescriptionSuggestion[]; placeholder?: string; currentCategory: string; isOpen?: boolean; onOpenChange?: (open: boolean) => void }) {
+  const [internalFocused, setInternalFocused] = React.useState(false)
+  const focused = isOpen !== undefined ? isOpen : internalFocused
+  const setFocused = (next: boolean) => { if (isOpen === undefined) setInternalFocused(next); onOpenChange?.(next) }
   const [highlight, setHighlight] = React.useState(-1)
   const blurTimerRef = React.useRef<number | null>(null)
   const query = value.trim().toLocaleLowerCase()
@@ -194,15 +196,13 @@ function DescriptionAutosuggest({ value, onChange, suggestions, placeholder, cur
 
 export function ExpenseDialog({ open, onOpenChange, expense, template }: { open: boolean; onOpenChange: (open: boolean) => void; expense?: Expense | null; template?: FormState | null }) {
   const categories = useCategories()
-  const paymentMethods = usePaymentMethods()
   const expensesQuery = useExpenses()
   const giftcards = useGiftcards()
   const managedCards = useCards()
-  // The Cards tab is the single source of truth for the picker — sheet
-  // row order is the display order. Inactive cards are hidden here; the
-  // dialog falls back to a freeform `customMode` for one-off entries.
+  // The Cards tab is the single source of truth for the picker. Active
+  // cards only, reverse sheet order so the newest additions surface first.
   const sortedCardOptions = React.useMemo<CardRow[]>(
-    () => managedCards.cards.filter((card) => card.active && card.name.trim()),
+    () => managedCards.cards.filter((card) => card.active && card.name.trim()).reverse(),
     [managedCards.cards],
   )
   const addExpense = useAddExpense()
@@ -216,6 +216,10 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const [paymentType, setPaymentType] = React.useState<PaymentMethodType>('card')
   const [selectedMerchant, setSelectedMerchant] = React.useState('')
   const [selectedGiftcardCard, setSelectedGiftcardCard] = React.useState<'auto' | string>('auto')
+  // Only one suggestion popover can be open at a time so the Description
+  // and Category dropdowns don't visually overlap.
+  const [activeMenu, setActiveMenu] = React.useState<'description' | 'category' | null>(null)
+  const setMenu = (menu: 'description' | 'category') => (open: boolean) => setActiveMenu((current) => open ? menu : (current === menu ? null : current))
 
   React.useEffect(() => {
     if (!open) return
@@ -261,7 +265,6 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     const selected = giftcards.merchants.find((merchant) => merchant.merchant === selectedMerchant)
     return selected && !activeMerchants.some((merchant) => merchant.merchant === selected.merchant) ? [selected, ...activeMerchants] : activeMerchants
   }, [activeMerchants, giftcards.merchants, selectedMerchant])
-  const filteredPaymentMethods = React.useMemo(() => paymentMethods.filter((method) => classifyPaymentMethod(method) === paymentType), [paymentMethods, paymentType])
   const selectedCards = React.useMemo(() => giftcards.cards.filter((card) => card.vendor === selectedMerchant).sort((a, b) => a.date.localeCompare(b.date)), [giftcards.cards, selectedMerchant])
 
   const setCategory = (category: string) => {
@@ -320,12 +323,12 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
         <span className="block">Description</span>
         {giftcardPurchase
           ? <GiftcardComposer parts={giftcardParts} structured={giftcardStructured} vendors={vendors} sources={giftcardSources} rawDescription={form.description} paidAmount={Number(form.amount) || 0} onRawChange={(description) => setForm({ ...form, description })} onStructuredChange={setGiftcardStructured} onChange={setGiftcardParts} />
-          : <DescriptionAutosuggest value={form.description} onChange={(description) => setForm({ ...form, description })} suggestions={descriptionSuggestions} currentCategory={form.category} placeholder="Groceries, rent, coffee..." />}
+          : <DescriptionAutosuggest value={form.description} onChange={(description) => setForm({ ...form, description })} suggestions={descriptionSuggestions} currentCategory={form.category} placeholder="Groceries, rent, coffee..." isOpen={activeMenu === 'description'} onOpenChange={setMenu('description')} />}
       </div>
       <div className="min-h-6 sm:col-span-2">
         {noteOpen ? <label className="block space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Note</span><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label> : <Button type="button" variant="ghost" size="sm" className="h-6 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
       </div>
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Category</span><CategoryCombobox value={form.category} onChange={setCategory} options={categories} /></label>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Category</span><CategoryCombobox value={form.category} onChange={setCategory} options={categories} isOpen={activeMenu === 'category'} onOpenChange={setMenu('category')} /></label>
       <div className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">
         <span className="block">Payment method</span>
         <div className="grid grid-cols-3 gap-1 rounded-full bg-accent/50 p-0.5">
@@ -347,15 +350,21 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
         {paymentType !== 'cash' && <div className="pt-2">
           {paymentType === 'giftcard'
             ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
-            : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} fallback={filteredPaymentMethods} />}
+            : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} />}
         </div>}
       </div>
     </form>
   </Dialog>
 }
 
-function CategoryCombobox({ value, onChange, options, placeholder = 'Choose or type a category' }: { value: string; onChange: (value: string) => void; options: string[]; placeholder?: string }) {
-  const [open, setOpen] = React.useState(false)
+function CategoryCombobox({ value, onChange, options, placeholder = 'Choose or type a category', isOpen, onOpenChange }: { value: string; onChange: (value: string) => void; options: string[]; placeholder?: string; isOpen?: boolean; onOpenChange?: (open: boolean) => void }) {
+  const [internalOpen, setInternalOpen] = React.useState(false)
+  const open = isOpen !== undefined ? isOpen : internalOpen
+  const setOpen = (next: boolean | ((prev: boolean) => boolean)) => {
+    const resolved = typeof next === 'function' ? next(open) : next
+    if (isOpen === undefined) setInternalOpen(resolved)
+    onOpenChange?.(resolved)
+  }
   const [showAll, setShowAll] = React.useState(false)
   const id = React.useId()
   const normalizedOptions = React.useMemo(() => Array.from(new Set(options.filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })), [options])
@@ -446,20 +455,8 @@ function describeCard(card: CardRow) {
 
 const CUSTOM_CARD_VALUE = '__custom__'
 
-function CardPaymentPicker({ value, onChange, cards, fallback }: { value: string; onChange: (value: string) => void; cards: CardRow[]; fallback: string[] }) {
-  const fallbackOptions = React.useMemo(() => {
-    const seen = new Set(cards.map((card) => card.name.trim().toLocaleLowerCase()))
-    return fallback.filter((option) => {
-      const key = option.trim().toLocaleLowerCase()
-      if (!key || seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-  }, [cards, fallback])
-  const matchesOption = React.useMemo(() => {
-    if (!value) return true
-    return cards.some((card) => card.name === value) || fallbackOptions.includes(value)
-  }, [cards, fallbackOptions, value])
+function CardPaymentPicker({ value, onChange, cards }: { value: string; onChange: (value: string) => void; cards: CardRow[] }) {
+  const matchesOption = React.useMemo(() => !value || cards.some((card) => card.name === value), [cards, value])
   const [customMode, setCustomMode] = React.useState(() => Boolean(value) && !matchesOption)
 
   React.useEffect(() => {
@@ -483,9 +480,6 @@ function CardPaymentPicker({ value, onChange, cards, fallback }: { value: string
         <option value="">Select card…</option>
         {cards.length > 0 && <optgroup label="Your cards">
           {cards.map((card) => <option key={`mc-${card.rowIndex}`} value={card.name}>{describeCard(card)}</option>)}
-        </optgroup>}
-        {fallbackOptions.length > 0 && <optgroup label="Other">
-          {fallbackOptions.map((option) => <option key={`fb-${option}`} value={option}>{option}</option>)}
         </optgroup>}
         <option value={CUSTOM_CARD_VALUE}>✏️ Custom…</option>
       </Select>
