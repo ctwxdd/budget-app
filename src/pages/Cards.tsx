@@ -402,8 +402,11 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
   }
 
   const saving = addCard.isPending || updateCard.isPending
-  return <Dialog open={open} onOpenChange={onOpenChange} title={isExisting ? 'Edit card' : 'Add card'} description="Save card options to the Cards tab in Google Sheets." mobileBottomSheet>
-    <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+  const formId = 'card-form'
+  return <Dialog open={open} onOpenChange={onOpenChange} title={isExisting ? 'Edit card' : 'Add card'} description="Save card options to the Cards tab in Google Sheets." mobileBottomSheet
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} disabled={saving}>{saving ? 'Saving...' : (isExisting ? 'Save changes' : 'Add card')}</Button></div>}
+  >
+    <form id={formId} onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Name<Input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Chase Sapphire" /></label>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Issuer<Input value={form.issuer} onChange={(event) => setForm({ ...form, issuer: event.target.value })} placeholder="Chase" /></label>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Last4<Input inputMode="numeric" maxLength={4} value={form.last4} onChange={(event) => setForm({ ...form, last4: event.target.value.replace(/\D/g, '').slice(0, 4) })} placeholder="1234" /></label>
@@ -428,8 +431,6 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
           </p>
         </div>}
       </div>
-
-      <div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:col-span-2 sm:-mx-7 sm:-mb-8 sm:flex-row sm:justify-end sm:pb-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" disabled={saving}>{saving ? 'Saving...' : (isExisting ? 'Save changes' : 'Add card')}</Button></div>
     </form>
   </Dialog>
 }
