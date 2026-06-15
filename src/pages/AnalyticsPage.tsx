@@ -192,6 +192,7 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
               style={{
                 width: 'calc(3rem + var(--p) * 6rem)',
                 height: 'calc(3rem + var(--p) * 6rem)',
+                transform: 'translateY(calc(var(--p) * 2rem))',
                 backgroundColor: color.bg,
                 color: color.text,
                 boxShadow: '0 0 0 calc(0.25rem + var(--p) * 0.5rem) hsl(var(--card))',
@@ -219,7 +220,7 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
             >
               <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
               <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
-              <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
+              <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}%</p>
             </div>
           </div>
         </div>
@@ -236,7 +237,7 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
         <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Selected</p>
         <p className="mt-0.5 truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
         <p className="font-display text-lg font-extrabold leading-tight tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
-        <p className="text-[11px] font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
+        <p className="text-[11px] font-semibold text-muted-foreground">{percentage.toFixed(1)}%</p>
       </div>
     </div>
     <RankedList rows={rows} selectedIndex={selectedIndex} onSelect={setSelectedIndex} onOpenExpenses={onOpenExpenses} />
