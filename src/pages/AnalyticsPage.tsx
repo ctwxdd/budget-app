@@ -184,16 +184,9 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className="flex max-w-32 flex-col items-center text-center">
-            <span className="grid h-9 w-9 place-items-center rounded-full shadow-soft" style={{ backgroundColor: color.bg, color: color.text }}>
-              {Icon ? <Icon className="h-[18px] w-[18px]" strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
-            </span>
-            <div className="mt-1.5 flex flex-col items-center" style={{ opacity: 'calc(1 - var(--p))' }}>
-              <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
-              <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
-              <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
-            </div>
-          </div>
+          <span className="grid h-11 w-11 place-items-center rounded-full shadow-soft" style={{ backgroundColor: color.bg, color: color.text }}>
+            {Icon ? <Icon className="h-[22px] w-[22px]" strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
+          </span>
         </div>
       </div>
       <div
