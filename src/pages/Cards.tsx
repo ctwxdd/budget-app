@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { format } from 'date-fns'
-import { ChevronDown, Pencil, Plus, Receipt, Search, Trash2, WalletCards, X } from 'lucide-react'
+import { ChevronDown, Pencil, Plus, Search, Trash2, WalletCards, X } from 'lucide-react'
 import { PageErrorBoundary } from '../components/ErrorBoundary'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, Dialog, Input, Textarea } from '../components/ui'
@@ -85,6 +85,7 @@ function CardsContent() {
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<CardRow | null>(null)
   const [spendTemplate, setSpendTemplate] = React.useState<FormState | null>(null)
+  const [selectedRow, setSelectedRow] = React.useState<number | null>(null)
   const handleSpend = React.useCallback((card: CardRow) => {
     setSpendTemplate({
       date: format(new Date(), 'yyyy-MM-dd'),
@@ -94,6 +95,9 @@ function CardsContent() {
       paymentMethod: card.name,
       reimbursement: '',
     })
+  }, [])
+  const handleSelect = React.useCallback((rowIndex: number) => {
+    setSelectedRow((current) => (current === rowIndex ? null : rowIndex))
   }, [])
   const [search, setSearch] = React.useState('')
   const [showInactive, setShowInactive] = React.useState(false)
@@ -235,12 +239,12 @@ function CardsContent() {
 
     {!visibleCards.length ? <EmptyState title={search ? 'No matches' : (!showInactive && cards.some((c) => !c.active) ? 'No active cards' : 'No cards yet')} text={search ? `Nothing matches "${search}".` : (!showInactive && cards.some((c) => !c.active) ? 'All your cards are marked inactive — enable "Show inactive" to see them.' : 'Add credit cards here so they show up first in the Expense payment method picker.')} /> : <Card className="overflow-hidden rounded-2xl">
       <div className="hidden md:block">
-        <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_8rem] gap-3 border-b border-border/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] gap-3 border-b border-border/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
           <span /><span>Name</span><span>Issuer</span><span className="text-right">AF</span><span className="text-right">This month</span><span className="text-right">All time</span><span>SUB</span><span>Status</span><span>Actions</span>
         </div>
-        {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} /> })}
+        {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
       </div>
-      <div className="space-y-2 p-2 md:hidden">{visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} /> })}</div>
+      <div className="space-y-2 p-2 md:hidden">{visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}</div>
     </Card>}
     <CardDialog open={dialogOpen} onOpenChange={setDialogOpen} card={editing} />
     {spendTemplate && <ExpenseDialog open template={spendTemplate} onOpenChange={(open) => { if (!open) setSpendTemplate(null) }} />}
@@ -286,11 +290,19 @@ function SubTracker({ card, sub }: { card: CardRow; sub: SubStatus }) {
   </div>
 }
 
-function CardListRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void }) {
+function CardActionBar({ card, onSpend }: { card: CardRow; onSpend: (card: CardRow) => void }) {
+  return <div className="flex flex-wrap gap-2 border-t border-border/60 bg-accent/20 px-4 py-2.5 md:px-4 md:py-3">
+    <Button type="button" size="sm" variant="gradient" onClick={(event) => { event.stopPropagation(); onSpend(card) }}>
+      <Plus className="h-4 w-4" />Add expense on this card
+    </Button>
+  </div>
+}
+
+function CardListRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; selected: boolean; onSelect: () => void }) {
   const hasSub = Boolean(sub)
-  return <div className={cn('border-b border-border/50 last:border-b-0', !card.active && 'opacity-55')}>
-    <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_8rem] items-center gap-3 px-4 py-2.5 text-sm">
-      <button type="button" onClick={onToggle} disabled={!hasSub} className={cn('inline-flex h-7 w-7 items-center justify-center rounded-full transition', hasSub ? 'text-foreground hover:bg-accent' : 'text-muted-foreground/30 cursor-default')} aria-label={expanded ? 'Collapse' : 'Expand SUB tracker'}>
+  return <div className={cn('border-b border-border/50 last:border-b-0 transition', !card.active && 'opacity-55', selected && 'bg-coral/5 ring-1 ring-inset ring-coral/30')}>
+    <div role="button" tabIndex={0} onClick={onSelect} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect() } }} className="grid cursor-pointer grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-accent/30">
+      <button type="button" onClick={(event) => { event.stopPropagation(); onToggle() }} disabled={!hasSub} className={cn('inline-flex h-7 w-7 items-center justify-center rounded-full transition', hasSub ? 'text-foreground hover:bg-accent' : 'text-muted-foreground/30 cursor-default')} aria-label={expanded ? 'Collapse' : 'Expand SUB tracker'}>
         <ChevronDown className={cn('h-4 w-4 transition-transform', expanded && 'rotate-180')} />
       </button>
       <div className="min-w-0"><p className="truncate font-semibold">{card.name}</p><p className="text-xs text-muted-foreground">{card.last4 ? `••••${card.last4}` : 'No last4'}</p></div>
@@ -299,34 +311,38 @@ function CardListRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend }: 
       <span className="text-right font-display font-bold text-coral tabular-nums">{spend.month > 0 ? currency.format(spend.month) : <span className="font-sans text-xs font-medium text-muted-foreground">—</span>}</span>
       <span className="text-right tabular-nums text-muted-foreground">{spend.total > 0 ? <><span className="font-semibold text-foreground">{currency.format(spend.total)}</span><span className="ml-1 text-[11px]">· {spend.count}</span></> : '—'}</span>
       <span>{sub ? <SubChip sub={sub} compact /> : <span className="text-xs text-muted-foreground">—</span>}</span>
-      <ActiveToggle card={card} />
-      <RowActions card={card} onEdit={onEdit} onSpend={onSpend} />
+      <span onClick={(event) => event.stopPropagation()}><ActiveToggle card={card} /></span>
+      <span onClick={(event) => event.stopPropagation()}><RowActions card={card} onEdit={onEdit} /></span>
     </div>
+    {selected && <CardActionBar card={card} onSpend={onSpend} />}
     {expanded && sub && <div className="px-4 pb-3"><SubTracker card={card} sub={sub} /></div>}
   </div>
 }
 
-function CardMobileRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void }) {
+function CardMobileRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; selected: boolean; onSelect: () => void }) {
   const hasSub = Boolean(sub)
   const subtitle = [card.issuer, card.last4 && `••••${card.last4}`, card.annualFee > 0 && `${currency.format(card.annualFee)}/yr`].filter(Boolean).join(' · ')
-  return <div className={cn('rounded-2xl border border-border/70 bg-white/70 p-3 shadow-sm dark:bg-card/70', !card.active && 'opacity-55')}>
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0"><p className="truncate text-sm font-semibold">{card.name}</p><p className="truncate text-xs text-muted-foreground">{subtitle || 'No details'}</p></div>
-      <RowActions card={card} onEdit={onEdit} onSpend={onSpend} />
+  return <div className={cn('overflow-hidden rounded-2xl border bg-white/70 shadow-sm transition dark:bg-card/70', !card.active && 'opacity-55', selected ? 'border-coral/60 ring-2 ring-coral/20' : 'border-border/70')}>
+    <div role="button" tabIndex={0} onClick={onSelect} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect() } }} className="cursor-pointer p-3 transition hover:bg-accent/20">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0"><p className="truncate text-sm font-semibold">{card.name}</p><p className="truncate text-xs text-muted-foreground">{subtitle || 'No details'}</p></div>
+        <span onClick={(event) => event.stopPropagation()}><RowActions card={card} onEdit={onEdit} /></span>
+      </div>
+      <div className="mt-2.5 grid grid-cols-2 gap-2 rounded-2xl bg-accent/40 px-3 py-2 text-xs">
+        <div><p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">This month</p><p className="font-display text-base font-extrabold text-coral tabular-nums">{currency.format(spend.month)}</p></div>
+        <div className="text-right"><p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">All time</p><p className="font-display text-base font-bold tabular-nums">{currency.format(spend.total)}<span className="ml-1 text-[10px] font-medium text-muted-foreground">· {spend.count}</span></p></div>
+      </div>
+      {card.note && <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{card.note}</p>}
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <span onClick={(event) => event.stopPropagation()}><ActiveToggle card={card} /></span>
+        {hasSub && sub && <button type="button" onClick={(event) => { event.stopPropagation(); onToggle() }} className="inline-flex items-center gap-1 rounded-full bg-accent/60 px-2.5 py-1 text-[11px] font-semibold text-foreground transition hover:bg-accent">
+          <SubChip sub={sub} compact />
+          <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
+        </button>}
+      </div>
+      {expanded && sub && <SubTracker card={card} sub={sub} />}
     </div>
-    <div className="mt-2.5 grid grid-cols-2 gap-2 rounded-2xl bg-accent/40 px-3 py-2 text-xs">
-      <div><p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">This month</p><p className="font-display text-base font-extrabold text-coral tabular-nums">{currency.format(spend.month)}</p></div>
-      <div className="text-right"><p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">All time</p><p className="font-display text-base font-bold tabular-nums">{currency.format(spend.total)}<span className="ml-1 text-[10px] font-medium text-muted-foreground">· {spend.count}</span></p></div>
-    </div>
-    {card.note && <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{card.note}</p>}
-    <div className="mt-3 flex items-center justify-between gap-2">
-      <ActiveToggle card={card} />
-      {hasSub && sub && <button type="button" onClick={onToggle} className="inline-flex items-center gap-1 rounded-full bg-accent/60 px-2.5 py-1 text-[11px] font-semibold text-foreground transition hover:bg-accent">
-        <SubChip sub={sub} compact />
-        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
-      </button>}
-    </div>
-    {expanded && sub && <SubTracker card={card} sub={sub} />}
+    {selected && <CardActionBar card={card} onSpend={onSpend} />}
   </div>
 }
 
@@ -337,11 +353,10 @@ function ActiveToggle({ card }: { card: CardRow }) {
   </button>
 }
 
-function RowActions({ card, onEdit, onSpend }: { card: CardRow; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void }) {
+function RowActions({ card, onEdit }: { card: CardRow; onEdit: (card: CardRow) => void }) {
   const deleteCard = useDeleteCard()
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   return <div className="flex justify-end gap-1">
-    <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-coral hover:text-coral" onClick={() => onSpend(card)} aria-label={`Add expense on ${card.name}`} title="Add expense on this card"><Receipt className="h-4 w-4" /></Button>
     <Button type="button" variant="ghost" size="icon" className="h-9 w-9" onClick={() => onEdit(card)} aria-label={`Edit ${card.name}`}><Pencil className="h-4 w-4" /></Button>
     <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" onClick={() => setConfirmOpen(true)} disabled={deleteCard.isPending} aria-label={`Delete ${card.name}`}><Trash2 className="h-4 w-4" /></Button>
     <ConfirmDialog
