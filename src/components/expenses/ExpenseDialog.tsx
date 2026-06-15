@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { format } from 'date-fns'
 import type { Expense } from '../../lib/types'
-import { Button, Dialog, Input, Select } from '../ui'
+import { Button, Dialog, FadeScroll, Input, Select } from '../ui'
 import { useAddExpense, useCategories, useExpenses, usePaymentMethods, useUpdateExpense } from '../../hooks/useExpenses'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../../hooks/useGiftcards'
 import { useCards } from '../../hooks/useCards'
@@ -61,7 +61,10 @@ function StringAutosuggest({ value, onChange, options, placeholder }: { value: s
       placeholder={placeholder}
       autoComplete="off"
     />
-    {open && <div className="absolute left-0 right-0 top-full z-20 mt-1.5 max-h-60 overflow-auto rounded-2xl border border-border bg-card p-1 shadow-lift">
+    {open && <FadeScroll
+      outerClassName="absolute left-0 right-0 top-full z-20 mt-1.5 rounded-2xl border border-border bg-card shadow-lift"
+      className="max-h-60 overflow-auto p-1"
+    >
       {filtered.map((option, index) => <button
         key={option}
         type="button"
@@ -71,7 +74,7 @@ function StringAutosuggest({ value, onChange, options, placeholder }: { value: s
       >
         <span className="truncate font-medium text-foreground">{option}</span>
       </button>)}
-    </div>}
+    </FadeScroll>}
   </div>
 }
 
@@ -168,7 +171,10 @@ function DescriptionAutosuggest({ value, onChange, suggestions, placeholder, cur
       autoComplete="off"
       enterKeyHint="done"
     />
-    {open && <div className="absolute left-0 right-0 top-full z-20 mt-1.5 max-h-60 overflow-auto rounded-2xl border border-border bg-card p-1 shadow-lift">
+    {open && <FadeScroll
+      outerClassName="absolute left-0 right-0 top-full z-20 mt-1.5 rounded-2xl border border-border bg-card shadow-lift"
+      className="max-h-60 overflow-auto p-1"
+    >
       {filtered.map((suggestion, index) => <button
         key={suggestion.display}
         type="button"
@@ -182,7 +188,7 @@ function DescriptionAutosuggest({ value, onChange, suggestions, placeholder, cur
           <span>×{suggestion.count}</span>
         </span>
       </button>)}
-    </div>}
+    </FadeScroll>}
   </div>
 }
 
@@ -362,10 +368,15 @@ function CategoryCombobox({ value, onChange, options, placeholder = 'Choose or t
   return <div className="relative">
     <Input role="combobox" aria-expanded={open} aria-controls={id} value={value} placeholder={placeholder} className="pr-12" onFocus={() => setOpen(true)} onChange={(event) => { onChange(event.target.value); setOpen(true); setShowAll(false) }} />
     <button type="button" aria-label="Show category options" className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition hover:bg-accent hover:text-foreground" onMouseDown={(event) => event.preventDefault()} onClick={() => { setOpen((current) => !current); setShowAll(true) }}>▾</button>
-    {open && (visibleOptions.length > 0 || !exactMatch) && <div id={id} role="listbox" className="absolute z-40 mt-1 max-h-56 w-full overflow-y-auto rounded-3xl border border-border/70 bg-card p-1.5 shadow-lift">
+    {open && (visibleOptions.length > 0 || !exactMatch) && <FadeScroll
+      id={id}
+      role="listbox"
+      outerClassName="absolute z-40 mt-1 w-full rounded-3xl border border-border/70 bg-card shadow-lift"
+      className="max-h-56 overflow-y-auto p-1.5"
+    >
       {visibleOptions.map((option) => <button key={option} type="button" role="option" aria-selected={option === value} className={cn('w-full rounded-2xl px-3 py-2 text-left text-sm font-medium transition hover:bg-coral/5', option === value ? 'bg-coral/10 text-coral' : 'text-foreground')} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(option)}>{option}</button>)}
       {!visibleOptions.length && <p className="px-3 py-2 text-xs font-medium text-muted-foreground">No matches. Keep typing to add a new category.</p>}
-    </div>}
+    </FadeScroll>}
   </div>
 }
 

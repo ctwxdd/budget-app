@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { format } from 'date-fns'
-import { Button, Dialog, Input } from '../ui'
+import { Button, Dialog, FadeScroll, Input } from '../ui'
 import { useBatchUpdateExpenses, useCategories, usePaymentMethods } from '../../hooks/useExpenses'
 import type { Expense } from '../../lib/types'
 import { useToast } from '../ui/Toast'
@@ -109,9 +109,14 @@ function CategoryCombobox({ value, onChange, options, emptyLabel }: { value: str
   return <div className="relative">
     <Input role="combobox" aria-expanded={open} aria-controls={id} value={value} placeholder={emptyLabel} className="pr-12" onFocus={() => setOpen(true)} onChange={(event) => { onChange(event.target.value); setOpen(true); setShowAll(false) }} />
     <button type="button" aria-label="Show category options" className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition hover:bg-accent hover:text-foreground" onMouseDown={(event) => event.preventDefault()} onClick={() => { setOpen((current) => !current); setShowAll(true) }}>▾</button>
-    {open && <div id={id} role="listbox" className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-3xl border border-border/70 bg-card p-1.5 shadow-lift">
+    {open && <FadeScroll
+      id={id}
+      role="listbox"
+      outerClassName="absolute z-30 mt-1 w-full rounded-3xl border border-border/70 bg-card shadow-lift"
+      className="max-h-56 overflow-y-auto p-1.5"
+    >
       {visibleOptions.map((option) => <button key={option.value || '__empty'} type="button" role="option" aria-selected={option.value === value} className={`w-full rounded-2xl px-3 py-2 text-left text-sm font-medium transition hover:bg-coral/5 ${option.value === value ? 'bg-coral/10 text-coral' : 'text-foreground'}`} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(option.value)}>{option.label}</button>)}
       {categoryOptions.length === 0 && value && <p className="px-3 py-2 text-xs font-medium text-muted-foreground">No matches. Keep typing to add a new category.</p>}
-    </div>}
+    </FadeScroll>}
   </div>
 }
