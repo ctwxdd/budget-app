@@ -152,7 +152,7 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
   return <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
     <div
       ref={stickyRef}
-      className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto h-[calc(16rem-var(--p,0)*7rem)] w-full max-w-sm overflow-hidden rounded-3xl bg-card/95 shadow-[0_calc(14px+var(--p,0)*6px)_calc(26px+var(--p,0)*8px)_-24px_hsl(var(--foreground)/calc(0.45+var(--p,0)*0.15))] backdrop-blur-xl md:top-24 md:h-[calc(20rem-var(--p,0)*9rem)]"
+      className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto h-[calc(16rem-var(--p,0)*7rem)] w-full max-w-[calc(24rem-var(--p,0)*6rem)] overflow-hidden rounded-3xl bg-card/95 shadow-[0_calc(14px+var(--p,0)*6px)_calc(26px+var(--p,0)*8px)_-24px_hsl(var(--foreground)/calc(0.45+var(--p,0)*0.15))] backdrop-blur-xl md:top-24 md:h-[calc(20rem-var(--p,0)*9rem)] md:max-w-[calc(26rem-var(--p,0)*7rem)]"
       style={{ ['--p' as string]: '0' }}
     >
       <div
@@ -183,22 +183,21 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
             </Pie>
           </PieChart>
         </ResponsiveContainer>
-        <div
-          className="pointer-events-none absolute inset-0 grid place-items-center"
-          style={{ opacity: 'calc(1 - var(--p))' }}
-        >
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <div className="flex max-w-32 flex-col items-center text-center">
-            <span className="mb-1.5 grid h-9 w-9 place-items-center rounded-full shadow-soft" style={{ backgroundColor: color.bg, color: color.text }}>
+            <span className="grid h-9 w-9 place-items-center rounded-full shadow-soft" style={{ backgroundColor: color.bg, color: color.text }}>
               {Icon ? <Icon className="h-[18px] w-[18px]" strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
             </span>
-            <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
-            <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
-            <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
+            <div className="mt-1.5 flex flex-col items-center" style={{ opacity: 'calc(1 - var(--p))' }}>
+              <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
+              <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
+              <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
+            </div>
           </div>
         </div>
       </div>
       <div
-        className="pointer-events-none absolute inset-y-0 right-0 flex w-[58%] flex-col justify-center pl-2 pr-5 text-right"
+        className="pointer-events-none absolute inset-y-0 right-0 flex w-[55%] flex-col justify-center pl-1 pr-4 text-right"
         style={{
           opacity: 'var(--p)',
           // Slide in from the right as progress grows.
@@ -206,12 +205,9 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
         }}
         aria-hidden
       >
-        <span className="mb-1.5 self-end grid h-8 w-8 place-items-center rounded-full shadow-soft" style={{ backgroundColor: color.bg, color: color.text }}>
-          {Icon ? <Icon className="h-4 w-4" strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
-        </span>
         <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Selected</p>
-        <p className="truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
-        <p className="font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
+        <p className="mt-0.5 truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
+        <p className="font-display text-lg font-extrabold tabular-nums leading-tight" style={{ color: color.text }}>{currency.format(selected.total)}</p>
         <p className="text-[11px] font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
       </div>
     </div>
