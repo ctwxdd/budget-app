@@ -191,11 +191,21 @@ export type CardSheetInput = Omit<CardSheetRow, 'rowIndex'>
 
 export const cardsHeaders = ['Name', 'Issuer', 'Last4', 'Active', 'Note', 'Annual Fee', 'SUB Required', 'SUB Start', 'SUB Deadline', 'SUB Bonus']
 
-// Writes only touch the base columns the in-app dialog edits (A:F). The
-// SUB tracking columns (G:J) are maintained directly in the sheet, so we
-// deliberately leave them untouched on update / append.
+// Writes touch A:J — the in-app dialog now edits the SUB fields too.
+// Columns K+ (the user's progress formulas, if any) are left untouched.
 export function cardToRow(card: CardSheetInput | CardSheetRow): (string | number | boolean)[] {
-  return [card.name, card.issuer, card.last4, card.active, card.note, card.annualFee || '']
+  return [
+    card.name,
+    card.issuer,
+    card.last4,
+    card.active,
+    card.note,
+    card.annualFee || '',
+    card.subRequired || '',
+    card.subStart || '',
+    card.subDeadline || '',
+    card.subBonus || '',
+  ]
 }
 
 export async function createCardsTab(sheetId: string) {
@@ -203,11 +213,11 @@ export async function createCardsTab(sheetId: string) {
 }
 
 export async function addCard(sheetId: string, card: CardSheetInput) {
-  return appendRow(sheetId, 'Cards!A:F', cardToRow(card))
+  return appendRow(sheetId, 'Cards!A:J', cardToRow(card))
 }
 
 export async function updateCard(sheetId: string, card: CardSheetRow) {
-  return updateRow(sheetId, `Cards!A${card.rowIndex}:F${card.rowIndex}`, cardToRow(card))
+  return updateRow(sheetId, `Cards!A${card.rowIndex}:J${card.rowIndex}`, cardToRow(card))
 }
 
 export async function deleteCard(sheetId: string, sheetGid: number, rowIndex: number) {

@@ -9,8 +9,30 @@ import { useExpenses } from '../hooks/useExpenses'
 import { currency, filterByDateRange, getPresetRange } from '../lib/format'
 import { cn } from '../lib/utils'
 
-type CardForm = Pick<CardRow, 'name' | 'issuer' | 'last4' | 'active' | 'note' | 'annualFee'>
-const emptyCard = (): CardForm => ({ name: '', issuer: '', last4: '', active: true, note: '', annualFee: 0 })
+type CardForm = Pick<CardRow, 'name' | 'issuer' | 'last4' | 'active' | 'note' | 'annualFee' | 'subBonus'> & {
+  subRequired: number
+  subStart: string
+  subPeriodMonths: number
+}
+const emptyCard = (): CardForm => ({ name: '', issuer: '', last4: '', active: true, note: '', annualFee: 0, subRequired: 0, subStart: '', subPeriodMonths: 3, subBonus: '' })
+
+// Adds `months` whole months to a YYYY-MM-DD string (UTC, day-clamped).
+function addMonthsISO(iso: string, months: number): string {
+  if (!iso || !months) return ''
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return ''
+  const target = new Date(Date.UTC(y, m - 1 + months, 1))
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate()
+  target.setUTCDate(Math.min(d, lastDay))
+  return target.toISOString().slice(0, 10)
+}
+
+function monthsBetweenISO(start: string, end: string): number {
+  if (!start || !end) return 0
+  const s = new Date(start), e = new Date(end)
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return 0
+  return Math.max(0, Math.round((e.getTime() - s.getTime()) / (30.4375 * 86400000)))
+}
 
 type CardSpend = { month: number; total: number; count: number }
 const zeroSpend: CardSpend = { month: 0, total: 0, count: 0 }
@@ -61,7 +83,7 @@ function CardsContent() {
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<CardRow | null>(null)
   const [search, setSearch] = React.useState('')
-  const [hideInactive, setHideInactive] = React.useState(true)
+  const [showInactive, setShowInactive] = React.useState(false)
   const [expanded, setExpanded] = React.useState<Set<number>>(() => new Set())
 
   const toggleExpanded = React.useCallback((rowIndex: number) => {
@@ -131,7 +153,7 @@ function CardsContent() {
   const visibleCards = React.useMemo(() => {
     const q = search.trim().toLocaleLowerCase()
     const filtered = cards.filter((card) => {
-      if (hideInactive && !card.active) return false
+      if (!showInactive && !card.active) return false
       if (!q) return true
       return [card.name, card.issuer, card.last4, card.note, card.subBonus]
         .some((field) => field && field.toLocaleLowerCase().includes(q))
@@ -154,7 +176,7 @@ function CardsContent() {
       if (aStart !== bStart) return bStart.localeCompare(aStart)
       return b.rowIndex - a.rowIndex
     })
-  }, [cards, search, hideInactive, subStatusByRow])
+  }, [cards, search, showInactive, subStatusByRow])
 
   if (isLoading) return <SkeletonCards />
   if (error) return <EmptyState title="Could not load cards" text={error.message} />
@@ -189,14 +211,16 @@ function CardsContent() {
         <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name, issuer, last4, note…" className="pl-9 pr-9" />
         {search && <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-accent" aria-label="Clear search"><X className="h-4 w-4" /></button>}
       </div>
-      <label className="flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold text-muted-foreground sm:px-2">
-        <input type="checkbox" checked={hideInactive} onChange={(event) => setHideInactive(event.target.checked)} className="h-4 w-4 accent-coral" />
-        Hide inactive
-      </label>
+      <button type="button" role="switch" aria-checked={showInactive} onClick={() => setShowInactive((v) => !v)} className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground sm:px-2">
+        <span className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition', showInactive ? 'bg-coral' : 'bg-border')}>
+          <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white shadow transition', showInactive ? 'translate-x-[1.125rem]' : 'translate-x-0.5')} />
+        </span>
+        Show inactive
+      </button>
       <span className="hidden text-xs font-medium text-muted-foreground sm:inline sm:pr-2">{visibleCards.length} of {cards.length}</span>
     </div>
 
-    {!visibleCards.length ? <EmptyState title={search || hideInactive ? 'No matches' : 'No cards yet'} text={search ? `Nothing matches "${search}".` : hideInactive ? 'All your cards are marked inactive — uncheck "Hide inactive" to see them.' : 'Add credit cards here so they show up first in the Expense payment method picker.'} /> : <Card className="overflow-hidden rounded-2xl">
+    {!visibleCards.length ? <EmptyState title={search ? 'No matches' : (!showInactive && cards.some((c) => !c.active) ? 'No active cards' : 'No cards yet')} text={search ? `Nothing matches "${search}".` : (!showInactive && cards.some((c) => !c.active) ? 'All your cards are marked inactive — enable "Show inactive" to see them.' : 'Add credit cards here so they show up first in the Expense payment method picker.')} /> : <Card className="overflow-hidden rounded-2xl">
       <div className="hidden md:block">
         <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] gap-3 border-b border-border/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
           <span /><span>Name</span><span>Issuer</span><span className="text-right">AF</span><span className="text-right">This month</span><span className="text-right">All time</span><span>SUB</span><span>Status</span><span>Actions</span>
@@ -325,21 +349,49 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
   const isExisting = !!card
 
   React.useEffect(() => {
-    if (open) setForm(card ? { name: card.name, issuer: card.issuer, last4: card.last4, active: card.active, note: card.note, annualFee: card.annualFee } : emptyCard())
+    if (open) setForm(card ? {
+      name: card.name,
+      issuer: card.issuer,
+      last4: card.last4,
+      active: card.active,
+      note: card.note,
+      annualFee: card.annualFee,
+      subRequired: card.subRequired,
+      subStart: card.subStart,
+      subPeriodMonths: monthsBetweenISO(card.subStart, card.subDeadline) || 3,
+      subBonus: card.subBonus,
+    } : emptyCard())
   }, [open, card])
+
+  const subDeadlinePreview = form.subStart && form.subPeriodMonths > 0 ? addMonthsISO(form.subStart, form.subPeriodMonths) : ''
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    const payload = { ...form, name: form.name.trim(), issuer: form.issuer.trim(), last4: form.last4.trim(), note: form.note.trim(), annualFee: Number(form.annualFee) || 0 }
+    const trimmedBonus = form.subBonus.trim()
+    const subRequired = Number(form.subRequired) || 0
+    const subStart = form.subStart || ''
+    const subPeriodMonths = Number(form.subPeriodMonths) || 0
+    // Only persist a SUB window when we have all three: required, start
+    // and period. Otherwise clear all four columns so the row no longer
+    // shows up as a SUB.
+    const hasWindow = subRequired > 0 && subStart && subPeriodMonths > 0
+    const subDeadline = hasWindow ? addMonthsISO(subStart, subPeriodMonths) : ''
+    const payload = {
+      name: form.name.trim(),
+      issuer: form.issuer.trim(),
+      last4: form.last4.trim(),
+      active: form.active,
+      note: form.note.trim(),
+      annualFee: Number(form.annualFee) || 0,
+      subRequired: hasWindow ? subRequired : 0,
+      subStart: hasWindow ? subStart : '',
+      subDeadline,
+      subBonus: hasWindow ? trimmedBonus : '',
+    }
     if (!payload.name) return toast({ title: 'Card name is required.', variant: 'destructive' })
     try {
-      if (isExisting && card) {
-        // Preserve the SUB fields the sheet owns — the dialog only edits
-        // the base columns A:F.
-        await updateCard.mutateAsync({ ...payload, rowIndex: card.rowIndex, subRequired: card.subRequired, subStart: card.subStart, subDeadline: card.subDeadline, subBonus: card.subBonus })
-      } else {
-        await addCard.mutateAsync({ ...payload, subRequired: 0, subStart: '', subDeadline: '', subBonus: '' })
-      }
+      if (isExisting && card) await updateCard.mutateAsync({ ...payload, rowIndex: card.rowIndex })
+      else await addCard.mutateAsync(payload)
       toast({ title: isExisting ? 'Card updated' : 'Card added' })
       onOpenChange(false)
     } catch (error) {
@@ -356,9 +408,20 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Annual fee<Input inputMode="decimal" type="number" min="0" step="0.01" value={form.annualFee || ''} onChange={(event) => setForm({ ...form, annualFee: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="0" /></label>
       <label className="flex items-center gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 text-sm font-semibold text-muted-foreground dark:bg-card/70 sm:col-span-2"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4 accent-coral" />Active</label>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Note<Textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="Benefits, reminders..." /></label>
-      {isExisting && card && (card.subRequired || card.subStart) && <div className="rounded-2xl border border-dashed border-border/60 bg-accent/20 p-3 text-xs text-muted-foreground sm:col-span-2">
-        🎁 Sign-up bonus fields (Required / Start / Deadline / Bonus) are maintained in the <strong>Cards</strong> sheet directly so formulas can compute progress. Edit them there to keep both views in sync.
-      </div>}
+
+      <fieldset className="rounded-3xl border border-border/70 bg-accent/15 p-3 sm:col-span-2">
+        <legend className="px-1 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">🎁 Sign-up bonus</legend>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Open date<Input type="date" value={form.subStart} onChange={(event) => setForm({ ...form, subStart: event.target.value })} /></label>
+          <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Target spend<Input inputMode="decimal" type="number" min="0" step="100" value={form.subRequired || ''} onChange={(event) => setForm({ ...form, subRequired: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="4000" /></label>
+          <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Period (mo)<Input inputMode="numeric" type="number" min="0" max="36" step="1" value={form.subPeriodMonths || ''} onChange={(event) => setForm({ ...form, subPeriodMonths: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="3" /></label>
+          <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-3">Bonus<Input value={form.subBonus} onChange={(event) => setForm({ ...form, subBonus: event.target.value })} placeholder="60,000 points" /></label>
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          {subDeadlinePreview ? <>Deadline: <span className="font-semibold text-foreground">{subDeadlinePreview}</span></> : 'Leave target spend or period blank to skip SUB tracking.'}
+        </p>
+      </fieldset>
+
       <div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:col-span-2 sm:-mx-7 sm:-mb-8 sm:flex-row sm:justify-end sm:pb-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" disabled={saving}>{saving ? 'Saving...' : (isExisting ? 'Save changes' : 'Add card')}</Button></div>
     </form>
   </Dialog>
