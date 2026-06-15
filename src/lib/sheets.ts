@@ -180,14 +180,15 @@ export type CardSheetRow = {
   last4: string
   active: boolean
   note: string
+  annualFee: number
 }
 
 export type CardSheetInput = Omit<CardSheetRow, 'rowIndex'>
 
-export const cardsHeaders = ['Name', 'Issuer', 'Last4', 'Active', 'Note']
+export const cardsHeaders = ['Name', 'Issuer', 'Last4', 'Active', 'Note', 'Annual Fee']
 
-export function cardToRow(card: CardSheetInput | CardSheetRow): (string | boolean)[] {
-  return [card.name, card.issuer, card.last4, card.active, card.note]
+export function cardToRow(card: CardSheetInput | CardSheetRow): (string | number | boolean)[] {
+  return [card.name, card.issuer, card.last4, card.active, card.note, card.annualFee || '']
 }
 
 export async function createCardsTab(sheetId: string) {
@@ -195,11 +196,11 @@ export async function createCardsTab(sheetId: string) {
 }
 
 export async function addCard(sheetId: string, card: CardSheetInput) {
-  return appendRow(sheetId, 'Cards!A:E', cardToRow(card))
+  return appendRow(sheetId, 'Cards!A:F', cardToRow(card))
 }
 
 export async function updateCard(sheetId: string, card: CardSheetRow) {
-  return updateRow(sheetId, `Cards!A${card.rowIndex}:E${card.rowIndex}`, cardToRow(card))
+  return updateRow(sheetId, `Cards!A${card.rowIndex}:F${card.rowIndex}`, cardToRow(card))
 }
 
 export async function deleteCard(sheetId: string, sheetGid: number, rowIndex: number) {
@@ -333,8 +334,10 @@ export async function createSpreadsheet({ title, categories, paymentMethods, rei
         listValidation(EXPENSE_GID, 3, categories),
         listValidation(EXPENSE_GID, 4, paymentMethods),
         listValidation(EXPENSE_GID, 5, reimbursements),
-        // Cards: Active as checkbox
+        // Cards: Active as checkbox, Annual Fee as currency
         booleanCheckbox(CARDS_GID, 3),
+        currencyFormat(CARDS_GID, 5),
+        nonNegativeNumberValidation(CARDS_GID, 5),
         // Giftcard: date + currency formats, non-negative validation
         dateFormat(GIFTCARD_GID, 1),
         currencyFormat(GIFTCARD_GID, 2),

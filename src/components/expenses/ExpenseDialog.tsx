@@ -4,7 +4,7 @@ import type { Expense } from '../../lib/types'
 import { Button, Dialog, FadeScroll, Input, Select } from '../ui'
 import { useAddExpense, useCategories, useExpenses, usePaymentMethods, useUpdateExpense } from '../../hooks/useExpenses'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../../hooks/useGiftcards'
-import { useCards, useCardOrder, makeCardComparator } from '../../hooks/useCards'
+import { useCards } from '../../hooks/useCards'
 import type { CardRow } from '../../hooks/useCards'
 import { appendNoteToDescription, classifyPaymentMethod, composeGiftcardDescription, parseGiftcardDescription, splitDescriptionNote, type GiftcardDescriptionParts, type PaymentMethodType } from '../../lib/giftcards'
 import { currency } from '../../lib/format'
@@ -198,48 +198,13 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const expensesQuery = useExpenses()
   const giftcards = useGiftcards()
   const managedCards = useCards()
-  const cardOrder = useCardOrder()
-  // Summary!G17:G is the user's master card list and the single source
-  // of truth for both *which* cards appear in the picker and *what
-  // order* they're shown in. We materialize one option per Summary row
-  // (preserving order + duplicates handling), and only enrich with
-  // issuer/last4 metadata when a Cards-tab row matches the name.
-  const sortedCardOptions = React.useMemo<CardRow[]>(() => {
-    const byName = new Map<string, CardRow>()
-    managedCards.cards.forEach((card) => {
-      const key = card.name.trim().toLocaleLowerCase()
-      if (key && !byName.has(key)) byName.set(key, card)
-    })
-    if (cardOrder.length === 0) {
-      // No Summary list available — fall back to the Cards tab,
-      // filtered to active and sorted by makeCardComparator's
-      // tiebreaker (active first, then alphabetical).
-      return [...managedCards.cards]
-        .filter((card) => card.active && card.name)
-        .sort(makeCardComparator([]))
-    }
-    const seen = new Set<string>()
-    const synthetic: CardRow[] = []
-    cardOrder.forEach((rawName, index) => {
-      const name = rawName.trim()
-      if (!name) return
-      const key = name.toLocaleLowerCase()
-      if (seen.has(key)) return
-      seen.add(key)
-      const matched = byName.get(key)
-      synthetic.push({
-        // Use a stable synthetic rowIndex so React keys stay unique
-        // even when no Cards-tab row matches this Summary entry.
-        rowIndex: matched?.rowIndex ?? -(index + 1),
-        name: matched?.name || name,
-        issuer: matched?.issuer || '',
-        last4: matched?.last4 || '',
-        active: matched?.active ?? true,
-        note: matched?.note || '',
-      })
-    })
-    return synthetic
-  }, [managedCards.cards, cardOrder])
+  // The Cards tab is the single source of truth for the picker — sheet
+  // row order is the display order. Inactive cards are hidden here; the
+  // dialog falls back to a freeform `customMode` for one-off entries.
+  const sortedCardOptions = React.useMemo<CardRow[]>(
+    () => managedCards.cards.filter((card) => card.active && card.name.trim()),
+    [managedCards.cards],
+  )
   const addExpense = useAddExpense()
   const updateExpense = useUpdateExpense()
   const { toast } = useToast()
