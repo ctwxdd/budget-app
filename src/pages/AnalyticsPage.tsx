@@ -86,33 +86,55 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
   const color = categoryColor(selected.name)
   const percentage = total ? (selected.total / total) * 100 : 0
 
+  const sentinelRef = React.useRef<HTMLDivElement>(null)
+  const [isStuck, setIsStuck] = React.useState(false)
+  React.useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || typeof IntersectionObserver === 'undefined') return
+    // Sentinel sits at the donut's natural position. When scrolling pushes it
+    // past the sticky pin offset (~80px), IO reports !isIntersecting → stuck.
+    // 80px is a compromise between mobile (~56px header) and desktop (96px),
+    // close enough that the size transition feels right on both.
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsStuck(!entry.isIntersecting),
+      { threshold: 0, rootMargin: '-80px 0px 0px 0px' }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [])
+
   return <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-    <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto h-64 w-full max-w-sm rounded-3xl bg-card/95 shadow-[0_14px_26px_-24px_hsl(var(--foreground)/0.45)] backdrop-blur-xl md:top-24 md:h-80">
-      <div className="relative h-full">
-        <ResponsiveContainer>
-          <PieChart accessibilityLayer={false}>
-            <Pie
-              data={rows}
-              dataKey="total"
-              nameKey="name"
-              outerRadius="78%"
-              innerRadius="54%"
-              paddingAngle={1.5}
-              cornerRadius={4}
-              isAnimationActive="auto"
-              shape={(props, index) => <DonutSector {...props} isActive={index === selectedIndex} />}
-              onClick={(_, index) => setSelectedIndex(index)}
-            >
-              {rows.map((_, index) => <Cell key={index} fill={chartPalette[index % chartPalette.length]} />)}
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className="flex max-w-32 flex-col items-center text-center">
-            <span className="mb-1.5 grid h-9 w-9 place-items-center rounded-full" style={{ backgroundColor: color.bg, color: color.text }}>{Icon ? <Icon className="h-[18px] w-[18px]" strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}</span>
-            <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
-            <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
-            <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
+    <div>
+      <div ref={sentinelRef} aria-hidden className="h-px" />
+      <div className={`sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto w-full max-w-sm rounded-3xl bg-card/95 shadow-[0_14px_26px_-24px_hsl(var(--foreground)/0.45)] backdrop-blur-xl transition-[height,box-shadow] duration-300 ease-out md:top-24 ${isStuck ? 'h-36 shadow-[0_18px_30px_-22px_hsl(var(--foreground)/0.55)] md:h-44' : 'h-64 md:h-80'}`}>
+        <div className="relative h-full">
+          <ResponsiveContainer>
+            <PieChart accessibilityLayer={false}>
+              <Pie
+                data={rows}
+                dataKey="total"
+                nameKey="name"
+                outerRadius="78%"
+                innerRadius="54%"
+                paddingAngle={1.5}
+                cornerRadius={4}
+                isAnimationActive="auto"
+                shape={(props, index) => <DonutSector {...props} isActive={index === selectedIndex} />}
+                onClick={(_, index) => setSelectedIndex(index)}
+              >
+                {rows.map((_, index) => <Cell key={index} fill={chartPalette[index % chartPalette.length]} />)}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="pointer-events-none absolute inset-0 grid place-items-center">
+            <div className={`flex flex-col items-center text-center transition-all duration-300 ${isStuck ? 'max-w-24 gap-0' : 'max-w-32'}`}>
+              <span className={`grid place-items-center rounded-full transition-all duration-300 ${isStuck ? 'mb-0.5 h-6 w-6' : 'mb-1.5 h-9 w-9'}`} style={{ backgroundColor: color.bg, color: color.text }}>
+                {Icon ? <Icon className={isStuck ? 'h-3 w-3' : 'h-[18px] w-[18px]'} strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
+              </span>
+              <p className={`max-w-full truncate font-bold transition-[font-size] duration-300 ${isStuck ? 'text-[11px]' : 'text-sm'}`} title={selected.name}>{selected.name}</p>
+              <p className={`font-display font-extrabold tabular-nums transition-[font-size] duration-300 ${isStuck ? 'mt-0 text-xs' : 'mt-0.5 text-base'}`} style={{ color: color.text }}>{currency.format(selected.total)}</p>
+              <p className={`mt-0.5 font-semibold text-muted-foreground transition-[font-size,opacity,max-height] duration-300 ${isStuck ? 'pointer-events-none max-h-0 text-[0px] opacity-0' : 'max-h-4 text-xs opacity-100'}`}>{percentage.toFixed(1)}% of total</p>
+            </div>
           </div>
         </div>
       </div>
