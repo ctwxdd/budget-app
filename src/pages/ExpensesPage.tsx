@@ -121,12 +121,12 @@ export function ExpensesPage() {
 }
 
 function BulkActionBar({ count, onClear, onEdit, onDelete, deleting }: { count: number; onClear: () => void; onEdit: () => void; onDelete: () => void; deleting: boolean }) {
-  return <div className="fixed inset-x-3 bottom-20 z-40 md:bottom-6 md:left-1/2 md:right-auto md:w-[min(36rem,calc(100vw-2rem))] md:-translate-x-1/2">
-    <div className="flex items-center gap-2 rounded-3xl border border-coral/20 bg-card/95 p-2 pl-4 shadow-2xl backdrop-blur-xl">
-      <span className="mr-auto text-sm font-extrabold text-foreground">{count} selected</span>
-      <Button type="button" variant="ghost" size="sm" onClick={onClear}><X className="h-4 w-4" />Clear</Button>
-      <Button type="button" size="sm" onClick={onEdit}><Pencil className="h-4 w-4" />Edit</Button>
-      <Button type="button" variant="destructive" size="sm" onClick={onDelete} disabled={deleting}><Trash2 className="h-4 w-4" />{deleting ? 'Deleting...' : 'Delete'}</Button>
+  return <div className="pointer-events-none fixed inset-x-0 z-40 flex justify-center px-3 bottom-[calc(76px+env(safe-area-inset-bottom))] md:bottom-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+    <div className="pointer-events-auto flex w-full max-w-[min(36rem,calc(100vw-1.5rem))] items-center gap-1.5 rounded-full border border-coral/20 bg-card/95 p-1.5 pl-4 shadow-[0_18px_40px_-20px_hsl(var(--foreground)/0.45)] backdrop-blur-xl animate-toast-pop">
+      <button type="button" onClick={onClear} aria-label="Clear selection" className="-ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"><X className="h-4 w-4" /></button>
+      <span className="mr-auto text-sm font-extrabold text-foreground tabular-nums">{count} <span className="font-medium text-muted-foreground">selected</span></span>
+      <Button type="button" variant="ghost" size="sm" onClick={onEdit} className="rounded-full"><Pencil className="h-4 w-4" /><span className="hidden sm:inline">Edit</span></Button>
+      <Button type="button" variant="destructive" size="sm" onClick={onDelete} disabled={deleting} className="rounded-full"><Trash2 className="h-4 w-4" /><span className="hidden sm:inline">{deleting ? 'Deleting…' : 'Delete'}</span><span className="sm:hidden">{deleting ? '…' : ''}</span></Button>
     </div>
   </div>
 }
