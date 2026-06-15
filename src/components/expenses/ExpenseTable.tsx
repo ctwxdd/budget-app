@@ -331,7 +331,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, selectedIds, selec
   const [sortKey, setSortKey] = React.useState<SortKey>('date')
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc')
   const [page, setPage] = React.useState(1)
-  const [mobileView, setMobileView] = React.useState<'cards' | 'list'>(() => localStorage.getItem('budget.expenseMobileView') === 'list' ? 'list' : 'cards')
+  const [mobileView, setMobileView] = React.useState<'cards' | 'list'>(() => localStorage.getItem('budget.expenseMobileView') === 'cards' ? 'cards' : 'list')
   const deleteExpense = useDeleteExpense()
   const queryClient = useQueryClient()
   const sheetId = useSheetId()
