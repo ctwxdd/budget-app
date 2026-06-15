@@ -90,30 +90,58 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
   React.useEffect(() => {
     const el = stickyRef.current
     if (!el) return
-    let raf = 0
-    // Scroll-driven progress 0..1. Shrink happens over 100px of scroll right
-    // before the element pins, so it stays in lock-step with the finger.
-    // PIN_OFFSET covers the largest realistic pin position (mobile with notch
-    // ~100px; desktop md:top-24 = 96px). Above PIN_OFFSET + RANGE, progress
-    // is 0 (expanded); at or below PIN_OFFSET, progress clamps to 1 (stuck).
+    // Scroll position drives a *target* progress 0..1 (shrink completes over
+    // 100px of scroll right before the element pins, so it tracks the finger
+    // while you're actively scrolling). PIN_OFFSET covers the largest pin
+    // position (mobile with notch ~100px; desktop md:top-24 = 96px).
     const PIN_OFFSET = 100
     const RANGE = 100
-    const update = () => {
-      raf = 0
+    // A critically-underdamped spring interpolates the live --p toward the
+    // target. Stiffness/damping tuned for one visible overshoot (~6%) then a
+    // quick settle — feels "flexy" instead of locked to scroll, and adds a
+    // satisfying bounce when scroll velocity changes or stops.
+    const STIFFNESS = 0.22
+    const DAMPING = 0.74
+    let target = 0
+    let current = 0
+    let velocity = 0
+    let raf = 0
+    const computeTarget = () => {
       const top = el.getBoundingClientRect().top
-      const p = Math.max(0, Math.min(1, (PIN_OFFSET + RANGE - top) / RANGE))
+      target = Math.max(0, Math.min(1, (PIN_OFFSET + RANGE - top) / RANGE))
+    }
+    const tick = () => {
+      raf = 0
+      const dx = target - current
+      velocity = velocity * (1 - DAMPING) + dx * STIFFNESS
+      current += velocity
+      // Allow a small overshoot past [0, 1] so the spring's natural bounce
+      // shows in the visuals (a touch smaller / a touch larger than the rest
+      // state). Cap to prevent any runaway.
+      if (current < -0.08) current = -0.08
+      else if (current > 1.12) current = 1.12
       // Write to a CSS variable so all interpolated styles update without a
       // React re-render — critical for keeping the recharts PieChart out of
       // the per-frame render loop.
-      el.style.setProperty('--p', p.toFixed(3))
+      el.style.setProperty('--p', current.toFixed(4))
+      if (Math.abs(dx) > 0.0006 || Math.abs(velocity) > 0.0006) {
+        raf = requestAnimationFrame(tick)
+      } else {
+        // Snap to rest so we don't leave sub-pixel residue in the variable.
+        current = target
+        velocity = 0
+        el.style.setProperty('--p', current.toFixed(4))
+      }
     }
     const onScroll = () => {
-      if (raf) return
-      raf = requestAnimationFrame(update)
+      computeTarget()
+      if (!raf) raf = requestAnimationFrame(tick)
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll)
-    update()
+    computeTarget()
+    current = target
+    el.style.setProperty('--p', current.toFixed(4))
     return () => {
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
