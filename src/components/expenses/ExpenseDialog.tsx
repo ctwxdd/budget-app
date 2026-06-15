@@ -12,7 +12,7 @@ import { cn } from '../../lib/utils'
 import { useToast } from '../ui/Toast'
 
 export type FormState = Omit<Expense, 'rowIndex'>
-const emptyForm = (): FormState => ({ date: format(new Date(), 'yyyy-MM-dd'), amount: 0, description: '', category: '', paymentMethod: 'Credit Card', reimbursement: '' })
+const emptyForm = (): FormState => ({ date: format(new Date(), 'yyyy-MM-dd'), amount: 0, description: '', category: '', paymentMethod: '', reimbursement: '' })
 const emptyGiftcardParts = (): GiftcardDescriptionParts => ({ vendor: '', face: '', source: '' })
 const paymentTypes: { type: PaymentMethodType; label: string; emoji: string }[] = [
   { type: 'card', label: 'Card', emoji: '💳' },
