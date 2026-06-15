@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { format } from 'date-fns'
-import { ChevronDown, Pencil, Plus, Search, Trash2, WalletCards, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ChevronDown, ListFilter, Pencil, Plus, Search, Trash2, WalletCards, X } from 'lucide-react'
 import { PageErrorBoundary } from '../components/ErrorBoundary'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, Dialog, Input, Textarea } from '../components/ui'
@@ -79,6 +80,7 @@ export function CardsPage() {
 }
 
 function CardsContent() {
+  const navigate = useNavigate()
   const { cards, tabMissing, isLoading, error } = useCards()
   const expensesQuery = useExpenses()
   const createTab = useCreateCardsTab()
@@ -96,6 +98,10 @@ function CardsContent() {
       reimbursement: '',
     })
   }, [])
+  const handleViewExpenses = React.useCallback((card: CardRow) => {
+    const params = new URLSearchParams({ payment: card.name, preset: 'all', from: 'cards' })
+    navigate(`/expenses?${params.toString()}`)
+  }, [navigate])
   const handleSelect = React.useCallback((rowIndex: number) => {
     setSelectedRow((current) => (current === rowIndex ? null : rowIndex))
   }, [])
@@ -242,9 +248,9 @@ function CardsContent() {
         <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] gap-3 border-b border-border/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
           <span /><span>Name</span><span>Issuer</span><span className="text-right">AF</span><span className="text-right">This month</span><span className="text-right">All time</span><span>SUB</span><span>Status</span><span>Actions</span>
         </div>
-        {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
+        {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
       </div>
-      <div className="space-y-2 p-2 md:hidden">{visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}</div>
+      <div className="space-y-2 p-2 md:hidden">{visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}</div>
     </Card>}
     <CardDialog open={dialogOpen} onOpenChange={setDialogOpen} card={editing} />
     {spendTemplate && <ExpenseDialog open template={spendTemplate} onOpenChange={(open) => { if (!open) setSpendTemplate(null) }} />}
@@ -290,15 +296,18 @@ function SubTracker({ card, sub }: { card: CardRow; sub: SubStatus }) {
   </div>
 }
 
-function CardActionBar({ card, onSpend }: { card: CardRow; onSpend: (card: CardRow) => void }) {
+function CardActionBar({ card, onSpend, onViewExpenses }: { card: CardRow; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void }) {
   return <div className="flex flex-wrap gap-2 border-t border-border/60 bg-accent/20 px-4 py-2.5 md:px-4 md:py-3">
     <Button type="button" size="sm" variant="gradient" onClick={(event) => { event.stopPropagation(); onSpend(card) }}>
       <Plus className="h-4 w-4" />Add expense on this card
     </Button>
+    <Button type="button" size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); onViewExpenses(card) }}>
+      <ListFilter className="h-4 w-4" />View expenses
+    </Button>
   </div>
 }
 
-function CardListRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; selected: boolean; onSelect: () => void }) {
+function CardListRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, onViewExpenses, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void; selected: boolean; onSelect: () => void }) {
   const hasSub = Boolean(sub)
   return <div className={cn('border-b border-border/50 last:border-b-0 transition', !card.active && 'opacity-55', selected && 'bg-coral/5 ring-1 ring-inset ring-coral/30')}>
     <div role="button" tabIndex={0} onClick={onSelect} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect() } }} className="grid cursor-pointer grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-accent/30">
@@ -314,12 +323,12 @@ function CardListRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, se
       <span onClick={(event) => event.stopPropagation()}><ActiveToggle card={card} /></span>
       <span onClick={(event) => event.stopPropagation()}><RowActions card={card} onEdit={onEdit} /></span>
     </div>
-    {selected && <CardActionBar card={card} onSpend={onSpend} />}
+    {selected && <CardActionBar card={card} onSpend={onSpend} onViewExpenses={onViewExpenses} />}
     {expanded && sub && <div className="px-4 pb-3"><SubTracker card={card} sub={sub} /></div>}
   </div>
 }
 
-function CardMobileRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; selected: boolean; onSelect: () => void }) {
+function CardMobileRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, onViewExpenses, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void; selected: boolean; onSelect: () => void }) {
   const hasSub = Boolean(sub)
   const subtitle = [card.issuer, card.last4 && `••••${card.last4}`, card.annualFee > 0 && `${currency.format(card.annualFee)}/yr`].filter(Boolean).join(' · ')
   return <div className={cn('overflow-hidden rounded-2xl border bg-white/70 shadow-sm transition dark:bg-card/70', !card.active && 'opacity-55', selected ? 'border-coral/60 ring-2 ring-coral/20' : 'border-border/70')}>
@@ -342,7 +351,7 @@ function CardMobileRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, 
       </div>
       {expanded && sub && <SubTracker card={card} sub={sub} />}
     </div>
-    {selected && <CardActionBar card={card} onSpend={onSpend} />}
+    {selected && <CardActionBar card={card} onSpend={onSpend} onViewExpenses={onViewExpenses} />}
   </div>
 }
 

@@ -15,20 +15,23 @@ export function ExpensesPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const drilldownCategory = searchParams.get('category') || ''
+  const drilldownPayment = searchParams.get('payment') || ''
   const fromAnalytics = searchParams.get('from') === 'analytics'
   const fromOverview = searchParams.get('from') === 'overview'
+  const fromCards = searchParams.get('from') === 'cards'
   const initialFilters = React.useMemo<ExpenseFilters>(() => {
     const preset = searchParams.get('preset') as ExpenseFilters['preset'] | null
     const hasValidPreset = preset && ['thisMonth', 'lastMonth', 'thisYear', 'all', 'custom'].includes(preset)
-    if (!drilldownCategory && !hasValidPreset) return defaultFilters
+    if (!drilldownCategory && !drilldownPayment && !hasValidPreset) return defaultFilters
     return {
       ...defaultFilters,
       preset: hasValidPreset ? preset : 'all',
       start: searchParams.get('start') || '',
       end: searchParams.get('end') || '',
       categories: drilldownCategory ? [drilldownCategory] : [],
+      payments: drilldownPayment ? [drilldownPayment] : [],
     }
-  }, [drilldownCategory, searchParams])
+  }, [drilldownCategory, drilldownPayment, searchParams])
   const { data = [], isLoading, error, refetch } = useExpenses()
   const [filters, setFilters] = React.useState(initialFilters)
   const [editing, setEditing] = React.useState<Expense | null>(null)
@@ -100,6 +103,11 @@ export function ExpensesPage() {
     {fromAnalytics && drilldownCategory && <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-primary/20 bg-primary/[0.07] p-3 shadow-soft">
       <div className="mr-auto min-w-0 px-1"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Analytics drill-down</p><p className="truncate text-sm font-bold">{drilldownCategory} · {filters.preset === 'custom' ? `${filters.start || 'Start'} – ${filters.end || 'End'}` : filters.preset.replace(/([A-Z])/g, ' $1').toLowerCase()}</p></div>
       <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/analytics')}><ArrowLeft className="h-4 w-4" />Analytics</Button>
+      <Button type="button" variant="outline" size="sm" onClick={clearDrilldown}><X className="h-4 w-4" />Clear filters</Button>
+    </div>}
+    {fromCards && drilldownPayment && <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-primary/20 bg-primary/[0.07] p-3 shadow-soft">
+      <div className="mr-auto min-w-0 px-1"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cards drill-down</p><p className="truncate text-sm font-bold">{drilldownPayment} · {filters.preset === 'custom' ? `${filters.start || 'Start'} – ${filters.end || 'End'}` : filters.preset.replace(/([A-Z])/g, ' $1').toLowerCase()}</p></div>
+      <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/cards')}><ArrowLeft className="h-4 w-4" />Cards</Button>
       <Button type="button" variant="outline" size="sm" onClick={clearDrilldown}><X className="h-4 w-4" />Clear filters</Button>
     </div>}
     <ExpenseFilterBar filters={filters} onChange={setFilters} selectionMode={selectionMode} selectedCount={selectedIds.size} onEnterSelectionMode={() => enterSelectionMode()} onCancelSelection={clearSelection} />
