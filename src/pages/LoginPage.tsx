@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, UserCog } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { SHEET_ID_KEY } from '../lib/defaults'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui'
@@ -7,14 +7,14 @@ import { LoveNoteIcon } from '../components/LoveNoteIcon'
 import { useToast } from '../components/ui/Toast'
 
 export function LoginPage() {
-  const { login } = useAuth()
+  const { login, switchAccount, user, hasRememberedAccount } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const { toast } = useToast()
   const missingClientId = !import.meta.env.VITE_GOOGLE_CLIENT_ID
-  const onLogin = async () => {
+  const handleLoginResult = async (action: () => Promise<void>) => {
     try {
-      await login()
+      await action()
     } catch (error) {
       if (error instanceof Error && error.message === 'SHEETS_SCOPE_MISSING') {
         toast({ title: 'Sheets permission was not granted', description: 'You signed in, but you need to allow the Google Sheets permission. Continuing to setup so you can grant it.', variant: 'destructive', duration: 6000 })
@@ -28,5 +28,45 @@ export function LoginPage() {
     const hasSheet = Boolean(localStorage.getItem(SHEET_ID_KEY))
     navigate(from || (hasSheet ? '/' : '/setup'), { replace: true })
   }
-  return <div className="relative grid min-h-screen place-items-center overflow-hidden bg-gradient-to-br from-background via-orange-50 to-rose-50 p-4 dark:from-background dark:via-background dark:to-card sm:p-6"><div className="soft-blob left-4 top-8 h-48 w-48 bg-coral/25 md:left-10 md:h-72 md:w-72" /><div className="soft-blob bottom-10 right-4 h-48 w-48 bg-sky/20 md:right-10 md:h-72 md:w-72" /><Card className="w-full max-w-lg bg-white/92 backdrop-blur dark:bg-card/90"><CardHeader className="text-center"><LoveNoteIcon className="mx-auto mb-4" imageClassName="h-20 w-20 rounded-[1.65rem] shadow-lift" alt="Chamomile flower in a wallet" /><p className="text-sm font-bold uppercase tracking-[0.24em] text-coral">Chamomile Pocket</p><CardTitle className="text-3xl md:text-4xl">Your cozy money garden</CardTitle><CardDescription>Gently tend to everyday spending while keeping Google Sheets as your database.</CardDescription></CardHeader><CardContent className="space-y-4">{missingClientId ? <div className="rounded-3xl border border-butter bg-butter/20 p-4 text-sm text-amber-900 dark:text-butter"><p className="font-semibold">Google Client ID is missing.</p><p>Follow README setup, copy .env.example to .env.local, and set VITE_GOOGLE_CLIENT_ID.</p></div> : <Button className="h-12 w-full text-base" size="lg" onClick={onLogin}><Sparkles className="h-5 w-5" />Sign in with Google</Button>}<p className="text-center text-xs text-muted-foreground">Requires Google Sheets access plus openid/email/profile.</p></CardContent></Card></div>
+  const onContinue = () => handleLoginResult(login)
+  const onSwitch = () => handleLoginResult(switchAccount)
+  const firstName = user?.name?.split(' ')[0] || user?.email?.split('@')[0]
+  return <div className="relative grid min-h-screen place-items-center overflow-hidden bg-gradient-to-br from-background via-orange-50 to-rose-50 p-4 dark:from-background dark:via-background dark:to-card sm:p-6">
+    <div className="soft-blob left-4 top-8 h-48 w-48 bg-coral/25 md:left-10 md:h-72 md:w-72" />
+    <div className="soft-blob bottom-10 right-4 h-48 w-48 bg-sky/20 md:right-10 md:h-72 md:w-72" />
+    <Card className="w-full max-w-lg bg-white/92 backdrop-blur dark:bg-card/90">
+      <CardHeader className="text-center">
+        <LoveNoteIcon className="mx-auto mb-4" imageClassName="h-20 w-20 rounded-[1.65rem] shadow-lift" alt="Chamomile flower in a wallet" />
+        <p className="text-sm font-bold uppercase tracking-[0.24em] text-coral">Chamomile Pocket</p>
+        <CardTitle className="text-3xl md:text-4xl">{hasRememberedAccount && firstName ? `Welcome back, ${firstName}` : 'Your cozy money garden'}</CardTitle>
+        <CardDescription>{hasRememberedAccount ? 'Your sign-in expired — tap to resume in one click.' : 'Gently tend to everyday spending while keeping Google Sheets as your database.'}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {missingClientId ? (
+          <div className="rounded-3xl border border-butter bg-butter/20 p-4 text-sm text-amber-900 dark:text-butter">
+            <p className="font-semibold">Google Client ID is missing.</p>
+            <p>Follow README setup, copy .env.example to .env.local, and set VITE_GOOGLE_CLIENT_ID.</p>
+          </div>
+        ) : hasRememberedAccount ? (
+          <>
+            <Button className="h-14 w-full justify-center gap-3 text-base" size="lg" onClick={onContinue}>
+              {user?.picture ? <img src={user.picture} alt="" className="h-8 w-8 rounded-full ring-2 ring-white" referrerPolicy="no-referrer" /> : <Sparkles className="h-5 w-5" />}
+              <span className="flex flex-col items-start leading-tight">
+                <span className="text-xs font-semibold uppercase tracking-wider opacity-90">Continue as</span>
+                <span className="truncate text-sm font-bold">{user?.name || user?.email}</span>
+              </span>
+            </Button>
+            <Button variant="outline" className="h-11 w-full" onClick={onSwitch}>
+              <UserCog className="h-4 w-4" />Use a different account
+            </Button>
+          </>
+        ) : (
+          <Button className="h-12 w-full text-base" size="lg" onClick={onContinue}>
+            <Sparkles className="h-5 w-5" />Sign in with Google
+          </Button>
+        )}
+        <p className="text-center text-xs text-muted-foreground">Requires Google Sheets access plus openid/email/profile.</p>
+      </CardContent>
+    </Card>
+  </div>
 }

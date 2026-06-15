@@ -9,6 +9,7 @@ type AuthContextValue = {
   expiresAt: number
   user: UserInfo | null
   isAuthenticated: boolean
+  hasRememberedAccount: boolean
   hasSheetsScope: boolean
   login: () => Promise<void>
   switchAccount: () => Promise<void>
@@ -40,7 +41,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(() => JSON.parse(localStorage.getItem('budget.user') || 'null'))
   const pendingLogin = useRef<(() => void) | null>(null)
   const pendingError = useRef<((error: unknown) => void) | null>(null)
-  const tokenRequest = useRef<Promise<void> | null>(null)
 
   const persistToken = useCallback((accessToken: string, expiresIn = 3600, scope = '') => {
     const safeExpiresAt = Date.now() + expiresIn * 1000 - 60000
@@ -154,14 +154,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const withFreshToken = useCallback(async () => {
     const latest = readToken()
     if (latest.token && latest.expiresAt > Date.now()) return latest.token
-    if (!tokenRequest.current) {
-      tokenRequest.current = login().finally(() => { tokenRequest.current = null })
-    }
-    await tokenRequest.current
-    const refreshed = readToken()
-    if (!refreshed.token) throw new Error('Google sign-in is required.')
-    return refreshed.token
-  }, [login])
+    // Token is missing or expired. We intentionally do NOT auto-open a Google
+    // OAuth popup here — popups not triggered by a user gesture get blocked by
+    // browsers and show the "site attempted to open a popup" warning. Instead
+    // we clear the cached access token so `isAuthenticated` flips to false,
+    // ProtectedRoute redirects to /login, and the user re-authenticates by
+    // clicking the "Continue as …" button (a real user gesture).
+    if (latest.token || latest.expiresAt) clearAccessToken()
+    throw new Error('Google sign-in expired. Please sign in again.')
+  }, [clearAccessToken])
 
   useEffect(() => {
     setSheetsAuth({ getToken: withFreshToken, onUnauthorized: clearAccessToken })
@@ -173,7 +174,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     token,
     expiresAt,
     user,
-    isAuthenticated: Boolean(token && expiresAt > Date.now()) || rememberedAuthorization,
+    isAuthenticated: Boolean(token && expiresAt > Date.now()),
+    hasRememberedAccount: rememberedAuthorization,
     hasSheetsScope: hasSheets(grantedScope),
     login,
     switchAccount,
