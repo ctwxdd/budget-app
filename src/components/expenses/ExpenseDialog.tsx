@@ -4,7 +4,7 @@ import type { Expense } from '../../lib/types'
 import { Button, Dialog, FadeScroll, Input, Select } from '../ui'
 import { useAddExpense, useCategories, useExpenses, usePaymentMethods, useUpdateExpense } from '../../hooks/useExpenses'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../../hooks/useGiftcards'
-import { useCards } from '../../hooks/useCards'
+import { useCards, compareCardsForDisplay } from '../../hooks/useCards'
 import type { CardRow } from '../../hooks/useCards'
 import { appendNoteToDescription, classifyPaymentMethod, composeGiftcardDescription, parseGiftcardDescription, splitDescriptionNote, type GiftcardDescriptionParts, type PaymentMethodType } from '../../lib/giftcards'
 import { currency } from '../../lib/format'
@@ -340,7 +340,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
         {paymentType !== 'cash' && <div className="pt-2">
           {paymentType === 'giftcard'
             ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
-            : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={managedCards.cards.filter((card) => card.active && card.name)} fallback={filteredPaymentMethods} />}
+            : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={[...managedCards.cards].filter((card) => card.active && card.name).sort(compareCardsForDisplay)} fallback={filteredPaymentMethods} />}
         </div>}
       </div>
     </form>

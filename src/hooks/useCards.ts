@@ -76,6 +76,13 @@ export function useCards() {
   }
 }
 
+// Shared comparator so the Cards (summary) page and the payment-method
+// picker always present cards in the same order: active cards first,
+// then alphabetical by name (case-insensitive).
+export function compareCardsForDisplay(a: CardRow, b: CardRow) {
+  return Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+}
+
 export function useCreateCardsTab() {
   const queryClient = useQueryClient()
   const sheetId = useSheetId()

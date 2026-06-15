@@ -4,7 +4,7 @@ import { PageErrorBoundary } from '../components/ErrorBoundary'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, Dialog, Input, Textarea } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
-import { useAddCard, useCards, useCreateCardsTab, useDeleteCard, useUpdateCard, type CardRow } from '../hooks/useCards'
+import { useAddCard, useCards, useCreateCardsTab, useDeleteCard, useUpdateCard, compareCardsForDisplay, type CardRow } from '../hooks/useCards'
 import { cn } from '../lib/utils'
 
 type CardForm = Omit<CardRow, 'rowIndex'>
@@ -25,7 +25,7 @@ function CardsContent() {
   if (tabMissing) return <EmptyState title="Set up Cards tab in your sheet" text="Create a Cards tab with Name, Issuer, Last4, Active, and Note columns." action={<Button onClick={() => createTab.mutate()} disabled={createTab.isPending}>{createTab.isPending ? 'Creating...' : 'Create Cards tab'}</Button>} />
 
   const activeCards = cards.filter((card) => card.active).length
-  const sortedCards = [...cards].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+  const sortedCards = [...cards].sort(compareCardsForDisplay)
 
   const openAdd = () => { setEditing(null); setDialogOpen(true) }
   const openEdit = (card: CardRow) => { setEditing(card); setDialogOpen(true) }
