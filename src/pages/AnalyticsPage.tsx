@@ -152,7 +152,7 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
   return <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
     <div
       ref={stickyRef}
-      className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto h-[calc(16rem-var(--p,0)*7rem)] w-full max-w-[calc(24rem-var(--p,0)*6rem)] overflow-hidden rounded-3xl bg-card/95 shadow-[0_calc(14px+var(--p,0)*6px)_calc(26px+var(--p,0)*8px)_-24px_hsl(var(--foreground)/calc(0.45+var(--p,0)*0.15))] backdrop-blur-xl md:top-24 md:h-[calc(20rem-var(--p,0)*9rem)] md:max-w-[calc(26rem-var(--p,0)*7rem)]"
+      className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto h-[calc(16rem-var(--p,0)*9rem)] w-full max-w-[calc(24rem-var(--p,0)*6rem)] overflow-hidden rounded-3xl bg-card/95 shadow-[0_calc(14px+var(--p,0)*6px)_calc(26px+var(--p,0)*8px)_-24px_hsl(var(--foreground)/calc(0.45+var(--p,0)*0.15))] backdrop-blur-xl md:top-24 md:h-[calc(20rem-var(--p,0)*12rem)] md:max-w-[calc(26rem-var(--p,0)*7rem)]"
       style={{ ['--p' as string]: '0' }}
     >
       <div
@@ -161,8 +161,9 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
           // GPU-accelerated scale; chart wrapper keeps its layout size so
           // recharts doesn't redraw on every scroll frame. Origin top-left
           // shifts the donut into the upper-left corner as it shrinks,
-          // freeing the right ~55% of the card for side info.
-          transform: 'scale(calc(1 - var(--p) * 0.45))',
+          // freeing the right ~55% of the card for side info. More aggressive
+          // 0.6 factor so the donut fits inside the now-compact pinned card.
+          transform: 'scale(calc(1 - var(--p) * 0.6))',
         }}
       >
         <ResponsiveContainer>
@@ -184,8 +185,13 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <span className="grid h-11 w-11 place-items-center rounded-full shadow-soft" style={{ backgroundColor: color.bg, color: color.text }}>
-            {Icon ? <Icon className="h-[22px] w-[22px]" strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
+          {/*
+            Icon is sized to fill the donut's inner hole so the whole thing
+            reads as a solid pie disk (no empty center). Scales with the chart
+            wrapper, so it tracks the hole at every progress value.
+          */}
+          <span className="grid h-32 w-32 place-items-center rounded-full shadow-soft md:h-36 md:w-36" style={{ backgroundColor: color.bg, color: color.text }}>
+            {Icon ? <Icon className="h-14 w-14 md:h-16 md:w-16" strokeWidth={2} /> : <span className="font-display text-5xl font-extrabold md:text-6xl">{selected.name.slice(0, 1).toUpperCase()}</span>}
           </span>
         </div>
       </div>
