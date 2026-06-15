@@ -94,13 +94,14 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
     let raf = 0
     const check = () => {
       raf = 0
-      // CSS sticky keeps the element's top edge clamped to its pin offset
-      // (≈56–96px depending on breakpoint). When the natural position has
-      // scrolled past that pin, the bounding rect's top equals the pin
-      // offset; otherwise it's larger. 85px is a midpoint that triggers
-      // the shrink right as the element actually pins.
+      // CSS sticky pins the element with top equal to its `top` offset:
+      // 3.5rem (56px) + safe-area-inset-top on mobile (up to ~110px on
+      // iPhones with a notch) and 96px on desktop (md:top-24). The element
+      // is "stuck" when its rect top equals that pinned value. Use 115 as a
+      // single threshold that lands just above the largest realistic pin
+      // offset, so both breakpoints fire reliably.
       const top = el.getBoundingClientRect().top
-      const next = top <= 85
+      const next = top <= 115
       setIsStuck((prev) => (prev === next ? prev : next))
     }
     const onScroll = () => {
