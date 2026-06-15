@@ -9,6 +9,7 @@ type AuthContextValue = {
   expiresAt: number
   user: UserInfo | null
   isAuthenticated: boolean
+  isAuthenticating: boolean
   hasRememberedAccount: boolean
   hasSheetsScope: boolean
   login: () => Promise<void>
@@ -41,6 +42,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(() => JSON.parse(localStorage.getItem('budget.user') || 'null'))
   const pendingLogin = useRef<(() => void) | null>(null)
   const pendingError = useRef<((error: unknown) => void) | null>(null)
+  const silentResolve = useRef<(() => void) | null>(null)
+  const silentReject = useRef<((error: unknown) => void) | null>(null)
+  const silentAttempted = useRef(false)
+  const initialFresh = initial.token && initial.expiresAt > Date.now()
+  const initialRemembered = Boolean(
+    (JSON.parse(localStorage.getItem('budget.user') || 'null') as UserInfo | null)
+    && hasSheets(localStorage.getItem(SCOPE_KEY) || '')
+  )
+  // Start in "authenticating" state only when we have a remembered account
+  // but no fresh token — that's when we'll attempt a silent refresh below.
+  const [isAuthenticating, setIsAuthenticating] = useState<boolean>(
+    !initialFresh && initialRemembered
+  )
 
   const persistToken = useCallback((accessToken: string, expiresIn = 3600, scope = '') => {
     const safeExpiresAt = Date.now() + expiresIn * 1000 - 60000
@@ -84,6 +98,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     pendingError.current = null
   }, [])
 
+  const handleSilentSuccess = useCallback((response: { access_token: string; expires_in: number; scope?: string }) => {
+    const scope = response.scope || ''
+    persistToken(response.access_token, response.expires_in, scope)
+    silentResolve.current?.()
+    silentResolve.current = null
+    silentReject.current = null
+  }, [persistToken])
+
+  const handleSilentError = useCallback((error: unknown) => {
+    // Expected when: user signed out of Google, 3p cookies blocked (Safari/Brave),
+    // or scope was revoked. Fall back to the "Continue as <name>" button on /login.
+    silentReject.current?.(error)
+    silentResolve.current = null
+    silentReject.current = null
+  }, [])
+
   const googleLogin = useGoogleLogin({
     flow: 'implicit',
     scope: `${SHEETS_SCOPE} openid email profile`,
@@ -105,6 +135,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     prompt: 'consent',
     onSuccess: handleSuccess,
     onError: handleError,
+  })
+
+  const googleSilent = useGoogleLogin({
+    flow: 'implicit',
+    scope: `${SHEETS_SCOPE} openid email profile`,
+    onSuccess: handleSilentSuccess,
+    onError: handleSilentError,
   })
 
   const login = useCallback(() => new Promise<void>((resolve, reject) => {
@@ -168,6 +205,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSheetsAuth({ getToken: withFreshToken, onUnauthorized: clearAccessToken })
   }, [withFreshToken, clearAccessToken])
 
+  // Attempt a silent token refresh once on app load when we have a remembered
+  // account but no fresh access token. With prompt: 'none', Google Identity
+  // Services tries an invisible iframe-based renewal and errors out cleanly
+  // (no popup) if it would require user interaction — that's the key
+  // difference from a regular login() call. Works for users who are still
+  // signed in to Google with 3p cookies allowed (most Chrome/Edge users).
+  // Safari, Brave, signed-out users fall back to the "Continue as" button.
+  useEffect(() => {
+    if (silentAttempted.current) return
+    if (!isAuthenticating) return
+    if (!user?.email) {
+      setIsAuthenticating(false)
+      return
+    }
+    silentAttempted.current = true
+    const timeoutId = setTimeout(() => {
+      silentReject.current?.(new Error('Silent refresh timed out'))
+    }, 5000)
+    new Promise<void>((resolve, reject) => {
+      silentResolve.current = resolve
+      silentReject.current = reject
+      try {
+        googleSilent({ prompt: 'none', hint: user.email })
+      } catch (error) {
+        reject(error)
+      }
+    })
+      .catch(() => {
+        // Expected fallback — user will see /login with "Continue as" button.
+      })
+      .finally(() => {
+        clearTimeout(timeoutId)
+        setIsAuthenticating(false)
+      })
+  }, [googleSilent, user?.email, isAuthenticating])
+
   const rememberedAuthorization = Boolean(user && hasSheets(grantedScope))
 
   const value = useMemo(() => ({
@@ -175,6 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     expiresAt,
     user,
     isAuthenticated: Boolean(token && expiresAt > Date.now()),
+    isAuthenticating,
     hasRememberedAccount: rememberedAuthorization,
     hasSheetsScope: hasSheets(grantedScope),
     login,
@@ -182,7 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     reauthorize,
     signOut,
     withFreshToken,
-  }), [token, expiresAt, user, grantedScope, rememberedAuthorization, login, switchAccount, reauthorize, signOut, withFreshToken])
+  }), [token, expiresAt, user, isAuthenticating, grantedScope, rememberedAuthorization, login, switchAccount, reauthorize, signOut, withFreshToken])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

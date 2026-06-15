@@ -1,5 +1,6 @@
+import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Sparkles, UserCog } from 'lucide-react'
+import { Loader2, Sparkles, UserCog } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { SHEET_ID_KEY } from '../lib/defaults'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui'
@@ -7,11 +8,18 @@ import { LoveNoteIcon } from '../components/LoveNoteIcon'
 import { useToast } from '../components/ui/Toast'
 
 export function LoginPage() {
-  const { login, switchAccount, user, hasRememberedAccount } = useAuth()
+  const { login, switchAccount, user, hasRememberedAccount, isAuthenticated, isAuthenticating } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const { toast } = useToast()
   const missingClientId = !import.meta.env.VITE_GOOGLE_CLIENT_ID
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname
+  const hasSheet = Boolean(localStorage.getItem(SHEET_ID_KEY))
+  const successPath = from || (hasSheet ? '/' : '/setup')
+  // If a silent refresh succeeds in the background, leave the login page.
+  useEffect(() => {
+    if (isAuthenticated) navigate(successPath, { replace: true })
+  }, [isAuthenticated, navigate, successPath])
   const handleLoginResult = async (action: () => Promise<void>) => {
     try {
       await action()
@@ -24,9 +32,7 @@ export function LoginPage() {
       // User closed the picker; let them try again.
       return
     }
-    const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname
-    const hasSheet = Boolean(localStorage.getItem(SHEET_ID_KEY))
-    navigate(from || (hasSheet ? '/' : '/setup'), { replace: true })
+    navigate(successPath, { replace: true })
   }
   const onContinue = () => handleLoginResult(login)
   const onSwitch = () => handleLoginResult(switchAccount)
@@ -46,6 +52,10 @@ export function LoginPage() {
           <div className="rounded-3xl border border-butter bg-butter/20 p-4 text-sm text-amber-900 dark:text-butter">
             <p className="font-semibold">Google Client ID is missing.</p>
             <p>Follow README setup, copy .env.example to .env.local, and set VITE_GOOGLE_CLIENT_ID.</p>
+          </div>
+        ) : isAuthenticating ? (
+          <div className="flex h-14 items-center justify-center gap-3 rounded-2xl border border-border/60 bg-accent/20 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />Resuming your session…
           </div>
         ) : hasRememberedAccount ? (
           <>
