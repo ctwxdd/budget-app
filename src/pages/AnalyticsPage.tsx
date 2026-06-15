@@ -152,18 +152,20 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
   return <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
     <div
       ref={stickyRef}
-      className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto h-[calc(16rem-var(--p,0)*9rem)] w-full max-w-[calc(24rem-var(--p,0)*6rem)] overflow-hidden rounded-3xl bg-card/95 shadow-[0_calc(14px+var(--p,0)*6px)_calc(26px+var(--p,0)*8px)_-24px_hsl(var(--foreground)/calc(0.45+var(--p,0)*0.15))] backdrop-blur-xl md:top-24 md:h-[calc(20rem-var(--p,0)*12rem)] md:max-w-[calc(26rem-var(--p,0)*7rem)]"
+      className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto h-[calc(16rem-var(--p,0)*10rem)] w-full max-w-[calc(24rem-var(--p,0)*7rem)] overflow-hidden rounded-3xl bg-card/95 shadow-[0_calc(14px+var(--p,0)*6px)_calc(26px+var(--p,0)*8px)_-24px_hsl(var(--foreground)/calc(0.45+var(--p,0)*0.15))] backdrop-blur-xl md:top-24 md:h-[calc(20rem-var(--p,0)*13rem)] md:max-w-[calc(26rem-var(--p,0)*8rem)]"
       style={{ ['--p' as string]: '0' }}
     >
+      {/*
+        Donut sectors are pinned to the *card center* (top-1/2 + translateY
+        -50%) so the chart's geometric center stays exactly where the
+        icon+text overlay sits at every card height. Fades out completely as
+        --p grows: at pinned state, only the icon+text remains.
+      */}
       <div
-        className="relative h-64 w-full origin-top-left md:h-80"
+        className="absolute inset-x-0 top-1/2 h-64 w-full md:h-80"
         style={{
-          // GPU-accelerated scale; chart wrapper keeps its layout size so
-          // recharts doesn't redraw on every scroll frame. Origin top-left
-          // shifts the donut into the upper-left corner as it shrinks,
-          // freeing the right ~55% of the card for side info. More aggressive
-          // 0.6 factor so the donut fits inside the now-compact pinned card.
-          transform: 'scale(calc(1 - var(--p) * 0.6))',
+          transform: 'translateY(-50%)',
+          opacity: 'calc(1 - var(--p))',
         }}
       >
         <ResponsiveContainer>
@@ -184,78 +186,44 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
             </Pie>
           </PieChart>
         </ResponsiveContainer>
-        <div className="pointer-events-none absolute inset-0">
-          {/*
-            Icon lives inside the scaled chart wrapper so it tracks the
-            donut's geometric center. Intrinsic size grows with --p so that
-            after the wrapper's scale (1 -> 0.4) the visible icon goes from
-            ~44px (rest, sits inside the donut hole as a small badge) to
-            ~96px (pinned, fills the hole — donut + icon read as a solid
-            pie disk). Box-shadow halo in the card color leaves a small
-            symmetric "moat" between the icon and the donut ring so the
-            icon reads as confidently centered rather than crowded against
-            the sectors.
-          */}
+      </div>
+
+      {/*
+        Icon + name + amount + % live in a single column that's centered in
+        the card *as a group* (not just the icon). At rest the whole group
+        sits inside the donut's inner hole. As --p grows the column scales
+        down (1 -> 0.7) so it fits the shorter pinned card, and the donut
+        fades out around it.
+      */}
+      <div className="pointer-events-none absolute inset-0 grid place-items-center">
+        <div
+          className="flex max-w-[8rem] flex-col items-center text-center"
+          style={{ transform: 'scale(calc(1 - var(--p) * 0.3))' }}
+        >
           <span
-            className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full"
+            className="grid h-12 w-12 place-items-center rounded-full"
             style={{
-              width: 'calc(2.75rem + var(--p) * 12.25rem)',
-              height: 'calc(2.75rem + var(--p) * 12.25rem)',
               backgroundColor: color.bg,
               color: color.text,
-              boxShadow: '0 0 0 calc(0.25rem + var(--p) * 1rem) hsl(var(--card))',
+              // Card-colored halo — a symmetric moat that separates the
+              // icon from the donut sectors and reads as confidently
+              // centered. Grows slightly with --p.
+              boxShadow: '0 0 0 calc(0.25rem + var(--p) * 0.375rem) hsl(var(--card))',
             }}
           >
-            {Icon ? (
-              <span
-                className="grid place-items-center"
-                style={{
-                  width: 'calc(1.125rem + var(--p) * 6.5rem)',
-                  height: 'calc(1.125rem + var(--p) * 6.5rem)',
-                }}
-              >
-                <Icon className="h-full w-full" strokeWidth={2.2} />
-              </span>
-            ) : (
-              <span
-                className="font-display font-extrabold leading-none"
-                style={{ fontSize: 'calc(1rem + var(--p) * 5rem)' }}
-              >
-                {selected.name.slice(0, 1).toUpperCase()}
-              </span>
-            )}
+            {Icon ? <Icon className="h-6 w-6" strokeWidth={2.2} /> : <span className="text-xl font-extrabold">{selected.name.slice(0, 1).toUpperCase()}</span>}
           </span>
           {/*
-            Center info (name / amount / %) sits just below the small
-            rest-state icon. Fades out as --p grows so the growing icon can
-            take over the hole without overlap.
+            Text fades to 0.45 (not 0) so the user can still read what's
+            selected after the donut sectors are gone. No separate side
+            panel needed.
           */}
-          <div
-            className="absolute left-1/2 top-1/2 flex max-w-36 flex-col items-center text-center"
-            style={{
-              transform: 'translate(-50%, 1.75rem)',
-              opacity: 'calc(1 - var(--p))',
-            }}
-          >
+          <div className="mt-1.5 w-full" style={{ opacity: 'calc(1 - var(--p) * 0.55)' }}>
             <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
             <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
             <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
           </div>
         </div>
-      </div>
-      <div
-        className="pointer-events-none absolute inset-y-0 right-0 flex w-[55%] flex-col justify-center pl-1 pr-4 text-right"
-        style={{
-          opacity: 'var(--p)',
-          // Slide in from the right as progress grows.
-          transform: 'translateX(calc((1 - var(--p)) * 0.75rem))',
-        }}
-        aria-hidden
-      >
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Selected</p>
-        <p className="mt-0.5 truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
-        <p className="font-display text-lg font-extrabold tabular-nums leading-tight" style={{ color: color.text }}>{currency.format(selected.total)}</p>
-        <p className="text-[11px] font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
       </div>
     </div>
     <RankedList rows={rows} selectedIndex={selectedIndex} onSelect={setSelectedIndex} onOpenExpenses={onOpenExpenses} />
