@@ -316,7 +316,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     mobileBottomSheet
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>}
   >
-    <form id={formId} onSubmit={submit} className="grid min-w-0 gap-x-5 gap-y-4 pb-2 sm:grid-cols-2 sm:gap-y-5">
+    <form id={formId} onSubmit={submit} className="grid min-w-0 gap-x-5 gap-y-4 sm:grid-cols-2">
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">{giftcardPurchase ? 'Cost paid' : 'Amount'}</span><Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} /></label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
@@ -347,7 +347,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
             }
           }} title={item.label}><span>{item.emoji}</span><span>{item.label}</span></button>)}
         </div>
-        {paymentType !== 'cash' && <div className="pt-2">
+        {paymentType !== 'cash' && <div className="pt-1.5">
           {paymentType === 'giftcard'
             ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
             : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} />}
@@ -453,37 +453,16 @@ function describeCard(card: CardRow) {
   return `${card.name}${tail}${issuer}`
 }
 
-const CUSTOM_CARD_VALUE = '__custom__'
-
 function CardPaymentPicker({ value, onChange, cards }: { value: string; onChange: (value: string) => void; cards: CardRow[] }) {
-  const matchesOption = React.useMemo(() => !value || cards.some((card) => card.name === value), [cards, value])
-  const [customMode, setCustomMode] = React.useState(() => Boolean(value) && !matchesOption)
-
-  React.useEffect(() => {
-    if (value && !matchesOption) setCustomMode(true)
-  }, [value, matchesOption])
-
-  if (customMode) {
-    return <div className="space-y-2 rounded-3xl border border-border/70 bg-white/70 p-3 dark:bg-card/70">
-      <Input value={value} placeholder="Card name…" onChange={(event) => onChange(event.target.value)} autoFocus={!value} />
-      <button type="button" className="text-xs font-semibold text-coral hover:underline" onClick={() => { onChange(''); setCustomMode(false) }}>← Pick from list</button>
-    </div>
-  }
-
-  return <div className="space-y-3 rounded-3xl border border-border/70 bg-white/70 p-3 dark:bg-card/70">
-    <label className="block space-y-1.5">
-      <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Card</span>
-      <Select value={matchesOption ? value : ''} onChange={(event) => {
-        if (event.target.value === CUSTOM_CARD_VALUE) { onChange(''); setCustomMode(true); return }
-        onChange(event.target.value)
-      }}>
-        <option value="">Select card…</option>
-        {cards.length > 0 && <optgroup label="Your cards">
-          {cards.map((card) => <option key={`mc-${card.rowIndex}`} value={card.name}>{describeCard(card)}</option>)}
-        </optgroup>}
-        <option value={CUSTOM_CARD_VALUE}>✏️ Custom…</option>
-      </Select>
-    </label>
-    {!cards.length && <p className="rounded-2xl bg-accent/50 p-3 text-xs font-medium">Add cards in the Cards tab for faster picking.</p>}
+  const matchesOption = !value || cards.some((card) => card.name === value)
+  return <div className="space-y-1.5">
+    <Select value={value} onChange={(event) => onChange(event.target.value)}>
+      <option value="">Select card…</option>
+      {cards.length > 0 && <optgroup label="Your cards">
+        {cards.map((card) => <option key={`mc-${card.rowIndex}`} value={card.name}>{describeCard(card)}</option>)}
+      </optgroup>}
+      {!matchesOption && value && <optgroup label="Existing"><option value={value}>{value} (not in Cards tab)</option></optgroup>}
+    </Select>
+    {!cards.length && <p className="rounded-2xl bg-accent/50 p-2 text-xs font-medium">Add cards in the Cards tab for faster picking.</p>}
   </div>
 }
