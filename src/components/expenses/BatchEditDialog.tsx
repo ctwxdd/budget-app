@@ -26,6 +26,7 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
   const [paymentMethod, setPaymentMethod] = React.useState('')
   const [applyDate, setApplyDate] = React.useState(false)
   const [date, setDate] = React.useState(format(new Date(), 'yyyy-MM-dd'))
+  const formId = React.useId()
 
   React.useEffect(() => {
     if (!open) return
@@ -60,8 +61,15 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
     }
   }
 
-  return <Dialog open={open} onOpenChange={onOpenChange} title="Batch edit expenses" description={`Apply changes to ${expenses.length} selected expense${expenses.length === 1 ? '' : 's'}.`} mobileBottomSheet>
-    <form onSubmit={submit} className="grid gap-4">
+  return <Dialog
+    open={open}
+    onOpenChange={onOpenChange}
+    title="Batch edit expenses"
+    description={`Apply changes to ${expenses.length} selected expense${expenses.length === 1 ? '' : 's'}.`}
+    mobileBottomSheet
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} disabled={batchUpdate.isPending}>{batchUpdate.isPending ? 'Saving...' : 'Save changes'}</Button></div>}
+  >
+    <form id={formId} onSubmit={submit} className="grid gap-4 pb-2">
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">
         Category
         <CategoryCombobox value={category} onChange={setCategory} options={categories} emptyLabel="— Keep current —" />
@@ -83,10 +91,6 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
         <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} disabled={!applyDate} />
       </div>
 
-      <div className="sticky bottom-0 z-10 -mx-5 -mb-[calc(env(safe-area-inset-bottom)+1.5rem)] flex flex-col-reverse gap-2 border-t border-border/70 bg-card/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:-mx-7 sm:-mb-8 sm:flex-row sm:justify-end sm:pb-4">
-        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-        <Button type="submit" disabled={batchUpdate.isPending}>{batchUpdate.isPending ? 'Saving...' : 'Save changes'}</Button>
-      </div>
     </form>
   </Dialog>
 }
