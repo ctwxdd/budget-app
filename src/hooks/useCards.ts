@@ -107,19 +107,25 @@ export const compareCardsForDisplay = makeCardComparator([])
 // to the default comparator above.
 export function useCardOrder() {
   const sheetId = useSheetId()
-  const cacheKey = `cardOrder.${sheetId}`
+  // v2 cache key — previous version may have cached an empty list from a
+  // transient API failure; bumping the key forces a fresh read.
+  const cacheKey = `cardOrder.v2.${sheetId}`
   const cached = readLocalCache<string[]>(cacheKey, LOCAL_CACHE_AGE)
   const query = useQuery<string[]>({
-    queryKey: ['cardOrder', sheetId],
+    queryKey: ['cardOrder', 'v2', sheetId],
     queryFn: async () => {
       try {
         const values = (await getSheet(sheetId, 'Summary!G17:G')).values || []
         const order = values
           .map((row) => (row?.[0] ?? '').toString().trim())
           .filter(Boolean)
-        writeLocalCache(cacheKey, order)
+        // Only persist successful, non-empty reads — an empty result is
+        // very likely a missing tab / wrong sheet, and caching it would
+        // mask the issue on the next mount.
+        if (order.length) writeLocalCache(cacheKey, order)
         return order
-      } catch {
+      } catch (error) {
+        console.warn('[useCardOrder] could not read Summary!G17:G — falling back to default order', error)
         return []
       }
     },
@@ -128,6 +134,7 @@ export function useCardOrder() {
     initialDataUpdatedAt: cached?.savedAt,
     staleTime: LOCAL_CACHE_AGE,
     refetchOnWindowFocus: false,
+    refetchOnMount: true,
   })
   return query.data || []
 }
