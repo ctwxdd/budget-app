@@ -87,31 +87,33 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
   const percentage = total ? (selected.total / total) * 100 : 0
 
   const stickyRef = React.useRef<HTMLDivElement>(null)
-  const [isStuck, setIsStuck] = React.useState(false)
   React.useEffect(() => {
     const el = stickyRef.current
     if (!el) return
     let raf = 0
-    const check = () => {
+    // Scroll-driven progress 0..1. Shrink happens over 100px of scroll right
+    // before the element pins, so it stays in lock-step with the finger.
+    // PIN_OFFSET covers the largest realistic pin position (mobile with notch
+    // ~100px; desktop md:top-24 = 96px). Above PIN_OFFSET + RANGE, progress
+    // is 0 (expanded); at or below PIN_OFFSET, progress clamps to 1 (stuck).
+    const PIN_OFFSET = 100
+    const RANGE = 100
+    const update = () => {
       raf = 0
-      // CSS sticky pins the element with top equal to its `top` offset:
-      // 3.5rem (56px) + safe-area-inset-top on mobile (up to ~110px on
-      // iPhones with a notch) and 96px on desktop (md:top-24).
-      // Use hysteresis (15px dead zone) so a slow scroll right at the
-      // boundary doesn't rapidly toggle the shrink animation.
       const top = el.getBoundingClientRect().top
-      setIsStuck((prev) => {
-        if (prev) return top > 135 ? false : prev
-        return top <= 115 ? true : prev
-      })
+      const p = Math.max(0, Math.min(1, (PIN_OFFSET + RANGE - top) / RANGE))
+      // Write to a CSS variable so all interpolated styles update without a
+      // React re-render — critical for keeping the recharts PieChart out of
+      // the per-frame render loop.
+      el.style.setProperty('--p', p.toFixed(3))
     }
     const onScroll = () => {
       if (raf) return
-      raf = requestAnimationFrame(check)
+      raf = requestAnimationFrame(update)
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll)
-    check()
+    update()
     return () => {
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
@@ -120,8 +122,21 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
   }, [])
 
   return <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-    <div ref={stickyRef} className={`sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto w-full max-w-sm rounded-3xl bg-card/95 shadow-[0_14px_26px_-24px_hsl(var(--foreground)/0.45)] backdrop-blur-xl will-change-[height] transition-[height,box-shadow] duration-[450ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] md:top-24 ${isStuck ? 'h-36 shadow-[0_18px_30px_-22px_hsl(var(--foreground)/0.55)] md:h-44' : 'h-64 md:h-80'}`}>
-      <div className="relative h-full">
+    <div
+      ref={stickyRef}
+      className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto h-[calc(16rem-var(--p,0)*7rem)] w-full max-w-sm overflow-hidden rounded-3xl bg-card/95 shadow-[0_calc(14px+var(--p,0)*6px)_calc(26px+var(--p,0)*8px)_-24px_hsl(var(--foreground)/calc(0.45+var(--p,0)*0.15))] backdrop-blur-xl md:top-24 md:h-[calc(20rem-var(--p,0)*9rem)]"
+      style={{ ['--p' as string]: '0' }}
+    >
+      <div
+        className="relative h-64 w-full origin-top-left md:h-80"
+        style={{
+          // GPU-accelerated scale; chart wrapper keeps its layout size so
+          // recharts doesn't redraw on every scroll frame. Origin top-left
+          // shifts the donut into the upper-left corner as it shrinks,
+          // freeing the right ~55% of the card for side info.
+          transform: 'scale(calc(1 - var(--p) * 0.45))',
+        }}
+      >
         <ResponsiveContainer>
           <PieChart accessibilityLayer={false}>
             <Pie
@@ -140,20 +155,36 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
             </Pie>
           </PieChart>
         </ResponsiveContainer>
-        <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className={`flex flex-col items-center text-center transition-all duration-[450ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isStuck ? 'gap-0' : 'max-w-32'}`}>
-            <span className={`grid place-items-center rounded-full shadow-soft transition-all duration-[450ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isStuck ? 'h-11 w-11' : 'mb-1.5 h-9 w-9'}`} style={{ backgroundColor: color.bg, color: color.text }}>
-              {Icon ? <Icon className={`transition-all duration-[450ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isStuck ? 'h-6 w-6' : 'h-[18px] w-[18px]'}`} strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
+        <div
+          className="pointer-events-none absolute inset-0 grid place-items-center"
+          style={{ opacity: 'calc(1 - var(--p))' }}
+        >
+          <div className="flex max-w-32 flex-col items-center text-center">
+            <span className="mb-1.5 grid h-9 w-9 place-items-center rounded-full shadow-soft" style={{ backgroundColor: color.bg, color: color.text }}>
+              {Icon ? <Icon className="h-[18px] w-[18px]" strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
             </span>
-            <div className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-[450ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isStuck ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`} aria-hidden={isStuck}>
-              <div className="min-h-0 flex flex-col items-center">
-                <p className="max-w-32 truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
-                <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
-                <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
-              </div>
-            </div>
+            <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
+            <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
+            <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
           </div>
         </div>
+      </div>
+      <div
+        className="pointer-events-none absolute inset-y-0 right-0 flex w-[58%] flex-col justify-center pl-2 pr-5 text-right"
+        style={{
+          opacity: 'var(--p)',
+          // Slide in from the right as progress grows.
+          transform: 'translateX(calc((1 - var(--p)) * 0.75rem))',
+        }}
+        aria-hidden
+      >
+        <span className="mb-1.5 self-end grid h-8 w-8 place-items-center rounded-full shadow-soft" style={{ backgroundColor: color.bg, color: color.text }}>
+          {Icon ? <Icon className="h-4 w-4" strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
+        </span>
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Selected</p>
+        <p className="truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
+        <p className="font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
+        <p className="text-[11px] font-semibold text-muted-foreground">{percentage.toFixed(1)}% of total</p>
       </div>
     </div>
     <RankedList rows={rows} selectedIndex={selectedIndex} onSelect={setSelectedIndex} onOpenExpenses={onOpenExpenses} />
