@@ -297,12 +297,12 @@ function SubTracker({ card, sub }: { card: CardRow; sub: SubStatus }) {
 }
 
 function CardActionBar({ card, onSpend, onViewExpenses }: { card: CardRow; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void }) {
-  return <div className="flex flex-wrap gap-2 border-t border-border/60 bg-accent/20 px-4 py-2.5 md:px-4 md:py-3">
-    <Button type="button" size="sm" variant="gradient" onClick={(event) => { event.stopPropagation(); onSpend(card) }}>
-      <Plus className="h-4 w-4" />Add expense on this card
+  return <div className="flex flex-nowrap items-center gap-2 border-t border-border/60 bg-accent/20 px-3 py-2.5 md:px-4 md:py-3">
+    <Button type="button" size="sm" variant="gradient" className="min-w-0 flex-1 sm:flex-initial" onClick={(event) => { event.stopPropagation(); onSpend(card) }}>
+      <Plus className="h-4 w-4 shrink-0" /><span className="truncate">Add expense</span>
     </Button>
-    <Button type="button" size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); onViewExpenses(card) }}>
-      <ListFilter className="h-4 w-4" />View expenses
+    <Button type="button" size="sm" variant="outline" className="min-w-0 flex-1 sm:flex-initial" onClick={(event) => { event.stopPropagation(); onViewExpenses(card) }}>
+      <ListFilter className="h-4 w-4 shrink-0" /><span className="truncate">View expenses</span>
     </Button>
   </div>
 }
