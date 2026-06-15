@@ -201,9 +201,9 @@ function CardsContent() {
         <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] gap-3 border-b border-border/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
           <span /><span>Name</span><span>Issuer</span><span className="text-right">AF</span><span className="text-right">This month</span><span className="text-right">All time</span><span>SUB</span><span>Status</span><span>Actions</span>
         </div>
-        {visibleCards.map((card) => <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={subStatusByRow.get(card.rowIndex) || null} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} />)}
+        {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} /> })}
       </div>
-      <div className="space-y-2 p-2 md:hidden">{visibleCards.map((card) => <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={subStatusByRow.get(card.rowIndex) || null} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} />)}</div>
+      <div className="space-y-2 p-2 md:hidden">{visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} /> })}</div>
     </Card>}
     <CardDialog open={dialogOpen} onOpenChange={setDialogOpen} card={editing} />
   </div>
@@ -214,14 +214,13 @@ function Kpi({ label, emoji, value, tint }: { label: string; emoji: string; valu
 }
 
 function SubChip({ sub, compact }: { sub: SubStatus; compact?: boolean }) {
-  const tone =
-    sub.state === 'met' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200' :
-    sub.state === 'on-track' ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-200' :
-    sub.state === 'behind' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200' :
-    sub.state === 'expired' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200' :
-    'bg-muted text-muted-foreground'
-  return <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold', tone)}>
-    <span>{sub.emoji}</span>{compact ? sub.label : `${sub.label}${sub.state === 'on-track' || sub.state === 'behind' ? ` · ${sub.daysLeft}d` : ''}`}
+  // Only on-track / behind are surfaced now, so the chip is a simple
+  // colored dot + label — no pill background, no emoji.
+  const dot = sub.state === 'behind' ? 'bg-amber-500' : 'bg-teal-500'
+  const text = sub.state === 'behind' ? 'text-amber-700 dark:text-amber-300' : 'text-teal-700 dark:text-teal-300'
+  return <span className={cn('inline-flex items-center gap-1.5 text-[11px] font-semibold tabular-nums', text)}>
+    <span className={cn('h-1.5 w-1.5 rounded-full', dot)} />
+    {sub.label}{!compact && ` · ${sub.daysLeft}d`}
   </span>
 }
 
@@ -238,18 +237,12 @@ function SubTracker({ card, sub }: { card: CardRow; sub: SubStatus }) {
     </div>
     <div className="relative h-2 overflow-hidden rounded-full bg-border/60">
       <div className={cn('absolute inset-y-0 left-0 rounded-full transition-all',
-        sub.state === 'met' ? 'bg-emerald-500' :
-        sub.state === 'on-track' ? 'bg-teal-500' :
-        sub.state === 'behind' ? 'bg-amber-500' :
-        sub.state === 'expired' ? 'bg-rose-500' :
-        'bg-muted-foreground')} style={{ width: `${pct}%` }} />
-      {sub.state !== 'met' && sub.state !== 'expired' && sub.state !== 'upcoming' && (
-        <div className="absolute top-0 h-2 w-px bg-foreground/40" style={{ left: `${pacePct}%` }} title={`Time pace ${pacePct}%`} />
-      )}
+        sub.state === 'behind' ? 'bg-amber-500' : 'bg-teal-500')} style={{ width: `${pct}%` }} />
+      <div className="absolute top-0 h-2 w-px bg-foreground/40" style={{ left: `${pacePct}%` }} title={`Time pace ${pacePct}%`} />
     </div>
     <div className="mt-1.5 grid grid-cols-3 gap-2 tabular-nums">
       <div><p className="text-[10px] uppercase tracking-wide text-muted-foreground">Spent</p><p className="font-semibold text-foreground">{currency.format(sub.spent)} <span className="text-[10px] font-normal text-muted-foreground">/ {currency.format(card.subRequired)}</span></p></div>
-      <div className="text-center"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">{sub.state === 'met' ? 'Done' : 'To go'}</p><p className="font-semibold text-foreground">{currency.format(sub.remaining)}</p></div>
+      <div className="text-center"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">To go</p><p className="font-semibold text-foreground">{currency.format(sub.remaining)}</p></div>
       <div className="text-right"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">Days left</p><p className="font-semibold text-foreground">{sub.daysLeft}</p></div>
     </div>
   </div>
