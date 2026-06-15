@@ -96,13 +96,14 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
       raf = 0
       // CSS sticky pins the element with top equal to its `top` offset:
       // 3.5rem (56px) + safe-area-inset-top on mobile (up to ~110px on
-      // iPhones with a notch) and 96px on desktop (md:top-24). The element
-      // is "stuck" when its rect top equals that pinned value. Use 115 as a
-      // single threshold that lands just above the largest realistic pin
-      // offset, so both breakpoints fire reliably.
+      // iPhones with a notch) and 96px on desktop (md:top-24).
+      // Use hysteresis (15px dead zone) so a slow scroll right at the
+      // boundary doesn't rapidly toggle the shrink animation.
       const top = el.getBoundingClientRect().top
-      const next = top <= 115
-      setIsStuck((prev) => (prev === next ? prev : next))
+      setIsStuck((prev) => {
+        if (prev) return top > 135 ? false : prev
+        return top <= 115 ? true : prev
+      })
     }
     const onScroll = () => {
       if (raf) return
@@ -119,7 +120,7 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
   }, [])
 
   return <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-    <div ref={stickyRef} className={`sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto w-full max-w-sm rounded-3xl bg-card/95 shadow-[0_14px_26px_-24px_hsl(var(--foreground)/0.45)] backdrop-blur-xl transition-[height,box-shadow] duration-300 ease-out md:top-24 ${isStuck ? 'h-36 shadow-[0_18px_30px_-22px_hsl(var(--foreground)/0.55)] md:h-44' : 'h-64 md:h-80'}`}>
+    <div ref={stickyRef} className={`sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto w-full max-w-sm rounded-3xl bg-card/95 shadow-[0_14px_26px_-24px_hsl(var(--foreground)/0.45)] backdrop-blur-xl will-change-[height] transition-[height,box-shadow] duration-[450ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] md:top-24 ${isStuck ? 'h-36 shadow-[0_18px_30px_-22px_hsl(var(--foreground)/0.55)] md:h-44' : 'h-64 md:h-80'}`}>
       <div className="relative h-full">
         <ResponsiveContainer>
           <PieChart accessibilityLayer={false}>
@@ -140,11 +141,11 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className={`flex flex-col items-center text-center transition-all duration-300 ${isStuck ? 'gap-0' : 'max-w-32'}`}>
-            <span className={`grid place-items-center rounded-full shadow-soft transition-all duration-300 ${isStuck ? 'h-11 w-11' : 'mb-1.5 h-9 w-9'}`} style={{ backgroundColor: color.bg, color: color.text }}>
-              {Icon ? <Icon className={`transition-all duration-300 ${isStuck ? 'h-6 w-6' : 'h-[18px] w-[18px]'}`} strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
+          <div className={`flex flex-col items-center text-center transition-all duration-[450ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isStuck ? 'gap-0' : 'max-w-32'}`}>
+            <span className={`grid place-items-center rounded-full shadow-soft transition-all duration-[450ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isStuck ? 'h-11 w-11' : 'mb-1.5 h-9 w-9'}`} style={{ backgroundColor: color.bg, color: color.text }}>
+              {Icon ? <Icon className={`transition-all duration-[450ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isStuck ? 'h-6 w-6' : 'h-[18px] w-[18px]'}`} strokeWidth={2.2} /> : selected.name.slice(0, 1).toUpperCase()}
             </span>
-            <div className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ${isStuck ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`} aria-hidden={isStuck}>
+            <div className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-[450ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isStuck ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`} aria-hidden={isStuck}>
               <div className="min-h-0 flex flex-col items-center">
                 <p className="max-w-32 truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
                 <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
