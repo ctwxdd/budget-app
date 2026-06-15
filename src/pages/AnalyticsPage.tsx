@@ -58,18 +58,13 @@ function EmptyChart() {
   return <div className="grid h-60 place-items-center rounded-3xl border border-dashed bg-accent/40 p-6 text-center text-muted-foreground md:h-72">🌱 Nothing here yet — add your first expense!<br />尚無資料</div>
 }
 
-const RADIAN = Math.PI / 180
-
-function DonutSector({ isActive, cx = 0, cy = 0, midAngle = 0, innerRadius = 0, outerRadius = 0, ...props }: PieSectorShapeProps) {
-  const offset = isActive ? 8 : 0
-  const x = Number(cx) + Math.cos(-Number(midAngle) * RADIAN) * offset
-  const y = Number(cy) + Math.sin(-Number(midAngle) * RADIAN) * offset
+function DonutSector({ isActive, cx = 0, cy = 0, innerRadius = 0, outerRadius = 0, ...props }: PieSectorShapeProps) {
   return <Sector
     {...props}
-    cx={x}
-    cy={y}
+    cx={Number(cx)}
+    cy={Number(cy)}
     innerRadius={Number(innerRadius)}
-    outerRadius={Number(outerRadius) + (isActive ? 5 : 0)}
+    outerRadius={Number(outerRadius)}
     fillOpacity={isActive ? 1 : 0.24}
     stroke="hsl(var(--card))"
     strokeWidth={isActive ? 3 : 1.5}
@@ -161,66 +156,71 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
         so the icon remains locked to the donut hole throughout the transform.
       */}
       <div
-        className="absolute inset-x-0 top-1/2 h-64 w-full origin-center md:h-80"
+        className="absolute left-1/2 top-1/2 h-64 w-full md:h-80"
         style={{
-          transform: 'translate(calc(var(--p) * -24%), -50%) scale(calc(1 - var(--p) * 0.6))',
+          transform: 'translate(calc(-50% - var(--p) * 24%), -50%)',
         }}
       >
-        <ResponsiveContainer>
-          <PieChart accessibilityLayer={false}>
-            <Pie
-              data={rows}
-              dataKey="total"
-              nameKey="name"
-              outerRadius="78%"
-              innerRadius="54%"
-              paddingAngle={1.5}
-              cornerRadius={4}
-              isAnimationActive="auto"
-              shape={(props, index) => <DonutSector {...props} isActive={index === selectedIndex} />}
-              onClick={(_, index) => setSelectedIndex(index)}
-            >
-              {rows.map((row) => <Cell key={row.name} fill={categoryColor(row.name).hex} />)}
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
+        <div
+          className="relative h-full w-full origin-center"
+          style={{ transform: 'scale(calc(1 - var(--p) * 0.6))' }}
+        >
+          <ResponsiveContainer>
+            <PieChart accessibilityLayer={false}>
+              <Pie
+                data={rows}
+                dataKey="total"
+                nameKey="name"
+                outerRadius="78%"
+                innerRadius="54%"
+                paddingAngle={1.5}
+                cornerRadius={4}
+                isAnimationActive="auto"
+                shape={(props, index) => <DonutSector {...props} isActive={index === selectedIndex} />}
+                onClick={(_, index) => setSelectedIndex(index)}
+              >
+                {rows.map((row) => <Cell key={row.name} fill={categoryColor(row.name).hex} />)}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
 
-        <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className="flex max-w-[8rem] flex-col items-center text-center">
-            <span
-              className="grid place-items-center rounded-full"
-              style={{
-                width: 'calc(3rem + var(--p) * 6rem)',
-                height: 'calc(3rem + var(--p) * 6rem)',
-                transform: 'translateY(calc(var(--p) * 2rem))',
-                backgroundColor: color.bg,
-                color: color.text,
-                boxShadow: '0 0 0 calc(0.25rem + var(--p) * 0.5rem) hsl(var(--card))',
-              }}
-            >
-              {Icon ? (
-                <span
-                  className="grid place-items-center"
-                  style={{
-                    width: 'calc(1.5rem + var(--p) * 3.5rem)',
-                    height: 'calc(1.5rem + var(--p) * 3.5rem)',
-                  }}
-                >
-                  <Icon className="h-full w-full" strokeWidth={2.2} />
-                </span>
-              ) : (
-                <span className="font-display text-2xl font-extrabold leading-none">
-                  {selected.name.slice(0, 1).toUpperCase()}
-                </span>
-              )}
-            </span>
-            <div
-              className="mt-1.5 w-full"
-              style={{ opacity: 'calc(1 - var(--p) * 1.8)' }}
-            >
-              <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
-              <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
-              <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}%</p>
+          <div className="pointer-events-none absolute inset-0 grid place-items-center">
+            <div className="flex max-w-[8rem] flex-col items-center text-center">
+              <span
+                className="grid place-items-center rounded-full"
+                style={{
+                  width: 'calc(3rem + var(--p) * 6rem)',
+                  height: 'calc(3rem + var(--p) * 6rem)',
+                  transform: 'translateY(calc(var(--p) * 2rem))',
+                  backgroundColor: color.bg,
+                  color: color.text,
+                  boxShadow: '0 0 0 calc(0.25rem + var(--p) * 0.5rem) hsl(var(--card))',
+                }}
+              >
+                {Icon ? (
+                  <span
+                    className="grid place-items-center"
+                    style={{
+                      width: 'calc(1.5rem + var(--p) * 3.5rem)',
+                      height: 'calc(1.5rem + var(--p) * 3.5rem)',
+                    }}
+                  >
+                    <Icon className="h-full w-full" strokeWidth={2.2} />
+                  </span>
+                ) : (
+                  <span className="font-display text-2xl font-extrabold leading-none">
+                    {selected.name.slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+              </span>
+              <div
+                className="mt-1.5 w-full"
+                style={{ opacity: 'calc(1 - var(--p) * 1.8)' }}
+              >
+                <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
+                <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
+                <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}%</p>
+              </div>
             </div>
           </div>
         </div>
