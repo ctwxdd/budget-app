@@ -37,7 +37,7 @@ function Sidebar() {
 }
 
 function BottomNav({ onAdd }: { onAdd: () => void }) {
-  const mobileNav = nav.filter((item) => ['/', '/expenses', '/analytics', '/giftcards'].includes(item.to))
+  const mobileNav = nav.filter((item) => ['/', '/expenses', '/analytics', '/cards'].includes(item.to))
   const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} onClick={item.to === '/' ? resetHomeScroll : undefined} className={({ isActive }) => `flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 pb-1 pt-2 text-[10px] font-bold transition sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="max-w-full truncate leading-none">{item.label}</span></NavLink>
   return <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden">
     <div className="relative mx-auto h-[calc(68px+env(safe-area-inset-bottom))] w-full border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl">
