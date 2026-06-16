@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { addDays, addMonths, endOfMonth, endOfWeek, format, isBefore, isSameDay, isSameMonth, isValid, parseISO, startOfMonth, startOfWeek } from 'date-fns'
-import { ArrowDownUp, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, Filter, LayoutGrid, List, MoreHorizontal, Pencil, Search, Trash2, X } from 'lucide-react'
+import { ArrowDownUp, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, Filter, LayoutGrid, List, MoreHorizontal, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import type { DatePreset, Expense } from '../../lib/types'
 import { categoryColor, categoryIcon, categoryName, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
 import { cn } from '../../lib/utils'
@@ -188,7 +188,7 @@ function SelectAllCheckbox({ checked, indeterminate, disabled, onChange }: { che
   return <input ref={ref} type="checkbox" aria-label="Select all visible expenses" className="h-4 w-4 rounded border-input accent-coral" checked={checked} disabled={disabled} onChange={onChange} onClick={(event) => event.stopPropagation()} />
 }
 
-function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; selected: boolean; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onEnterSelectionMode: (expense: Expense) => void }) {
+function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, onReturn, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; onReturn: (expense: Expense) => void; selected: boolean; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onEnterSelectionMode: (expense: Expense) => void }) {
   const [open, setOpen] = React.useState(false)
   const color = categoryColor(expense.category)
   const Icon = categoryIcon(expense.category)
@@ -250,15 +250,16 @@ function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, selected, selecti
     {selected && <span className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-coral text-white shadow-soft"><Check className="h-4 w-4" /></span>}
     <div className="flex min-w-0 items-start justify-between gap-3 pr-7"><div className="flex min-w-0 flex-1 items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>{Icon ? <Icon className="h-5 w-5" strokeWidth={2.2} /> : (expense.category || '?').slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate font-bold">{expense.description || 'No description'}</p><p className="text-sm text-muted-foreground">{displayDate(expense.date)}</p></div></div><p className="shrink-0 whitespace-nowrap font-display text-lg font-extrabold text-coral">{currency.format(expense.amount)}</p></div>
     <div className="mt-3 flex min-w-0 flex-nowrap items-center gap-2"><div className="min-w-0 max-w-[38%] shrink"><ColorBadge value={categoryName(expense.category)} /></div><div className="min-w-0 flex-1 overflow-hidden"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></div>{expense.reimbursement && <div className="shrink-0"><ReimbursementChip value={expense.reimbursement} /></div>}{!selectionMode && <div className="shrink-0"><Button variant="ghost" size="icon" aria-label={open ? 'Close expense actions' : 'Open expense actions'} aria-expanded={open} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value) }}><MoreHorizontal className="h-5 w-5" /></Button></div>}</div>
-    {open && <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border/70 pt-3" onClick={(event) => event.stopPropagation()}>
-      <Button variant="secondary" className="w-full" onClick={() => { setOpen(false); onEdit(expense) }}><Pencil className="h-4 w-4" />Edit</Button>
-      <Button variant="outline" className="w-full" onClick={() => { setOpen(false); onDuplicate(expense) }}><Copy className="h-4 w-4" />Copy</Button>
-      <Button variant="outline" className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { setOpen(false); onRemove(expense) }}><Trash2 className="h-4 w-4" />Delete</Button>
+    {open && <div className={cn('mt-3 grid gap-2 border-t border-border/70 pt-3', expense.amount > 0 ? 'grid-cols-4' : 'grid-cols-3')} onClick={(event) => event.stopPropagation()}>
+      <Button variant="secondary" size="sm" className="w-full px-2 text-xs" onClick={() => { setOpen(false); onEdit(expense) }}><Pencil className="h-4 w-4" />Edit</Button>
+      {expense.amount > 0 && <Button variant="outline" size="sm" className="w-full px-2 text-xs" onClick={() => { setOpen(false); onReturn(expense) }}><RotateCcw className="h-4 w-4" />Return</Button>}
+      <Button variant="outline" size="sm" className="w-full px-2 text-xs" onClick={() => { setOpen(false); onDuplicate(expense) }}><Copy className="h-4 w-4" />Copy</Button>
+      <Button variant="outline" size="sm" className="w-full px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { setOpen(false); onRemove(expense) }}><Trash2 className="h-4 w-4" />Delete</Button>
     </div>}
   </div>
 }
 
-function ExpenseListItem({ expense, onEdit, onRemove, onDuplicate, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; selected: boolean; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onEnterSelectionMode: (expense: Expense) => void }) {
+function ExpenseListItem({ expense, onEdit, onRemove, onDuplicate, onReturn, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; onReturn: (expense: Expense) => void; selected: boolean; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onEnterSelectionMode: (expense: Expense) => void }) {
   const [open, setOpen] = React.useState(false)
   const color = categoryColor(expense.category)
   const Icon = categoryIcon(expense.category)
@@ -320,15 +321,16 @@ function ExpenseListItem({ expense, onEdit, onRemove, onDuplicate, selected, sel
       </div>
       {!selectionMode && <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={open ? 'Close expense actions' : 'Open expense actions'} aria-expanded={open} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value) }}><MoreHorizontal className="h-5 w-5" /></Button>}
     </div>
-    {open && <div className="grid grid-cols-3 gap-2 border-t border-border/60 px-3 py-2.5" onClick={(event) => event.stopPropagation()}>
+    {open && <div className={cn('grid gap-2 border-t border-border/60 px-3 py-2.5', expense.amount > 0 ? 'grid-cols-4' : 'grid-cols-3')} onClick={(event) => event.stopPropagation()}>
       <Button variant="secondary" size="sm" className="w-full" onClick={() => { setOpen(false); onEdit(expense) }}><Pencil className="h-4 w-4" />Edit</Button>
+      {expense.amount > 0 && <Button variant="outline" size="sm" className="w-full" onClick={() => { setOpen(false); onReturn(expense) }}><RotateCcw className="h-4 w-4" />Return</Button>}
       <Button variant="outline" size="sm" className="w-full" onClick={() => { setOpen(false); onDuplicate(expense) }}><Copy className="h-4 w-4" />Copy</Button>
       <Button variant="outline" size="sm" className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { setOpen(false); onRemove(expense) }}><Trash2 className="h-4 w-4" />Delete</Button>
     </div>}
   </div>
 }
 
-export function ExpenseTable({ expenses, onEdit, onDuplicate, selectedIds, selectionMode, onToggleSelected, onSelectMany, onEnterSelectionMode }: { expenses: Expense[]; onEdit: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; selectedIds: Set<number>; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onSelectMany: (expenses: Expense[], selected: boolean) => void; onEnterSelectionMode: (expense: Expense) => void }) {
+export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selectedIds, selectionMode, onToggleSelected, onSelectMany, onEnterSelectionMode }: { expenses: Expense[]; onEdit: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; onReturn: (expense: Expense) => void; selectedIds: Set<number>; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onSelectMany: (expenses: Expense[], selected: boolean) => void; onEnterSelectionMode: (expense: Expense) => void }) {
   const [sortKey, setSortKey] = React.useState<SortKey>('date')
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc')
   const [page, setPage] = React.useState(1)
@@ -402,7 +404,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, selectedIds, selec
             <td className="p-4">{expense.description || <span className="text-muted-foreground">No description</span>}</td>
             <td className="p-4"><ColorBadge value={categoryName(expense.category)} /></td>
             <td className="p-4"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></td>
-            <td className="p-4" onClick={(event) => event.stopPropagation()}><div className="flex justify-end gap-1"><Button variant="ghost" size="icon" onClick={() => onEdit(expense)} aria-label="Edit"><Pencil className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => onDuplicate(expense)} aria-label="Duplicate"><Copy className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => remove(expense)} aria-label="Delete"><Trash2 className="h-4 w-4" /></Button></div></td>
+            <td className="p-4" onClick={(event) => event.stopPropagation()}><div className="flex justify-end gap-1"><Button variant="ghost" size="icon" onClick={() => onEdit(expense)} aria-label="Edit"><Pencil className="h-4 w-4" /></Button>{expense.amount > 0 && <Button variant="ghost" size="icon" onClick={() => onReturn(expense)} aria-label="Create return"><RotateCcw className="h-4 w-4" /></Button>}<Button variant="ghost" size="icon" onClick={() => onDuplicate(expense)} aria-label="Duplicate"><Copy className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => remove(expense)} aria-label="Delete"><Trash2 className="h-4 w-4" /></Button></div></td>
           </tr>
         })}</tbody>
       </table>
@@ -423,7 +425,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, selectedIds, selec
           lastDate = expense.date
           items.push(<div key={`day-${expense.date}`} className={cn('text-[11px] font-bold uppercase tracking-wider text-muted-foreground', mobileView === 'cards' ? 'mt-2 px-1 pt-1 first:mt-0' : 'border-y border-border/60 bg-muted/30 px-3 py-1.5 first:border-t-0')}>{dayLabel(expense.date)}</div>)
         }
-        const sharedProps = { expense, onEdit, onRemove: remove, onDuplicate, selected: selectedIds.has(expense.rowIndex), selectionMode, onToggleSelected, onEnterSelectionMode }
+        const sharedProps = { expense, onEdit, onRemove: remove, onDuplicate, onReturn, selected: selectedIds.has(expense.rowIndex), selectionMode, onToggleSelected, onEnterSelectionMode }
         items.push(mobileView === 'cards' ? <ExpenseCard key={expense.rowIndex} {...sharedProps} /> : <ExpenseListItem key={expense.rowIndex} {...sharedProps} />)
       }
       return items

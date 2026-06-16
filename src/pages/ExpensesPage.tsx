@@ -88,10 +88,17 @@ export function ExpensesPage() {
 
   if (isLoading) return <SkeletonCards />
   if (error) return <QueryError error={error} onRetry={() => { void refetch() }} />
-  const duplicate = (expense: Expense) => {
+  const todayIso = () => {
     const today = new Date()
-    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    setTemplate({ date: iso, amount: expense.amount, description: expense.description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: expense.reimbursement })
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  }
+  const duplicate = (expense: Expense) => {
+    setTemplate({ date: todayIso(), amount: expense.amount, description: expense.description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: expense.reimbursement })
+    setTemplateOpen(true)
+  }
+  const createReturn = (expense: Expense) => {
+    const description = expense.description ? `Return: ${expense.description}` : 'Return'
+    setTemplate({ date: todayIso(), amount: -Math.abs(expense.amount), description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: '' })
     setTemplateOpen(true)
   }
   return <div className="space-y-5">
@@ -111,7 +118,7 @@ export function ExpensesPage() {
       <Button type="button" variant="outline" size="sm" onClick={clearDrilldown}><X className="h-4 w-4" />Clear filters</Button>
     </div>}
     <ExpenseFilterBar filters={filters} onChange={setFilters} selectionMode={selectionMode} selectedCount={selectedIds.size} onEnterSelectionMode={() => enterSelectionMode()} onCancelSelection={clearSelection} />
-    <ExpenseTable expenses={filtered} onEdit={setEditing} onDuplicate={duplicate} selectedIds={selectedIds} selectionMode={selectionMode} onToggleSelected={toggleSelected} onSelectMany={selectMany} onEnterSelectionMode={enterSelectionMode} />
+    <ExpenseTable expenses={filtered} onEdit={setEditing} onDuplicate={duplicate} onReturn={createReturn} selectedIds={selectedIds} selectionMode={selectionMode} onToggleSelected={toggleSelected} onSelectMany={selectMany} onEnterSelectionMode={enterSelectionMode} />
     {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} onClear={clearSelection} onEdit={() => setBatchEditOpen(true)} onDelete={() => setBatchDeleteOpen(true)} deleting={batchDelete.isPending} />}
     {editing && <ExpenseDialog open onOpenChange={(open) => !open && setEditing(null)} expense={editing} />}
     {templateOpen && <ExpenseDialog open onOpenChange={(open) => { if (!open) { setTemplateOpen(false); setTemplate(null) } }} template={template} />}

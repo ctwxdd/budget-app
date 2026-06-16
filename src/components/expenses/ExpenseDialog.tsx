@@ -12,6 +12,7 @@ import { cn } from '../../lib/utils'
 import { useToast } from '../ui/Toast'
 
 export type FormState = Omit<Expense, 'rowIndex'>
+type EntryType = 'expense' | 'return'
 const emptyForm = (): FormState => ({ date: format(new Date(), 'yyyy-MM-dd'), amount: 0, description: '', category: '', paymentMethod: '', reimbursement: '' })
 const emptyGiftcardParts = (): GiftcardDescriptionParts => ({ vendor: '', face: '', source: '' })
 const paymentTypes: { type: PaymentMethodType; label: string; emoji: string }[] = [
@@ -216,6 +217,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const [paymentType, setPaymentType] = React.useState<PaymentMethodType>('card')
   const [selectedMerchant, setSelectedMerchant] = React.useState('')
   const [selectedGiftcardCard, setSelectedGiftcardCard] = React.useState<'auto' | string>('auto')
+  const [entryType, setEntryType] = React.useState<EntryType>('expense')
   // Only one suggestion popover can be open at a time so the Description
   // and Category dropdowns don't visually overlap.
   const [activeMenu, setActiveMenu] = React.useState<'description' | 'category' | null>(null)
@@ -228,15 +230,18 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
       : template
         ? { ...template }
         : emptyForm()
+    const nextEntryType: EntryType = next.amount < 0 ? 'return' : 'expense'
+    next.amount = Math.abs(next.amount)
     const description = splitDescriptionNote(next.description)
     next.description = description.base
     setForm(next)
+    setEntryType(nextEntryType)
     setNote(description.note)
     setNoteOpen(Boolean(description.note))
     const parsedGiftcard = next.category === 'Giftcard' ? parseGiftcardDescription(next.description) : null
     setGiftcardParts(parsedGiftcard || emptyGiftcardParts())
     setGiftcardStructured(next.category !== 'Giftcard' || Boolean(parsedGiftcard) || !next.description)
-    if (expense) {
+    if (next.paymentMethod) {
       const inferredPaymentType = classifyPaymentMethod(next.paymentMethod)
       const merchant = findMerchantForMethod(next.paymentMethod, giftcards.merchants) || ''
       const specificCard = merchant && next.paymentMethod !== merchant ? next.paymentMethod : ''
@@ -248,7 +253,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
       setSelectedMerchant('')
       setSelectedGiftcardCard('auto')
     }
-  }, [open, expense, giftcards.merchants])
+  }, [open, expense, template, giftcards.merchants])
 
   const vendors = React.useMemo(() => Array.from(new Set(giftcards.cards.map((card) => card.vendor).filter(Boolean))).sort(), [giftcards.cards])
   const giftcardSources = React.useMemo(() => {
@@ -287,39 +292,53 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     setForm((current) => ({ ...current, paymentMethod: card === 'auto' ? selectedMerchant : card }))
   }
 
+  const setAmount = (value: string) => {
+    const amount = Number(value)
+    setForm((current) => ({ ...current, amount: Number.isFinite(amount) ? Math.abs(amount) : 0 }))
+  }
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!Number.isFinite(form.amount) || form.amount === 0) return toast({ title: 'Amount cannot be zero.', description: 'Use a negative amount for returns or refunds.', variant: 'destructive' })
-    if (form.category === 'Giftcard' && form.amount <= 0) return toast({ title: 'Giftcard purchase cost must be greater than zero.', description: 'For returns, use the original spending category and enter a negative amount.', variant: 'destructive' })
-    if (form.category === 'Giftcard' && giftcardStructured && !giftcardParts.vendor.trim()) return toast({ title: 'Vendor is required for giftcard purchases.', variant: 'destructive' })
-    const description = form.category === 'Giftcard' && giftcardStructured
+    const amount = Math.abs(Number(form.amount))
+    if (!Number.isFinite(amount) || amount === 0) return toast({ title: entryType === 'return' ? 'Return amount is required.' : 'Amount is required.', description: 'Enter the positive amount; the app handles the sign.', variant: 'destructive' })
+    if (entryType === 'return' && form.category === 'Giftcard') return toast({ title: 'Choose the original spending category.', description: 'Giftcard is only for buying a giftcard. Returns are saved as negative expenses in the returned item category.', variant: 'destructive' })
+    if (giftcardPurchase && amount <= 0) return toast({ title: 'Giftcard purchase cost must be greater than zero.', variant: 'destructive' })
+    if (giftcardPurchase && giftcardStructured && !giftcardParts.vendor.trim()) return toast({ title: 'Vendor is required for giftcard purchases.', variant: 'destructive' })
+    const description = giftcardPurchase && giftcardStructured
       ? composeGiftcardDescription(giftcardParts, note)
       : appendNoteToDescription(form.description, note)
-    const payload = { date: form.date, amount: Number(form.amount), description, category: form.category, paymentMethod: form.paymentMethod, reimbursement: form.reimbursement }
+    const signedAmount = entryType === 'return' ? -amount : amount
+    const payload = { date: form.date, amount: signedAmount, description, category: form.category, paymentMethod: form.paymentMethod, reimbursement: form.reimbursement }
     try {
       if (expense) await updateExpense.mutateAsync({ ...payload, rowIndex: expense.rowIndex })
       else await addExpense.mutateAsync(payload)
-      toast({ title: expense ? 'Expense updated' : 'Expense added' })
+      toast({ title: expense ? (entryType === 'return' ? 'Return updated' : 'Expense updated') : (entryType === 'return' ? 'Return added' : 'Expense added') })
       onOpenChange(false)
     } catch (error) {
       toast({ title: 'Could not save expense', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
     }
   }
 
-  const giftcardPurchase = form.category === 'Giftcard'
+  const giftcardPurchase = entryType === 'expense' && form.category === 'Giftcard'
   const formId = React.useId()
   const descriptionSuggestions = React.useMemo(() => buildDescriptionSuggestions(expensesQuery.data || [], form.category), [expensesQuery.data, form.category])
   return <Dialog
     open={open}
     onOpenChange={onOpenChange}
-    title={expense ? 'Edit expense' : 'Add expense'}
-    description="Saved directly to your Google Sheet"
+    title={expense ? (entryType === 'return' ? 'Edit return' : 'Edit expense') : (entryType === 'return' ? 'Add return' : 'Add expense')}
+    description={entryType === 'return' ? 'Enter the refund amount as a positive number. It is saved as a negative row in your sheet.' : 'Saved directly to your Google Sheet'}
     mobileBottomSheet
-    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>}
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : (entryType === 'return' ? 'Add return' : 'Add expense'))}</Button></div>}
   >
     <form id={formId} onSubmit={submit} className="grid min-w-0 gap-x-5 gap-y-4 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <div className="grid grid-cols-2 gap-1 rounded-full bg-accent/50 p-1">
+          {(['expense', 'return'] as EntryType[]).map((type) => <button key={type} type="button" aria-pressed={entryType === type} className={cn('rounded-full px-3 py-2 text-sm font-bold transition', entryType === type ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => setEntryType(type)}>{type === 'expense' ? 'Expense' : 'Return / refund'}</button>)}
+        </div>
+        {entryType === 'return' && <p className="mt-2 rounded-2xl bg-mint/10 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-mint">Return mode saves this as {form.amount ? currency.format(-Math.abs(form.amount)) : 'a negative amount'} to reduce your spend. You only type the positive refund amount.</p>}
+      </div>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">{giftcardPurchase ? 'Cost paid' : 'Amount'}</span><Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min={giftcardPurchase ? '0.01' : undefined} step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} />{!giftcardPurchase && <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Use a negative amount for returns/refunds.</span>}</label>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">{giftcardPurchase ? 'Cost paid' : entryType === 'return' ? 'Return amount' : 'Amount'}</span><Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setAmount(event.target.value)} />{entryType === 'return' && <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Do not add a minus sign — this will be stored as a refund.</span>}</label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="block">Description</span>
         {giftcardPurchase
