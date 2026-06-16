@@ -13,6 +13,7 @@ import { chartPalette, categoryColor, categoryIcon, currency, groupTotals, month
 
 const moneyTick = (value: number) => `$${Math.round(value).toLocaleString()}`
 const validYear = (year: number, fallback: number) => (Number.isFinite(year) && year > 0 ? year : fallback)
+const RADIAN = Math.PI / 180
 
 export function AnalyticsPage() {
   const navigate = useNavigate()
@@ -58,28 +59,37 @@ function EmptyChart() {
   return <div className="grid h-60 place-items-center rounded-3xl border border-dashed bg-accent/40 p-6 text-center text-muted-foreground md:h-72">🌱 Nothing here yet — add your first expense!<br />尚無資料</div>
 }
 
-function DonutSector({ isActive, cx = 0, cy = 0, innerRadius = 0, outerRadius = 0, ...props }: PieSectorShapeProps) {
+function DonutSector({ isActive, cx = 0, cy = 0, midAngle = 0, innerRadius = 0, outerRadius = 0, ...props }: PieSectorShapeProps) {
+  const offset = isActive ? 8 : 0
+  const x = Number(cx) + Math.cos(-Number(midAngle) * RADIAN) * offset
+  const y = Number(cy) + Math.sin(-Number(midAngle) * RADIAN) * offset
   return <Sector
     {...props}
-    cx={Number(cx)}
-    cy={Number(cy)}
+    cx={x}
+    cy={y}
     innerRadius={Number(innerRadius)}
-    outerRadius={Number(outerRadius)}
-    fillOpacity={isActive ? 1 : 0.24}
+    outerRadius={Number(outerRadius) + (isActive ? 5 : 0)}
+    fillOpacity={isActive ? 1 : 0.72}
     stroke="hsl(var(--card))"
     strokeWidth={isActive ? 3 : 1.5}
-    style={{ filter: isActive ? 'drop-shadow(0 7px 8px rgba(42,36,56,0.18))' : 'none', transition: 'opacity 180ms ease, filter 180ms ease' }}
+    style={{ filter: isActive ? 'drop-shadow(0 9px 10px rgba(42,36,56,0.2))' : 'none', transition: 'opacity 180ms ease, filter 180ms ease' }}
   />
 }
 
 function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; total: number }[]; onOpenExpenses: (category: string) => void }) {
-  const [selectedIndex, setSelectedIndex] = React.useState(0)
-  React.useEffect(() => { if (selectedIndex >= rows.length) setSelectedIndex(0) }, [rows.length, selectedIndex])
+  const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null)
+  React.useEffect(() => { if (selectedIndex !== null && selectedIndex >= rows.length) setSelectedIndex(null) }, [rows.length, selectedIndex])
   const total = rows.reduce((sum, row) => sum + row.total, 0)
-  const selected = rows[selectedIndex] || rows[0]
-  const Icon = categoryIcon(selected.name)
-  const color = categoryColor(selected.name)
-  const percentage = total ? (selected.total / total) * 100 : 0
+  const selected = selectedIndex === null ? null : rows[selectedIndex] || null
+  const Icon = selected ? categoryIcon(selected.name) : null
+  const color = selected ? categoryColor(selected.name) : { bg: 'hsl(var(--primary) / 0.12)', text: 'hsl(var(--primary))' }
+  const displayName = selected?.name || 'Total'
+  const displayAmount = selected?.total ?? total
+  const percentage = selected && total ? (selected.total / total) * 100 : 100
+  const detailText = selected ? `${percentage.toFixed(1)}%` : `${rows.length} categories`
+  const toggleSelectedIndex = React.useCallback((index: number) => {
+    setSelectedIndex((current) => current === index ? null : index)
+  }, [])
 
   const stickyRef = React.useRef<HTMLDivElement>(null)
   React.useEffect(() => {
@@ -144,9 +154,10 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
     }
   }, [])
 
-  return <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+  return <div className="grid gap-6 lg:grid-cols-2 lg:items-start" onClick={() => setSelectedIndex(null)}>
     <div
       ref={stickyRef}
+      onClick={() => setSelectedIndex(null)}
       className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 mx-auto h-[calc(16rem-var(--p,0)*9rem)] w-full max-w-[calc(24rem-var(--p,0)*5rem)] overflow-hidden rounded-3xl bg-card/95 shadow-[0_calc(14px+var(--p,0)*6px)_calc(26px+var(--p,0)*8px)_-24px_hsl(var(--foreground)/calc(0.45+var(--p,0)*0.15))] backdrop-blur-xl md:top-24 md:h-[calc(20rem-var(--p,0)*12rem)] md:max-w-[calc(26rem-var(--p,0)*6rem)]"
       style={{ ['--p' as string]: '0' }}
     >
@@ -157,6 +168,10 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
       */}
       <div
         className="absolute left-1/2 top-1/2 h-64 w-full md:h-80"
+        onClick={(event) => {
+          event.stopPropagation()
+          setSelectedIndex(null)
+        }}
         style={{
           transform: 'translate(calc(-50% - var(--p) * 24%), -50%)',
         }}
@@ -176,8 +191,11 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
                 paddingAngle={1.5}
                 cornerRadius={4}
                 isAnimationActive="auto"
-                shape={(props, index) => <DonutSector {...props} isActive={index === selectedIndex} />}
-                onClick={(_, index) => setSelectedIndex(index)}
+                shape={(props, index) => <DonutSector {...props} isActive={selectedIndex === index} />}
+                onClick={(_, index, event) => {
+                  event?.stopPropagation?.()
+                  toggleSelectedIndex(index)
+                }}
               >
                 {rows.map((row) => <Cell key={row.name} fill={categoryColor(row.name).hex} />)}
               </Pie>
@@ -201,14 +219,14 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
                   <Icon className="h-6 w-6" strokeWidth={2.2} />
                 ) : (
                   <span className="font-display text-2xl font-extrabold leading-none">
-                    {selected.name.slice(0, 1).toUpperCase()}
+                    {selected ? selected.name.slice(0, 1).toUpperCase() : '$'}
                   </span>
                 )}
               </span>
               <div className="mt-1.5 w-full">
-                <p className="max-w-full truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
-                <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
-                <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{percentage.toFixed(1)}%</p>
+                <p className="max-w-full truncate text-sm font-bold" title={displayName}>{displayName}</p>
+                <p className="mt-0.5 font-display text-base font-extrabold tabular-nums" style={{ color: color.text }}>{currency.format(displayAmount)}</p>
+                <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{detailText}</p>
               </div>
             </div>
           </div>
@@ -239,7 +257,7 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
                 </span>
               ) : (
                 <span className="font-display text-2xl font-extrabold leading-none">
-                  {selected.name.slice(0, 1).toUpperCase()}
+                  {selected ? selected.name.slice(0, 1).toUpperCase() : '$'}
                 </span>
               )}
             </span>
@@ -255,21 +273,21 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
         }}
         aria-hidden
       >
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Selected</p>
-        <p className="mt-0.5 truncate text-sm font-bold" title={selected.name}>{selected.name}</p>
-        <p className="font-display text-lg font-extrabold leading-tight tabular-nums" style={{ color: color.text }}>{currency.format(selected.total)}</p>
-        <p className="text-[11px] font-semibold text-muted-foreground">{percentage.toFixed(1)}%</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{selected ? 'Selected' : 'All spending'}</p>
+        <p className="mt-0.5 truncate text-sm font-bold" title={displayName}>{displayName}</p>
+        <p className="font-display text-lg font-extrabold leading-tight tabular-nums" style={{ color: color.text }}>{currency.format(displayAmount)}</p>
+        <p className="text-[11px] font-semibold text-muted-foreground">{detailText}</p>
       </div>
     </div>
-    <RankedList rows={rows} selectedIndex={selectedIndex} onSelect={setSelectedIndex} onOpenExpenses={onOpenExpenses} />
+    <RankedList rows={rows} selectedIndex={selectedIndex} onSelect={toggleSelectedIndex} onOpenExpenses={onOpenExpenses} />
   </div>
 }
 
-function RankedList({ rows, selectedIndex, onSelect, onOpenExpenses }: { rows: { name: string; total: number }[]; selectedIndex: number; onSelect: (index: number) => void; onOpenExpenses: (category: string) => void }) {
+function RankedList({ rows, selectedIndex, onSelect, onOpenExpenses }: { rows: { name: string; total: number }[]; selectedIndex: number | null; onSelect: (index: number) => void; onOpenExpenses: (category: string) => void }) {
   const total = rows.reduce((sum, row) => sum + row.total, 0)
   if (rows.length === 0) return <EmptyChart />
   const max = rows.reduce((m, r) => Math.max(m, r.total), 0) || 1
-  return <ul className="space-y-2">
+  return <ul className="space-y-2" onClick={(event) => event.stopPropagation()}>
     {rows.map((row, index) => {
       const Icon = categoryIcon(row.name)
       const color = categoryColor(row.name)
