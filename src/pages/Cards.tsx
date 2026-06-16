@@ -17,6 +17,8 @@ type CardForm = Pick<CardRow, 'name' | 'issuer' | 'last4' | 'active' | 'note' | 
   subStart: string
   subPeriodMonths: number
 }
+type CardsView = 'cards' | 'list'
+const VIEW_KEY = 'credit-cards-view'
 const emptyCard = (): CardForm => ({ name: '', issuer: '', last4: '', active: true, note: '', annualFee: 0, subRequired: 0, subStart: '', subPeriodMonths: 0, subBonus: '' })
 
 // Adds `months` whole months to a YYYY-MM-DD string (UTC, day-clamped).
@@ -91,6 +93,15 @@ function CardsContent() {
   const [search, setSearch] = React.useState('')
   const [showInactive, setShowInactive] = React.useState(false)
   const [expanded, setExpanded] = React.useState<Set<number>>(() => new Set())
+  const [view, setView] = React.useState<CardsView>(() => {
+    if (typeof window === 'undefined') return 'list'
+    return localStorage.getItem(VIEW_KEY) === 'cards' ? 'cards' : 'list'
+  })
+
+  React.useEffect(() => {
+    localStorage.setItem(VIEW_KEY, view)
+  }, [view])
+
   const handleSpend = React.useCallback((card: CardRow) => {
     setSpendTemplate({
       date: format(new Date(), 'yyyy-MM-dd'),
@@ -220,23 +231,30 @@ function CardsContent() {
       <Kpi label="Annual fees" emoji="🧾" value={currency.format(annualFeeTotal)} tint="from-amber-200/30 to-peach/20" />
     </div>
 
-    <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-white/60 p-2 shadow-sm backdrop-blur dark:bg-card/60 sm:flex-row sm:items-center">
+    <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-white/60 p-2 shadow-sm backdrop-blur dark:bg-card/60 lg:flex-row lg:items-center">
       <div className="relative flex-1">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name, issuer, last4, note…" className="pl-9 pr-9" />
         {search && <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-accent" aria-label="Clear search"><X className="h-4 w-4" /></button>}
       </div>
-      <button type="button" role="switch" aria-checked={showInactive} onClick={() => setShowInactive((v) => !v)} className="flex h-10 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold text-muted-foreground transition hover:bg-accent/50 hover:text-foreground">
-        <span className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition', showInactive ? 'bg-coral' : 'bg-border')}>
-          <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white shadow transition', showInactive ? 'translate-x-[1.125rem]' : 'translate-x-0.5')} />
-        </span>
-        Show inactive
-      </button>
-      <span className="hidden whitespace-nowrap text-xs font-medium text-muted-foreground sm:inline">{visibleCards.length} of {cards.length}</span>
-      <Button onClick={openAdd} className="h-10 justify-center whitespace-nowrap"><Plus className="h-4 w-4" />Add card</Button>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button type="button" role="switch" aria-checked={showInactive} onClick={() => setShowInactive((v) => !v)} className="flex h-10 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold text-muted-foreground transition hover:bg-accent/50 hover:text-foreground">
+          <span className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition', showInactive ? 'bg-coral' : 'bg-border')}>
+            <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white shadow transition', showInactive ? 'translate-x-[1.125rem]' : 'translate-x-0.5')} />
+          </span>
+          Show inactive
+        </button>
+        <span className="hidden whitespace-nowrap text-xs font-medium text-muted-foreground sm:inline">{visibleCards.length} of {cards.length}</span>
+        <div className="grid h-10 shrink-0 grid-cols-2 gap-1 rounded-full bg-accent/60 p-0.5">
+          {(['cards', 'list'] as const).map((mode) => <button key={mode} type="button" className={cn('rounded-full px-3 text-xs font-semibold capitalize transition', view === mode ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => setView(mode)}>{mode === 'cards' ? '▦ Cards' : '≣ List'}</button>)}
+        </div>
+        <Button onClick={openAdd} variant="gradient" className="h-10 justify-center whitespace-nowrap rounded-full px-4 shadow-soft"><Plus className="h-4 w-4" />New card</Button>
+      </div>
     </div>
 
-    {!visibleCards.length ? <EmptyState title={search ? 'No matches' : (!showInactive && cards.some((c) => !c.active) ? 'No active cards' : 'No cards yet')} text={search ? `Nothing matches "${search}".` : (!showInactive && cards.some((c) => !c.active) ? 'All your cards are marked inactive — enable "Show inactive" to see them.' : 'Add credit cards here so they show up first in the Expense payment method picker.')} /> : <Card className="overflow-hidden rounded-2xl">
+    {!visibleCards.length ? <EmptyState title={search ? 'No matches' : (!showInactive && cards.some((c) => !c.active) ? 'No active cards' : 'No cards yet')} text={search ? `Nothing matches "${search}".` : (!showInactive && cards.some((c) => !c.active) ? 'All your cards are marked inactive — enable "Show inactive" to see them.' : 'Add credit cards here so they show up first in the Expense payment method picker.')} action={!cards.length ? <Button onClick={openAdd}><Plus className="h-4 w-4" />Add card</Button> : undefined} /> : view === 'cards' ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
+    </div> : <Card className="overflow-hidden rounded-2xl">
       <div className="hidden md:block">
         <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] gap-3 border-b border-border/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
           <span /><span>Name</span><span>Issuer</span><span className="text-right">AF</span><span className="text-right">This month</span><span className="text-right">All time</span><span>SUB</span><span>Status</span><span>Actions</span>
