@@ -327,10 +327,11 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     onOpenChange={onOpenChange}
     title={expense ? (entryType === 'return' ? 'Edit return' : 'Edit expense') : (entryType === 'return' ? 'Add return' : 'Add expense')}
     description={entryType === 'return' ? 'Enter the refund amount as a positive number. It is saved as a negative row in your sheet.' : 'Saved directly to your Google Sheet'}
+    className="overflow-x-hidden"
     mobileBottomSheet
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : (entryType === 'return' ? 'Add return' : 'Add expense'))}</Button></div>}
   >
-    <form id={formId} onSubmit={submit} className="grid min-w-0 gap-x-5 gap-y-4 sm:grid-cols-2">
+    <form id={formId} onSubmit={submit} className="grid w-full min-w-0 max-w-full gap-x-5 gap-y-4 overflow-x-hidden sm:grid-cols-2">
       <div className="sm:col-span-2">
         <div className="grid grid-cols-2 gap-1 rounded-full bg-accent/50 p-1">
           {(['expense', 'return'] as EntryType[]).map((type) => <button key={type} type="button" aria-pressed={entryType === type} className={cn('rounded-full px-3 py-2 text-sm font-bold transition', entryType === type ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => setEntryType(type)}>{type === 'expense' ? 'Expense' : 'Return / refund'}</button>)}

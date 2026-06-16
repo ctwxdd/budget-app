@@ -97,7 +97,8 @@ export function ExpensesPage() {
     setTemplateOpen(true)
   }
   const createReturn = (expense: Expense) => {
-    const description = expense.description ? `Return: ${expense.description}` : 'Return'
+    const returnedItem = expense.description || expense.category || 'Purchase'
+    const description = `Return (${expense.date}): ${returnedItem}`
     setTemplate({ date: todayIso(), amount: -Math.abs(expense.amount), description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: '' })
     setTemplateOpen(true)
   }
