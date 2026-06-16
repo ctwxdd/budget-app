@@ -297,13 +297,15 @@ function SubTracker({ card, sub }: { card: CardRow; sub: SubStatus }) {
 }
 
 function CardActionBar({ card, onSpend, onViewExpenses }: { card: CardRow; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void }) {
-  return <div className="flex flex-nowrap items-center gap-2 border-t border-border/60 bg-accent/20 px-3 py-2.5 md:px-4 md:py-3">
-    <Button type="button" size="sm" variant="gradient" className="min-w-0 flex-1 sm:flex-initial" onClick={(event) => { event.stopPropagation(); onSpend(card) }}>
-      <Plus className="h-4 w-4 shrink-0" /><span className="truncate">Add expense</span>
-    </Button>
-    <Button type="button" size="sm" variant="outline" className="min-w-0 flex-1 sm:flex-initial" onClick={(event) => { event.stopPropagation(); onViewExpenses(card) }}>
-      <ListFilter className="h-4 w-4 shrink-0" /><span className="truncate">View expenses</span>
-    </Button>
+  return <div className="border-t border-border/60 bg-gradient-to-r from-accent/10 via-accent/35 to-accent/10 px-3 py-3 md:px-4">
+    <div className="mx-auto flex w-full max-w-md flex-nowrap items-center justify-center gap-2 rounded-full border border-border/60 bg-card/85 p-1.5 shadow-sm backdrop-blur">
+      <Button type="button" size="sm" variant="gradient" className="min-w-0 flex-1 justify-center rounded-full" onClick={(event) => { event.stopPropagation(); onSpend(card) }}>
+        <Plus className="h-4 w-4 shrink-0" /><span className="truncate">Add expense</span>
+      </Button>
+      <Button type="button" size="sm" variant="outline" className="min-w-0 flex-1 justify-center rounded-full bg-card/80" onClick={(event) => { event.stopPropagation(); onViewExpenses(card) }}>
+        <ListFilter className="h-4 w-4 shrink-0" /><span className="truncate">View expenses</span>
+      </Button>
+    </div>
   </div>
 }
 

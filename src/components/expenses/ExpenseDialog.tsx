@@ -416,16 +416,16 @@ function GiftcardComposer({ parts, structured, vendors, sources, rawDescription,
 
 function GiftcardPaymentPicker({ merchants, cards, selectedMerchant, selectedCard, onMerchantSelect, onCardSelect }: { merchants: MerchantRow[]; cards: GiftcardRow[]; selectedMerchant: string; selectedCard: 'auto' | string; onMerchantSelect: (merchant: string) => void; onCardSelect: (card: 'auto' | string) => void }) {
   const orderedCards = React.useMemo(() => [...cards].sort((a, b) => Number(a.balance <= 0.005) - Number(b.balance <= 0.005) || a.date.localeCompare(b.date)), [cards])
-  return <div className="space-y-3 rounded-3xl border border-border/70 bg-white/70 p-3 dark:bg-card/70">
-    <label className="block space-y-1.5">
+  return <div className="grid gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 dark:bg-card/70 md:grid-cols-2">
+    <label className="block min-w-0 space-y-1.5">
       <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Merchant</span>
       <Select value={selectedMerchant} onChange={(event) => onMerchantSelect(event.target.value)}>
         <option value="">Select merchant…</option>
         {merchants.map((merchant) => <option key={merchant.merchant} value={merchant.merchant}>{merchant.merchant} — {currency.format(merchant.balance)} left · {merchant.cardCount} card{merchant.cardCount === 1 ? '' : 's'}</option>)}
       </Select>
     </label>
-    {!merchants.length && <p className="rounded-2xl bg-accent/50 p-3 text-xs font-medium">No active giftcards found.</p>}
-    {selectedMerchant && <label className="block space-y-1.5 transition-all duration-200 ease-out">
+    {!merchants.length && <p className="rounded-2xl bg-accent/50 p-3 text-xs font-medium md:col-span-2">No active giftcards found.</p>}
+    {selectedMerchant && <label className="block min-w-0 space-y-1.5 transition-all duration-200 ease-out">
       <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Card</span>
       <Select value={selectedCard} onChange={(event) => onCardSelect(event.target.value as 'auto' | string)}>
         <option value="auto">✨ Auto (FIFO from oldest)</option>

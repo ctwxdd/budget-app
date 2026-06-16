@@ -29,7 +29,7 @@ function ReimbursementChip({ value }: { value: string }) {
 
 function MultiSelect({ label, values, options, onChange }: { label: string; values: string[]; options: string[]; onChange: (values: string[]) => void }) {
   const [choice, setChoice] = React.useState('')
-  return <div className="space-y-2"><div className="flex gap-2"><Select aria-label={label} value={choice} onChange={(event) => { const value = event.target.value; setChoice(''); if (value && !values.includes(value)) onChange([...values, value]) }}><option value="">{label}</option>{options.map((option) => <option key={option}>{option}</option>)}</Select>{values.length > 0 && <Button type="button" variant="ghost" onClick={() => onChange([])}>Clear</Button>}</div>{values.length > 0 && <div className="flex flex-wrap gap-1.5">{values.map((value) => <button key={value} onClick={() => onChange(values.filter((item) => item !== value))}><Badge variant="secondary">{value} ×</Badge></button>)}</div>}</div>
+  return <div className="min-w-0 space-y-2"><div className="flex min-w-0 gap-2"><Select className="min-w-0 flex-1" aria-label={label} value={choice} onChange={(event) => { const value = event.target.value; setChoice(''); if (value && !values.includes(value)) onChange([...values, value]) }}><option value="">{label}</option>{options.map((option) => <option key={option}>{option}</option>)}</Select>{values.length > 0 && <Button type="button" variant="ghost" className="shrink-0 px-3" onClick={() => onChange([])}>Clear</Button>}</div>{values.length > 0 && <div className="flex gap-1.5 overflow-x-auto pb-1">{values.map((value) => <button key={value} className="shrink-0" onClick={() => onChange(values.filter((item) => item !== value))}><Badge variant="secondary">{value} ×</Badge></button>)}</div>}</div>
 }
 
 function dayLabel(iso: string) {
@@ -92,7 +92,7 @@ function DateRangePicker({ start, end, onChange }: { start: string; end: string;
     setOpen(false)
   }
 
-  return <div className="relative min-w-0 lg:col-span-2">
+  return <div className="relative min-w-0">
     <Button type="button" variant="outline" className="w-full justify-start overflow-hidden px-4 font-normal" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
       <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span className="truncate">{label}</span>
@@ -132,12 +132,13 @@ function DateRangePicker({ start, end, onChange }: { start: string; end: string;
 function FilterFields({ filters, onChange, showSearch = true }: { filters: ExpenseFilters; onChange: (filters: ExpenseFilters) => void; showSearch?: boolean }) {
   const categories = useCategories()
   const payments = usePaymentMethods()
-  return <div className="grid gap-3 lg:grid-cols-5">
+  const customWithSearch = filters.preset === 'custom' && showSearch
+  return <div className={cn('grid min-w-0 gap-3', customWithSearch ? 'lg:grid-cols-[minmax(8rem,0.75fr)_minmax(12rem,1.2fr)_minmax(12rem,1.1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)]' : 'lg:grid-cols-[minmax(8rem,0.75fr)_minmax(14rem,1.35fr)_minmax(12rem,1fr)_minmax(12rem,1fr)]')}>
     <Select value={filters.preset} onChange={(event) => onChange({ ...filters, preset: event.target.value as DatePreset })}><option value="thisMonth">This month</option><option value="lastMonth">Last month</option><option value="thisYear">This year</option><option value="all">All</option><option value="custom">Custom</option></Select>
-    {filters.preset === 'custom' ? <DateRangePicker start={filters.start} end={filters.end} onChange={(start, end) => onChange({ ...filters, start, end })} /> : showSearch ? <Input className="lg:col-span-2" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} /> : <div className="hidden lg:col-span-2" />}
-    {filters.preset === 'custom' && showSearch && <Input className="lg:col-span-2" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} />}
-    <div className="lg:col-span-2"><MultiSelect label="Categories" values={filters.categories} options={categories} onChange={(categories) => onChange({ ...filters, categories })} /></div>
-    <div className="lg:col-span-2"><MultiSelect label="Payment methods" values={filters.payments} options={payments} onChange={(payments) => onChange({ ...filters, payments })} /></div>
+    {filters.preset === 'custom' ? <DateRangePicker start={filters.start} end={filters.end} onChange={(start, end) => onChange({ ...filters, start, end })} /> : showSearch ? <Input className="min-w-0" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} /> : <div className="hidden lg:block" />}
+    {filters.preset === 'custom' && showSearch && <Input className="min-w-0" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} />}
+    <MultiSelect label="Categories" values={filters.categories} options={categories} onChange={(categories) => onChange({ ...filters, categories })} />
+    <MultiSelect label="Payment methods" values={filters.payments} options={payments} onChange={(payments) => onChange({ ...filters, payments })} />
   </div>
 }
 
