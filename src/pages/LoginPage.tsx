@@ -53,10 +53,6 @@ export function LoginPage() {
             <p className="font-semibold">Google Client ID is missing.</p>
             <p>Follow README setup, copy .env.example to .env.local, and set VITE_GOOGLE_CLIENT_ID.</p>
           </div>
-        ) : isAuthenticating ? (
-          <div className="flex h-14 items-center justify-center gap-3 rounded-2xl border border-border/60 bg-accent/20 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />Resuming your session…
-          </div>
         ) : hasRememberedAccount ? (
           <>
             <Button className="h-14 w-full justify-center gap-3 text-base" size="lg" onClick={onContinue}>
@@ -69,6 +65,9 @@ export function LoginPage() {
             <Button variant="outline" className="h-11 w-full" onClick={onSwitch}>
               <UserCog className="h-4 w-4" />Use a different account
             </Button>
+            {isAuthenticating && <div className="flex items-center justify-center gap-2 rounded-2xl bg-accent/25 px-3 py-2 text-xs font-medium text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />Checking your Google session…
+            </div>}
           </>
         ) : (
           <Button className="h-12 w-full text-base" size="lg" onClick={onContinue}>

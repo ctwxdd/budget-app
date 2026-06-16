@@ -16,10 +16,9 @@ const CardsPage = React.lazy(() => import('./pages/Cards').then((module) => ({ d
 const SettingsPage = React.lazy(() => import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })))
 
 function ProtectedRoute({ children }: { children: React.ReactElement }) {
-  const { isAuthenticated, isAuthenticating } = useAuth()
+  const { isAuthenticated } = useAuth()
   const location = useLocation()
   const sheetId = localStorage.getItem(SHEET_ID_KEY)
-  if (!isAuthenticated && isAuthenticating) return <PageFallback />
   if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />
   if (!sheetId && location.pathname !== '/setup') return <Navigate to="/setup" replace />
   return children

@@ -45,16 +45,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const silentResolve = useRef<(() => void) | null>(null)
   const silentReject = useRef<((error: unknown) => void) | null>(null)
   const silentAttempted = useRef(false)
-  const initialFresh = initial.token && initial.expiresAt > Date.now()
+  const initialFresh = Boolean(initial.token && initial.expiresAt > Date.now())
   const initialRemembered = Boolean(
     (JSON.parse(localStorage.getItem('budget.user') || 'null') as UserInfo | null)
     && hasSheets(localStorage.getItem(SCOPE_KEY) || '')
   )
-  // Start in "authenticating" state only when we have a remembered account
-  // but no fresh token — that's when we'll attempt a silent refresh below.
-  const [isAuthenticating, setIsAuthenticating] = useState<boolean>(
-    !initialFresh && initialRemembered
-  )
+  // Silent refresh should improve startup, not block it. Start false so routes
+  // can redirect to /login immediately; the refresh runs in the background and
+  // navigates away if it succeeds.
+  const [isAuthenticating, setIsAuthenticating] = useState(false)
 
   const persistToken = useCallback((accessToken: string, expiresIn = 3600, scope = '') => {
     const safeExpiresAt = Date.now() + expiresIn * 1000 - 60000
@@ -205,24 +204,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSheetsAuth({ getToken: withFreshToken, onUnauthorized: clearAccessToken })
   }, [withFreshToken, clearAccessToken])
 
-  // Attempt a silent token refresh once on app load when we have a remembered
-  // account but no fresh access token. With prompt: 'none', Google Identity
-  // Services tries an invisible iframe-based renewal and errors out cleanly
-  // (no popup) if it would require user interaction — that's the key
-  // difference from a regular login() call. Works for users who are still
-  // signed in to Google with 3p cookies allowed (most Chrome/Edge users).
-  // Safari, Brave, signed-out users fall back to the "Continue as" button.
+  const rememberedAuthorization = Boolean(user && hasSheets(grantedScope))
+
+  // Attempt a background silent token refresh once on app load when we have a
+  // remembered account but no fresh access token. With prompt: 'none', Google
+  // Identity Services tries an invisible iframe-based renewal and errors out
+  // cleanly (no popup) if it would require user interaction. We no longer block
+  // route rendering on this attempt; users see the Continue button immediately.
   useEffect(() => {
     if (silentAttempted.current) return
-    if (!isAuthenticating) return
+    if (initialFresh || !initialRemembered || !rememberedAuthorization) return
     if (!user?.email) {
       setIsAuthenticating(false)
       return
     }
     silentAttempted.current = true
+    setIsAuthenticating(true)
     const timeoutId = setTimeout(() => {
       silentReject.current?.(new Error('Silent refresh timed out'))
-    }, 5000)
+    }, 2000)
     new Promise<void>((resolve, reject) => {
       silentResolve.current = resolve
       silentReject.current = reject
@@ -239,9 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearTimeout(timeoutId)
         setIsAuthenticating(false)
       })
-  }, [googleSilent, user?.email, isAuthenticating])
-
-  const rememberedAuthorization = Boolean(user && hasSheets(grantedScope))
+  }, [googleSilent, user?.email, initialFresh, initialRemembered, rememberedAuthorization])
 
   const value = useMemo(() => ({
     token,
