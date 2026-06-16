@@ -389,6 +389,10 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
   const [newGiftcardVendor, setNewGiftcardVendor] = React.useState('')
   const formId = React.useId()
   const originalGiftcardMerchant = original ? findMerchantForMethod(original.paymentMethod, giftcards.merchants) : ''
+  const giftcardVendorOptions = React.useMemo(() => Array.from(new Set([
+    ...giftcards.merchants.map((merchant) => ensureGiftcardVendor(merchant.merchant)),
+    ...giftcards.cards.map((card) => ensureGiftcardVendor(card.vendor)),
+  ].filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })), [giftcards.cards, giftcards.merchants])
   const originalIsGiftcard = Boolean(original && (
     classifyPaymentMethod(original.paymentMethod) === 'giftcard' ||
     originalGiftcardMerchant ||
@@ -461,8 +465,9 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
       setSelectedMerchant(merchant)
       setSelectedGiftcardCard(specificCard || 'auto')
     } else {
-      setPaymentType('cash')
-      setForm((current) => ({ ...current, paymentMethod: storeCreditPaymentMethod(newGiftcardVendor) }))
+      const paymentMethod = original?.paymentMethod || form.paymentMethod
+      setPaymentType(classifyPaymentMethod(paymentMethod))
+      setForm((current) => ({ ...current, paymentMethod }))
     }
   }
 
@@ -472,7 +477,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     if (!Number.isFinite(amount) || amount === 0) return toast({ title: 'Return amount is required.', variant: 'destructive' })
     if (originalAmount > 0 && amount - originalAmount > 0.005) return toast({ title: 'Return amount is more than the purchase.', description: `The original purchase was ${currency.format(originalAmount)}.`, variant: 'destructive' })
     const creatingNewGiftcard = giftcardReturnMode === 'new' && !returnExpense
-    const refundPaymentMethod = creatingNewGiftcard ? storeCreditPaymentMethod(newGiftcardVendor) : form.paymentMethod
+    const refundPaymentMethod = creatingNewGiftcard ? (original?.paymentMethod || form.paymentMethod) : form.paymentMethod
     const payload = { date: form.date, amount: -amount, description: form.description, category: form.category, paymentMethod: refundPaymentMethod, reimbursement: '' }
     const giftcardVendor = ensureGiftcardVendor(newGiftcardVendor)
     try {
@@ -482,7 +487,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
         await addExpense.mutateAsync({
           date: form.date,
           amount: 0,
-          description: composeGiftcardDescription({ vendor: giftcardVendor, face: String(Number(amount.toFixed(2))), source: `Return ${original?.date || form.date}` }),
+          description: composeGiftcardDescription({ vendor: giftcardVendor, face: String(Number(amount.toFixed(2))), source: original ? returnDescription(original) : `Return (${form.date})` }),
           category: 'Giftcard',
           paymentMethod: refundPaymentMethod,
           reimbursement: '',
@@ -515,26 +520,31 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2"><span className="block">Description</span><Input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Return: purchase description (date)" /></label>
       <div className="rounded-3xl border border-border/70 bg-accent/35 p-3 text-sm sm:col-span-2"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Category</p><p className="mt-1 font-semibold text-foreground">{form.category || 'Uncategorized'}</p></div>
       {original && !returnExpense && (originalIsGiftcard || giftcardReturnMode === 'new') && <div className="space-y-3 rounded-3xl border border-border/70 bg-accent/25 p-3 sm:col-span-2">
-        <div><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Giftcard refund</p><p className="mt-1 text-xs font-medium text-muted-foreground">{originalIsGiftcard ? 'Choose whether the store puts value back on the old giftcard or issues new store credit.' : 'Create new store credit when the refund is not going back to the original payment method.'}</p></div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <button type="button" aria-pressed={giftcardReturnMode === 'original'} onClick={() => chooseGiftcardReturnMode('original')} className={cn('rounded-2xl border p-3 text-left transition', giftcardReturnMode === 'original' ? 'border-coral/40 bg-coral/10 text-coral' : 'border-border bg-card/60 hover:bg-card')}>
-            <span className="block text-sm font-extrabold">{originalIsGiftcard ? 'Original giftcard' : 'Original payment'}</span>
-            <span className="mt-1 block text-xs font-medium text-muted-foreground">{original?.paymentMethod}</span>
-          </button>
-          <button type="button" aria-pressed={giftcardReturnMode === 'new'} onClick={() => chooseGiftcardReturnMode('new')} className={cn('rounded-2xl border p-3 text-left transition', giftcardReturnMode === 'new' ? 'border-coral/40 bg-coral/10 text-coral' : 'border-border bg-card/60 hover:bg-card')}>
-            <span className="block text-sm font-extrabold">New giftcard / store credit</span>
-            <span className="mt-1 block text-xs font-medium text-muted-foreground">Creates one store-credit giftcard entry.</span>
-          </button>
-        </div>
         {giftcardReturnMode === 'new'
-          ? <div className="grid gap-3 rounded-2xl bg-card/70 p-3 sm:grid-cols-2">
-            <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">New giftcard name</span><Input value={newGiftcardVendor} onChange={(event) => { const vendor = event.target.value; setNewGiftcardVendor(vendor); setForm((current) => ({ ...current, paymentMethod: storeCreditPaymentMethod(vendor) })) }} placeholder={`${originalGiftcardMerchant || 'Store'} GC`} /></label>
+          ? <>
+            <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">New giftcard / store credit</p><p className="mt-1 text-xs font-medium text-muted-foreground">Creates one giftcard entry and keeps the original payment method on that entry.</p></div>{originalIsGiftcard && <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full px-2 text-xs" onClick={() => chooseGiftcardReturnMode('original')}>Use original giftcard</Button>}</div>
+            <div className="grid gap-3 rounded-2xl bg-card/70 p-3 sm:grid-cols-2">
+            <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">New giftcard name</span><StringAutosuggest value={newGiftcardVendor} onChange={setNewGiftcardVendor} options={giftcardVendorOptions} placeholder={`${originalGiftcardMerchant || 'Store'} GC`} /></label>
             <div className="rounded-2xl bg-mint/10 p-3 text-xs font-semibold text-emerald-700 dark:text-mint">
               <p>Will add one entry: {ensureGiftcardVendor(newGiftcardVendor)} · Face {currency.format(fullRefund && originalAmount > 0 ? originalAmount : Math.abs(Number(form.amount) || 0))} · Paid $0.00</p>
-              <p className="mt-1 text-muted-foreground">Payment method: {storeCreditPaymentMethod(newGiftcardVendor)}</p>
+              <p className="mt-1 text-muted-foreground">Paid by: {original?.paymentMethod || form.paymentMethod}</p>
+              <p className="mt-1 text-muted-foreground">Source: {original ? returnDescription(original) : `Return (${form.date})`}</p>
             </div>
-          </div>
-          : <div className="rounded-2xl bg-card/70 p-3 text-xs font-semibold text-muted-foreground">The negative return row will use the original giftcard payment method so the existing giftcard balance gets restored.</div>}
+          </div></>
+          : <>
+            <div><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Giftcard refund</p><p className="mt-1 text-xs font-medium text-muted-foreground">Choose whether the store puts value back on the old giftcard or issues new store credit.</p></div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button type="button" aria-pressed onClick={() => chooseGiftcardReturnMode('original')} className="rounded-2xl border border-coral/40 bg-coral/10 p-3 text-left text-coral transition">
+                <span className="block text-sm font-extrabold">Original giftcard</span>
+                <span className="mt-1 block text-xs font-medium text-muted-foreground">{original?.paymentMethod}</span>
+              </button>
+              <button type="button" aria-pressed={false} onClick={() => chooseGiftcardReturnMode('new')} className="rounded-2xl border border-border bg-card/60 p-3 text-left transition hover:bg-card">
+                <span className="block text-sm font-extrabold">New giftcard / store credit</span>
+                <span className="mt-1 block text-xs font-medium text-muted-foreground">Creates one store-credit giftcard entry.</span>
+              </button>
+            </div>
+            <div className="rounded-2xl bg-card/70 p-3 text-xs font-semibold text-muted-foreground">The negative return row will use the original giftcard payment method so the existing giftcard balance gets restored.</div>
+          </>}
       </div>}
       {((!originalIsGiftcard && giftcardReturnMode !== 'new') || returnExpense) && <div className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="block">Refund to</span>
@@ -655,15 +665,6 @@ function ensureGiftcardVendor(value: string) {
   const vendor = value.trim()
   if (!vendor) return 'Store GC'
   return classifyPaymentMethod(vendor) === 'giftcard' ? vendor : `${vendor} GC`
-}
-
-function storeCreditPaymentMethod(vendor: string) {
-  const base = vendor
-    .replace(/\([^)]*\)/g, ' ')
-    .replace(/\b(GC|Gift\s*Card|Giftcard|Gift)\b/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  return `${base || 'Store'} store credit`
 }
 
 function findMerchantForMethod(paymentMethod: string, merchants: MerchantRow[]) {
