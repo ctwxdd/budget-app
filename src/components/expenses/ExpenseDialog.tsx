@@ -2,7 +2,7 @@ import * as React from 'react'
 import { format } from 'date-fns'
 import type { Expense } from '../../lib/types'
 import { Button, Dialog, FadeScroll, Input, Select } from '../ui'
-import { useAddExpense, useCategories, useExpenses, useUpdateExpense } from '../../hooks/useExpenses'
+import { useAddExpense, useAddExpenses, useCategories, useExpenses, useUpdateExpense } from '../../hooks/useExpenses'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../../hooks/useGiftcards'
 import { useCards } from '../../hooks/useCards'
 import type { CardRow } from '../../hooks/useCards'
@@ -16,6 +16,7 @@ const emptyForm = (): FormState => ({ date: format(new Date(), 'yyyy-MM-dd'), am
 const emptyGiftcardParts = (): GiftcardDescriptionParts => ({ vendor: '', face: '', source: '' })
 const todayIso = () => format(new Date(), 'yyyy-MM-dd')
 const returnDescription = (expense: Expense) => `Return: ${expense.description || expense.category || 'Purchase'} (${expense.date})`
+type GiftcardReturnMode = 'original' | 'new'
 const paymentTypes: { type: PaymentMethodType; label: string; emoji: string }[] = [
   { type: 'card', label: 'Card', emoji: '💳' },
   { type: 'giftcard', label: 'Giftcard', emoji: '🎁' },
@@ -371,6 +372,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
   const giftcards = useGiftcards()
   const managedCards = useCards()
   const addExpense = useAddExpense()
+  const addExpenses = useAddExpenses()
   const updateExpense = useUpdateExpense()
   const { toast } = useToast()
   const sortedCardOptions = React.useMemo<CardRow[]>(
@@ -384,12 +386,18 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
   const [paymentType, setPaymentType] = React.useState<PaymentMethodType>('card')
   const [selectedMerchant, setSelectedMerchant] = React.useState('')
   const [selectedGiftcardCard, setSelectedGiftcardCard] = React.useState<'auto' | string>('auto')
+  const [giftcardReturnMode, setGiftcardReturnMode] = React.useState<GiftcardReturnMode>('original')
+  const [newGiftcardVendor, setNewGiftcardVendor] = React.useState('')
   const formId = React.useId()
+  const originalGiftcardMerchant = original ? findMerchantForMethod(original.paymentMethod, giftcards.merchants) : ''
+  const originalIsGiftcard = Boolean(original && classifyPaymentMethod(original.paymentMethod) === 'giftcard')
 
   React.useEffect(() => {
     if (!open || !source) return
     const amount = Math.abs(returnExpense?.amount ?? original?.amount ?? 0)
     const paymentMethod = source.paymentMethod
+    const merchant = findMerchantForMethod(paymentMethod, giftcards.merchants) || ''
+    const defaultStoreCreditVendor = merchant ? ensureGiftcardVendor(merchant) : ensureGiftcardVendor(source.category || 'Store')
     setForm({
       date: returnExpense?.date || todayIso(),
       amount,
@@ -399,8 +407,9 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
       reimbursement: '',
     })
     setFullRefund(Boolean(original && !returnExpense))
+    setGiftcardReturnMode('original')
+    setNewGiftcardVendor(defaultStoreCreditVendor)
     const inferredPaymentType = classifyPaymentMethod(paymentMethod)
-    const merchant = findMerchantForMethod(paymentMethod, giftcards.merchants) || ''
     const specificCard = merchant && paymentMethod !== merchant ? paymentMethod : ''
     setPaymentType(inferredPaymentType)
     setSelectedMerchant(merchant)
@@ -438,23 +447,54 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     if (next && originalAmount > 0) setForm((current) => ({ ...current, amount: originalAmount }))
   }
 
+  const chooseGiftcardReturnMode = (mode: GiftcardReturnMode) => {
+    setGiftcardReturnMode(mode)
+    if (mode === 'original' && original) {
+      setPaymentType('giftcard')
+      setForm((current) => ({ ...current, paymentMethod: original.paymentMethod }))
+      const merchant = findMerchantForMethod(original.paymentMethod, giftcards.merchants) || ''
+      const specificCard = merchant && original.paymentMethod !== merchant ? original.paymentMethod : ''
+      setSelectedMerchant(merchant)
+      setSelectedGiftcardCard(specificCard || 'auto')
+    } else {
+      setPaymentType('cash')
+      setForm((current) => ({ ...current, paymentMethod: storeCreditPaymentMethod(newGiftcardVendor) }))
+    }
+  }
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     const amount = fullRefund && originalAmount > 0 ? originalAmount : Math.abs(Number(form.amount))
     if (!Number.isFinite(amount) || amount === 0) return toast({ title: 'Return amount is required.', variant: 'destructive' })
     if (originalAmount > 0 && amount - originalAmount > 0.005) return toast({ title: 'Return amount is more than the purchase.', description: `The original purchase was ${currency.format(originalAmount)}.`, variant: 'destructive' })
-    const payload = { date: form.date, amount: -amount, description: form.description, category: form.category, paymentMethod: form.paymentMethod, reimbursement: '' }
+    const creatingNewGiftcard = originalIsGiftcard && giftcardReturnMode === 'new' && !returnExpense
+    const refundPaymentMethod = creatingNewGiftcard ? storeCreditPaymentMethod(newGiftcardVendor) : form.paymentMethod
+    const payload = { date: form.date, amount: -amount, description: form.description, category: form.category, paymentMethod: refundPaymentMethod, reimbursement: '' }
+    const giftcardVendor = ensureGiftcardVendor(newGiftcardVendor)
     try {
       if (returnExpense) await updateExpense.mutateAsync({ ...payload, rowIndex: returnExpense.rowIndex })
-      else await addExpense.mutateAsync(payload)
-      toast({ title: returnExpense ? 'Return updated' : 'Return added' })
+      else if (creatingNewGiftcard) {
+        if (!giftcardVendor.trim()) return toast({ title: 'Giftcard name is required.', variant: 'destructive' })
+        await addExpenses.mutateAsync([
+          payload,
+          {
+            date: form.date,
+            amount: 0,
+            description: composeGiftcardDescription({ vendor: giftcardVendor, face: String(Number(amount.toFixed(2))), source: `Return ${original?.date || form.date}` }),
+            category: 'Giftcard',
+            paymentMethod: refundPaymentMethod,
+            reimbursement: '',
+          },
+        ])
+      } else await addExpense.mutateAsync(payload)
+      toast({ title: returnExpense ? 'Return updated' : creatingNewGiftcard ? 'Return and giftcard added' : 'Return added' })
       onOpenChange(false)
     } catch (error) {
       toast({ title: 'Could not save return', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
     }
   }
 
-  const saving = addExpense.isPending || updateExpense.isPending
+  const saving = addExpense.isPending || addExpenses.isPending || updateExpense.isPending
   return <Dialog
     open={open}
     onOpenChange={onOpenChange}
@@ -473,7 +513,29 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Return amount</span><Input className={cn('min-w-0 max-w-full', fullRefund && 'bg-muted text-muted-foreground')} inputMode="decimal" type="number" min="0.01" max={originalAmount || undefined} step="0.01" required disabled={fullRefund} value={(fullRefund && originalAmount > 0 ? originalAmount : form.amount) || ''} onChange={(event) => setAmount(event.target.value)} />{fullRefund ? <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Amount is locked for a full refund.</span> : <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Enter a positive partial refund amount.</span>}</label>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2"><span className="block">Description</span><Input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Return: purchase description (date)" /></label>
       <div className="rounded-3xl border border-border/70 bg-accent/35 p-3 text-sm sm:col-span-2"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Category</p><p className="mt-1 font-semibold text-foreground">{form.category || 'Uncategorized'}</p></div>
-      <div className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
+      {originalIsGiftcard && !returnExpense && <div className="space-y-3 rounded-3xl border border-border/70 bg-accent/25 p-3 sm:col-span-2">
+        <div><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Giftcard refund</p><p className="mt-1 text-xs font-medium text-muted-foreground">Choose whether the store puts value back on the old giftcard or issues new store credit.</p></div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button type="button" aria-pressed={giftcardReturnMode === 'original'} onClick={() => chooseGiftcardReturnMode('original')} className={cn('rounded-2xl border p-3 text-left transition', giftcardReturnMode === 'original' ? 'border-coral/40 bg-coral/10 text-coral' : 'border-border bg-card/60 hover:bg-card')}>
+            <span className="block text-sm font-extrabold">Original giftcard</span>
+            <span className="mt-1 block text-xs font-medium text-muted-foreground">{original?.paymentMethod}</span>
+          </button>
+          <button type="button" aria-pressed={giftcardReturnMode === 'new'} onClick={() => chooseGiftcardReturnMode('new')} className={cn('rounded-2xl border p-3 text-left transition', giftcardReturnMode === 'new' ? 'border-coral/40 bg-coral/10 text-coral' : 'border-border bg-card/60 hover:bg-card')}>
+            <span className="block text-sm font-extrabold">New giftcard / store credit</span>
+            <span className="mt-1 block text-xs font-medium text-muted-foreground">Creates a $0 paid giftcard row.</span>
+          </button>
+        </div>
+        {giftcardReturnMode === 'new'
+          ? <div className="grid gap-3 rounded-2xl bg-card/70 p-3 sm:grid-cols-2">
+            <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">New giftcard name</span><Input value={newGiftcardVendor} onChange={(event) => { const vendor = event.target.value; setNewGiftcardVendor(vendor); setForm((current) => ({ ...current, paymentMethod: storeCreditPaymentMethod(vendor) })) }} placeholder={`${originalGiftcardMerchant || 'Store'} GC`} /></label>
+            <div className="rounded-2xl bg-mint/10 p-3 text-xs font-semibold text-emerald-700 dark:text-mint">
+              <p>Will add: {ensureGiftcardVendor(newGiftcardVendor)} · Face {currency.format(fullRefund && originalAmount > 0 ? originalAmount : Math.abs(Number(form.amount) || 0))} · Paid $0.00</p>
+              <p className="mt-1 text-muted-foreground">Return row payment method: {storeCreditPaymentMethod(newGiftcardVendor)}</p>
+            </div>
+          </div>
+          : <div className="rounded-2xl bg-card/70 p-3 text-xs font-semibold text-muted-foreground">The negative return row will use the original giftcard payment method so the existing giftcard balance gets restored.</div>}
+      </div>}
+      {(!originalIsGiftcard || returnExpense) && <div className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="block">Refund to</span>
         <div className="grid grid-cols-3 gap-1 rounded-full bg-accent/50 p-0.5">
           {paymentTypes.map((item) => <button key={item.type} type="button" aria-label={item.label} className={cn('flex h-9 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-none transition md:h-8 md:px-3 md:text-xs', paymentType === item.type ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => {
@@ -496,7 +558,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
             ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
             : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} />}
         </div>}
-      </div>
+      </div>}
     </form>
   </Dialog>
 }
@@ -585,6 +647,21 @@ function GiftcardPaymentPicker({ merchants, cards, selectedMerchant, selectedCar
 
 function methodForCard(card: GiftcardRow) {
   return `${card.vendor} (${card.date})`
+}
+
+function ensureGiftcardVendor(value: string) {
+  const vendor = value.trim()
+  if (!vendor) return 'Store GC'
+  return classifyPaymentMethod(vendor) === 'giftcard' ? vendor : `${vendor} GC`
+}
+
+function storeCreditPaymentMethod(vendor: string) {
+  const base = vendor
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\b(GC|Gift\s*Card|Giftcard|Gift)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return `${base || 'Store'} store credit`
 }
 
 function findMerchantForMethod(paymentMethod: string, merchants: MerchantRow[]) {

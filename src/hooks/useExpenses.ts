@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as React from 'react'
 import { DEFAULT_CATEGORIES, DEFAULT_PAYMENT_METHODS, SHEET_ID_KEY } from '../lib/defaults'
 import { expenseToRow, parseExpenseRows } from '../lib/parse'
-import { appendRow, batchUpdateExpenseFields, deleteRow, deleteRows, getSheet, getSheetMeta, isRateLimitError, updateRow } from '../lib/sheets'
+import { appendRow, appendRows, batchUpdateExpenseFields, deleteRow, deleteRows, getSheet, getSheetMeta, isRateLimitError, updateRow } from '../lib/sheets'
 import { clearLocalCache, readLocalCache, writeLocalCache } from '../lib/localCache'
 import { rememberSheet } from '../lib/recentSheets'
 import type { Expense } from '../lib/types'
@@ -64,6 +64,31 @@ export function useAddExpense() {
       return { previous }
     },
     onError: (_error, _expense, context) => {
+      if (context?.previous !== undefined) queryClient.setQueryData(['expenses', sheetId], context.previous)
+    },
+    onSettled: () => {
+      clearLocalCache(expensesCacheKey(sheetId), giftcardsCacheKey(sheetId))
+      queryClient.invalidateQueries({ queryKey: ['expenses', sheetId] })
+      queryClient.invalidateQueries({ queryKey: ['giftcards', sheetId] })
+    },
+  })
+}
+
+export function useAddExpenses() {
+  const queryClient = useQueryClient()
+  const sheetId = useSheetId()
+  return useMutation({
+    mutationFn: (expenses: Array<Omit<Expense, 'rowIndex'>>) => appendRows(sheetId, 'Expense!A:F', expenses.map(expenseToRow)),
+    onMutate: async (expenses) => {
+      const queryKey = ['expenses', sheetId]
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<Expense[]>(queryKey)
+      const baseRowIndex = -Date.now()
+      const optimistic = expenses.map((expense, index): Expense => ({ ...expense, rowIndex: baseRowIndex - index }))
+      queryClient.setQueryData<Expense[]>(queryKey, (old) => [...(old || []), ...optimistic])
+      return { previous }
+    },
+    onError: (_error, _expenses, context) => {
       if (context?.previous !== undefined) queryClient.setQueryData(['expenses', sheetId], context.previous)
     },
     onSettled: () => {
