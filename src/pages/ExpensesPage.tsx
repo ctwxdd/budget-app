@@ -2,7 +2,7 @@ import * as React from 'react'
 import { ArrowLeft, Pencil, Trash2, X } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BatchEditDialog } from '../components/expenses/BatchEditDialog'
-import { ExpenseDialog, type FormState } from '../components/expenses/ExpenseDialog'
+import { ExpenseDialog, ReturnDialog, type FormState } from '../components/expenses/ExpenseDialog'
 import { ExpenseFilterBar, ExpenseTable, applyExpenseFilters, defaultFilters, type ExpenseFilters } from '../components/expenses/ExpenseTable'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { QueryError } from '../components/layout/QueryError'
@@ -35,6 +35,8 @@ export function ExpensesPage() {
   const { data = [], isLoading, error, refetch } = useExpenses()
   const [filters, setFilters] = React.useState(initialFilters)
   const [editing, setEditing] = React.useState<Expense | null>(null)
+  const [editingReturn, setEditingReturn] = React.useState<Expense | null>(null)
+  const [returning, setReturning] = React.useState<Expense | null>(null)
   const [template, setTemplate] = React.useState<FormState | null>(null)
   const [templateOpen, setTemplateOpen] = React.useState(false)
   const [batchEditOpen, setBatchEditOpen] = React.useState(false)
@@ -96,12 +98,8 @@ export function ExpensesPage() {
     setTemplate({ date: todayIso(), amount: expense.amount, description: expense.description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: expense.reimbursement })
     setTemplateOpen(true)
   }
-  const createReturn = (expense: Expense) => {
-    const returnedItem = expense.description || expense.category || 'Purchase'
-    const description = `Return: ${returnedItem} (${expense.date})`
-    setTemplate({ date: todayIso(), amount: -Math.abs(expense.amount), description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: '' })
-    setTemplateOpen(true)
-  }
+  const editExpense = (expense: Expense) => expense.amount < 0 ? setEditingReturn(expense) : setEditing(expense)
+  const createReturn = (expense: Expense) => setReturning(expense)
   return <div className="space-y-5">
     {fromOverview && <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-primary/20 bg-primary/[0.07] p-3 shadow-soft">
       <div className="mr-auto min-w-0 px-1"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Overview shortcut</p><p className="truncate text-sm font-bold">Transactions · this month</p></div>
@@ -119,10 +117,11 @@ export function ExpensesPage() {
       <Button type="button" variant="outline" size="sm" onClick={clearDrilldown}><X className="h-4 w-4" />Clear filters</Button>
     </div>}
     <ExpenseFilterBar filters={filters} onChange={setFilters} selectionMode={selectionMode} selectedCount={selectedIds.size} onEnterSelectionMode={() => enterSelectionMode()} onCancelSelection={clearSelection} />
-    <ExpenseTable expenses={filtered} onEdit={setEditing} onDuplicate={duplicate} onReturn={createReturn} selectedIds={selectedIds} selectionMode={selectionMode} onToggleSelected={toggleSelected} onSelectMany={selectMany} onEnterSelectionMode={enterSelectionMode} />
+    <ExpenseTable expenses={filtered} onEdit={editExpense} onDuplicate={duplicate} onReturn={createReturn} selectedIds={selectedIds} selectionMode={selectionMode} onToggleSelected={toggleSelected} onSelectMany={selectMany} onEnterSelectionMode={enterSelectionMode} />
     {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} onClear={clearSelection} onEdit={() => setBatchEditOpen(true)} onDelete={() => setBatchDeleteOpen(true)} deleting={batchDelete.isPending} />}
     {editing && <ExpenseDialog open onOpenChange={(open) => !open && setEditing(null)} expense={editing} />}
     {templateOpen && <ExpenseDialog open onOpenChange={(open) => { if (!open) { setTemplateOpen(false); setTemplate(null) } }} template={template} />}
+    {(returning || editingReturn) && <ReturnDialog open onOpenChange={(open) => { if (!open) { setReturning(null); setEditingReturn(null) } }} original={returning} returnExpense={editingReturn} />}
     <BatchEditDialog open={batchEditOpen} onOpenChange={setBatchEditOpen} expenses={selectedExpenses} onSaved={clearSelection} />
     <ConfirmDialog
       open={batchDeleteOpen}
