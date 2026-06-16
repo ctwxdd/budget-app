@@ -231,24 +231,25 @@ function CardsContent() {
       <Kpi label="Annual fees" emoji="🧾" value={currency.format(annualFeeTotal)} tint="from-amber-200/30 to-peach/20" />
     </div>
 
-    <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-white/60 p-2 shadow-sm backdrop-blur dark:bg-card/60 lg:flex-row lg:items-center">
+    <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-white/60 p-2 shadow-sm backdrop-blur dark:bg-card/60 sm:flex-row sm:items-center">
       <div className="relative flex-1">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name, issuer, last4, note…" className="pl-9 pr-9" />
         {search && <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-accent" aria-label="Clear search"><X className="h-4 w-4" /></button>}
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:overflow-visible sm:pb-0">
         <button type="button" role="switch" aria-checked={showInactive} onClick={() => setShowInactive((v) => !v)} className="flex h-10 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold text-muted-foreground transition hover:bg-accent/50 hover:text-foreground">
           <span className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition', showInactive ? 'bg-coral' : 'bg-border')}>
             <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white shadow transition', showInactive ? 'translate-x-[1.125rem]' : 'translate-x-0.5')} />
           </span>
-          Show inactive
+          <span className="sm:hidden">Inactive</span>
+          <span className="hidden sm:inline">Show inactive</span>
         </button>
         <span className="hidden whitespace-nowrap text-xs font-medium text-muted-foreground sm:inline">{visibleCards.length} of {cards.length}</span>
         <div className="grid h-10 shrink-0 grid-cols-2 gap-1 rounded-full bg-accent/60 p-0.5">
           {(['cards', 'list'] as const).map((mode) => <button key={mode} type="button" className={cn('rounded-full px-3 text-xs font-semibold capitalize transition', view === mode ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => setView(mode)}>{mode === 'cards' ? '▦ Cards' : '≣ List'}</button>)}
         </div>
-        <Button onClick={openAdd} variant="gradient" className="h-10 justify-center whitespace-nowrap rounded-full px-4 shadow-soft"><Plus className="h-4 w-4" />New card</Button>
+        <Button onClick={openAdd} variant="gradient" className="h-10 w-10 shrink-0 justify-center whitespace-nowrap rounded-full p-0 shadow-soft sm:w-auto sm:px-4" aria-label="Add card"><Plus className="h-4 w-4" /><span className="hidden sm:inline">New card</span></Button>
       </div>
     </div>
 

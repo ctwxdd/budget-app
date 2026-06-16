@@ -124,15 +124,18 @@ function GiftcardsContent() {
         <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by merchant, card, date…" className="pl-9 pr-9" />
         {search && <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-accent" aria-label="Clear search"><X className="h-4 w-4" /></button>}
       </div>
-      <button type="button" role="switch" aria-checked={showInactive} onClick={() => setShowInactive((current) => !current)} className="flex h-10 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold text-muted-foreground transition hover:bg-accent/50 hover:text-foreground">
-        <span className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition', showInactive ? 'bg-coral' : 'bg-border')}>
-          <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white shadow transition', showInactive ? 'translate-x-[1.125rem]' : 'translate-x-0.5')} />
-        </span>
-        Show depleted
-      </button>
-      <span className="hidden whitespace-nowrap text-xs font-medium text-muted-foreground sm:inline">{visibleMerchantRows.length} of {merchantRows.length}</span>
-      <div className="grid h-10 shrink-0 grid-cols-2 gap-1 rounded-full bg-accent/60 p-0.5">
-        {(['cards', 'list'] as const).map((mode) => <button key={mode} type="button" className={cn('rounded-full px-3 text-xs font-semibold capitalize transition', view === mode ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => setView(mode)}>{mode === 'cards' ? '▦ Cards' : '≣ List'}</button>)}
+      <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:overflow-visible sm:pb-0">
+        <button type="button" role="switch" aria-checked={showInactive} onClick={() => setShowInactive((current) => !current)} className="flex h-10 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold text-muted-foreground transition hover:bg-accent/50 hover:text-foreground">
+          <span className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition', showInactive ? 'bg-coral' : 'bg-border')}>
+            <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white shadow transition', showInactive ? 'translate-x-[1.125rem]' : 'translate-x-0.5')} />
+          </span>
+          <span className="sm:hidden">Depleted</span>
+          <span className="hidden sm:inline">Show depleted</span>
+        </button>
+        <span className="hidden whitespace-nowrap text-xs font-medium text-muted-foreground sm:inline">{visibleMerchantRows.length} of {merchantRows.length}</span>
+        <div className="grid h-10 shrink-0 grid-cols-2 gap-1 rounded-full bg-accent/60 p-0.5">
+          {(['cards', 'list'] as const).map((mode) => <button key={mode} type="button" className={cn('rounded-full px-3 text-xs font-semibold capitalize transition', view === mode ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => setView(mode)}>{mode === 'cards' ? '▦ Cards' : '≣ List'}</button>)}
+        </div>
       </div>
     </div>
     {!merchantRows.length ? <EmptyState title="No giftcards yet" text="Giftcard purchases and balances will appear here after the Giftcard tab formulas produce rows." /> : view === 'list' ? <GiftcardList merchants={visibleMerchantRows} cards={cards} showInactive={showInactive} {...cardProps} /> : !visibleMerchantRows.length ? <EmptyState title={search ? 'No matches' : 'No active merchants'} text={search ? `Nothing matches "${search}".` : 'Use Show depleted to include merchants with no remaining balance.'} /> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
