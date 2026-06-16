@@ -34,7 +34,7 @@ export function AnalyticsPage() {
   const filtered = React.useMemo(() => applyExpenseFilters(data, filters), [data, filters])
   if (isLoading) return <SkeletonCards />
   if (error) return <QueryError error={error} onRetry={() => { void refetch() }} />
-  const category = groupTotals(filtered, 'category')
+  const category = groupTotals(filtered, 'category').filter((row) => row.total > 0)
   const payment = groupTotals(filtered, 'paymentMethod')
   const trend = monthlyTotals(filtered)
   const compareA = monthsForYear(safeYearA, data)

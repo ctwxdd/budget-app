@@ -289,7 +289,8 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!form.amount || form.amount <= 0) return toast({ title: 'Amount must be greater than zero.', variant: 'destructive' })
+    if (!Number.isFinite(form.amount) || form.amount === 0) return toast({ title: 'Amount cannot be zero.', description: 'Use a negative amount for returns or refunds.', variant: 'destructive' })
+    if (form.category === 'Giftcard' && form.amount <= 0) return toast({ title: 'Giftcard purchase cost must be greater than zero.', description: 'For returns, use the original spending category and enter a negative amount.', variant: 'destructive' })
     if (form.category === 'Giftcard' && giftcardStructured && !giftcardParts.vendor.trim()) return toast({ title: 'Vendor is required for giftcard purchases.', variant: 'destructive' })
     const description = form.category === 'Giftcard' && giftcardStructured
       ? composeGiftcardDescription(giftcardParts, note)
@@ -318,7 +319,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   >
     <form id={formId} onSubmit={submit} className="grid min-w-0 gap-x-5 gap-y-4 sm:grid-cols-2">
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">{giftcardPurchase ? 'Cost paid' : 'Amount'}</span><Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} /></label>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">{giftcardPurchase ? 'Cost paid' : 'Amount'}</span><Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min={giftcardPurchase ? '0.01' : undefined} step="0.01" required value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} />{!giftcardPurchase && <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Use a negative amount for returns/refunds.</span>}</label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="block">Description</span>
         {giftcardPurchase

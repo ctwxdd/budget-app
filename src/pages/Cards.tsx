@@ -331,8 +331,8 @@ function CardListRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, on
       <div className="min-w-0"><p className="truncate font-semibold">{card.name}</p><p className="text-xs text-muted-foreground">{card.last4 ? `••••${card.last4}` : 'No last4'}</p></div>
       <span className="truncate text-muted-foreground">{card.issuer || '—'}</span>
       <span className="text-right tabular-nums text-muted-foreground">{card.annualFee > 0 ? <span className="font-medium text-foreground">{currency.format(card.annualFee)}</span> : '—'}</span>
-      <span className="text-right font-display font-bold text-coral tabular-nums">{spend.month > 0 ? currency.format(spend.month) : <span className="font-sans text-xs font-medium text-muted-foreground">—</span>}</span>
-      <span className="text-right tabular-nums text-muted-foreground">{spend.total > 0 ? <><span className="font-semibold text-foreground">{currency.format(spend.total)}</span><span className="ml-1 text-[11px]">· {spend.count}</span></> : '—'}</span>
+      <span className="text-right font-display font-bold text-coral tabular-nums">{spend.month !== 0 ? currency.format(spend.month) : <span className="font-sans text-xs font-medium text-muted-foreground">—</span>}</span>
+      <span className="text-right tabular-nums text-muted-foreground">{spend.total !== 0 ? <><span className="font-semibold text-foreground">{currency.format(spend.total)}</span><span className="ml-1 text-[11px]">· {spend.count}</span></> : '—'}</span>
       <span>{sub ? <SubChip sub={sub} compact /> : <span className="text-xs text-muted-foreground">—</span>}</span>
       <span onClick={(event) => event.stopPropagation()}><ActiveToggle card={card} /></span>
       <span onClick={(event) => event.stopPropagation()}><RowActions card={card} onEdit={onEdit} /></span>

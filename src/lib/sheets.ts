@@ -347,7 +347,6 @@ export async function createSpreadsheet({ title, categories, paymentMethods, rei
         dateFormat(EXPENSE_GID, 0),
         currencyFormat(EXPENSE_GID, 1),
         dateValidation(EXPENSE_GID, 0),
-        nonNegativeNumberValidation(EXPENSE_GID, 1),
         listValidation(EXPENSE_GID, 3, categories),
         listValidation(EXPENSE_GID, 4, paymentMethods),
         listValidation(EXPENSE_GID, 5, reimbursements),
