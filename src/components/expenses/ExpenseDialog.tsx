@@ -484,7 +484,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
           payload,
           {
             date: form.date,
-            amount: 0,
+            amount,
             description: composeGiftcardDescription({ vendor: giftcardVendor, face: String(Number(amount.toFixed(2))), source: `Return ${original?.date || form.date}` }),
             category: 'Giftcard',
             paymentMethod: refundPaymentMethod,
@@ -527,14 +527,14 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
           </button>
           <button type="button" aria-pressed={giftcardReturnMode === 'new'} onClick={() => chooseGiftcardReturnMode('new')} className={cn('rounded-2xl border p-3 text-left transition', giftcardReturnMode === 'new' ? 'border-coral/40 bg-coral/10 text-coral' : 'border-border bg-card/60 hover:bg-card')}>
             <span className="block text-sm font-extrabold">New giftcard / store credit</span>
-            <span className="mt-1 block text-xs font-medium text-muted-foreground">Creates a $0 paid giftcard row.</span>
+            <span className="mt-1 block text-xs font-medium text-muted-foreground">Creates a giftcard funded by return credit.</span>
           </button>
         </div>
         {giftcardReturnMode === 'new'
           ? <div className="grid gap-3 rounded-2xl bg-card/70 p-3 sm:grid-cols-2">
             <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">New giftcard name</span><Input value={newGiftcardVendor} onChange={(event) => { const vendor = event.target.value; setNewGiftcardVendor(vendor); setForm((current) => ({ ...current, paymentMethod: storeCreditPaymentMethod(vendor) })) }} placeholder={`${originalGiftcardMerchant || 'Store'} GC`} /></label>
             <div className="rounded-2xl bg-mint/10 p-3 text-xs font-semibold text-emerald-700 dark:text-mint">
-              <p>Will add: {ensureGiftcardVendor(newGiftcardVendor)} · Face {currency.format(fullRefund && originalAmount > 0 ? originalAmount : Math.abs(Number(form.amount) || 0))} · Paid $0.00</p>
+              <p>Will add: {ensureGiftcardVendor(newGiftcardVendor)} · Face {currency.format(fullRefund && originalAmount > 0 ? originalAmount : Math.abs(Number(form.amount) || 0))} · Paid by return credit</p>
               <p className="mt-1 text-muted-foreground">Return row payment method: {storeCreditPaymentMethod(newGiftcardVendor)}</p>
             </div>
           </div>
