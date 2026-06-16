@@ -390,7 +390,11 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
   const [newGiftcardVendor, setNewGiftcardVendor] = React.useState('')
   const formId = React.useId()
   const originalGiftcardMerchant = original ? findMerchantForMethod(original.paymentMethod, giftcards.merchants) : ''
-  const originalIsGiftcard = Boolean(original && classifyPaymentMethod(original.paymentMethod) === 'giftcard')
+  const originalIsGiftcard = Boolean(original && (
+    classifyPaymentMethod(original.paymentMethod) === 'giftcard' ||
+    originalGiftcardMerchant ||
+    giftcards.cards.some((card) => original.paymentMethod === methodForCard(card) || original.paymentMethod === card.vendor)
+  ))
 
   React.useEffect(() => {
     if (!open || !source) return
@@ -450,7 +454,8 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
   const chooseGiftcardReturnMode = (mode: GiftcardReturnMode) => {
     setGiftcardReturnMode(mode)
     if (mode === 'original' && original) {
-      setPaymentType('giftcard')
+      const inferredPaymentType = classifyPaymentMethod(original.paymentMethod)
+      setPaymentType(inferredPaymentType)
       setForm((current) => ({ ...current, paymentMethod: original.paymentMethod }))
       const merchant = findMerchantForMethod(original.paymentMethod, giftcards.merchants) || ''
       const specificCard = merchant && original.paymentMethod !== merchant ? original.paymentMethod : ''
@@ -467,7 +472,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     const amount = fullRefund && originalAmount > 0 ? originalAmount : Math.abs(Number(form.amount))
     if (!Number.isFinite(amount) || amount === 0) return toast({ title: 'Return amount is required.', variant: 'destructive' })
     if (originalAmount > 0 && amount - originalAmount > 0.005) return toast({ title: 'Return amount is more than the purchase.', description: `The original purchase was ${currency.format(originalAmount)}.`, variant: 'destructive' })
-    const creatingNewGiftcard = originalIsGiftcard && giftcardReturnMode === 'new' && !returnExpense
+    const creatingNewGiftcard = giftcardReturnMode === 'new' && !returnExpense
     const refundPaymentMethod = creatingNewGiftcard ? storeCreditPaymentMethod(newGiftcardVendor) : form.paymentMethod
     const payload = { date: form.date, amount: -amount, description: form.description, category: form.category, paymentMethod: refundPaymentMethod, reimbursement: '' }
     const giftcardVendor = ensureGiftcardVendor(newGiftcardVendor)
@@ -513,11 +518,11 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Return amount</span><Input className={cn('min-w-0 max-w-full', fullRefund && 'bg-muted text-muted-foreground')} inputMode="decimal" type="number" min="0.01" max={originalAmount || undefined} step="0.01" required disabled={fullRefund} value={(fullRefund && originalAmount > 0 ? originalAmount : form.amount) || ''} onChange={(event) => setAmount(event.target.value)} />{fullRefund ? <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Amount is locked for a full refund.</span> : <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Enter a positive partial refund amount.</span>}</label>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2"><span className="block">Description</span><Input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Return: purchase description (date)" /></label>
       <div className="rounded-3xl border border-border/70 bg-accent/35 p-3 text-sm sm:col-span-2"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Category</p><p className="mt-1 font-semibold text-foreground">{form.category || 'Uncategorized'}</p></div>
-      {originalIsGiftcard && !returnExpense && <div className="space-y-3 rounded-3xl border border-border/70 bg-accent/25 p-3 sm:col-span-2">
-        <div><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Giftcard refund</p><p className="mt-1 text-xs font-medium text-muted-foreground">Choose whether the store puts value back on the old giftcard or issues new store credit.</p></div>
+      {original && !returnExpense && (originalIsGiftcard || giftcardReturnMode === 'new') && <div className="space-y-3 rounded-3xl border border-border/70 bg-accent/25 p-3 sm:col-span-2">
+        <div><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Giftcard refund</p><p className="mt-1 text-xs font-medium text-muted-foreground">{originalIsGiftcard ? 'Choose whether the store puts value back on the old giftcard or issues new store credit.' : 'Create new store credit when the refund is not going back to the original payment method.'}</p></div>
         <div className="grid gap-2 sm:grid-cols-2">
           <button type="button" aria-pressed={giftcardReturnMode === 'original'} onClick={() => chooseGiftcardReturnMode('original')} className={cn('rounded-2xl border p-3 text-left transition', giftcardReturnMode === 'original' ? 'border-coral/40 bg-coral/10 text-coral' : 'border-border bg-card/60 hover:bg-card')}>
-            <span className="block text-sm font-extrabold">Original giftcard</span>
+            <span className="block text-sm font-extrabold">{originalIsGiftcard ? 'Original giftcard' : 'Original payment'}</span>
             <span className="mt-1 block text-xs font-medium text-muted-foreground">{original?.paymentMethod}</span>
           </button>
           <button type="button" aria-pressed={giftcardReturnMode === 'new'} onClick={() => chooseGiftcardReturnMode('new')} className={cn('rounded-2xl border p-3 text-left transition', giftcardReturnMode === 'new' ? 'border-coral/40 bg-coral/10 text-coral' : 'border-border bg-card/60 hover:bg-card')}>
@@ -535,7 +540,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
           </div>
           : <div className="rounded-2xl bg-card/70 p-3 text-xs font-semibold text-muted-foreground">The negative return row will use the original giftcard payment method so the existing giftcard balance gets restored.</div>}
       </div>}
-      {(!originalIsGiftcard || returnExpense) && <div className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
+      {((!originalIsGiftcard && giftcardReturnMode !== 'new') || returnExpense) && <div className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="block">Refund to</span>
         <div className="grid grid-cols-3 gap-1 rounded-full bg-accent/50 p-0.5">
           {paymentTypes.map((item) => <button key={item.type} type="button" aria-label={item.label} className={cn('flex h-9 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-none transition md:h-8 md:px-3 md:text-xs', paymentType === item.type ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => {
@@ -558,6 +563,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
             ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
             : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} />}
         </div>}
+        {original && !returnExpense && <button type="button" onClick={() => chooseGiftcardReturnMode('new')} className="mt-2 w-full rounded-2xl border border-dashed border-coral/40 bg-coral/5 px-3 py-2 text-left text-xs font-bold text-coral transition hover:bg-coral/10">Create new giftcard / store credit instead</button>}
       </div>}
     </form>
   </Dialog>
