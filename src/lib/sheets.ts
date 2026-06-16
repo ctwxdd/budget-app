@@ -83,13 +83,6 @@ export async function appendRow(sheetId: string, range: string, row: unknown[]) 
   })
 }
 
-export async function appendRows(sheetId: string, range: string, rows: unknown[][]) {
-  return sheetsFetch<{ tableRange?: string; updates?: { updatedRange?: string } }>(`${base(sheetId)}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
-    method: 'POST',
-    body: JSON.stringify({ values: rows }),
-  })
-}
-
 export async function updateRow(sheetId: string, range: string, row: unknown[]) {
   return sheetsFetch(`${base(sheetId)}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`, {
     method: 'PUT',

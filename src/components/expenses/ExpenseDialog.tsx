@@ -2,7 +2,7 @@ import * as React from 'react'
 import { format } from 'date-fns'
 import type { Expense } from '../../lib/types'
 import { Button, Dialog, FadeScroll, Input, Select } from '../ui'
-import { useAddExpense, useAddExpenses, useCategories, useExpenses, useUpdateExpense } from '../../hooks/useExpenses'
+import { useAddExpense, useCategories, useExpenses, useUpdateExpense } from '../../hooks/useExpenses'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../../hooks/useGiftcards'
 import { useCards } from '../../hooks/useCards'
 import type { CardRow } from '../../hooks/useCards'
@@ -372,7 +372,6 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
   const giftcards = useGiftcards()
   const managedCards = useCards()
   const addExpense = useAddExpense()
-  const addExpenses = useAddExpenses()
   const updateExpense = useUpdateExpense()
   const { toast } = useToast()
   const sortedCardOptions = React.useMemo<CardRow[]>(
@@ -480,26 +479,23 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
       if (returnExpense) await updateExpense.mutateAsync({ ...payload, rowIndex: returnExpense.rowIndex })
       else if (creatingNewGiftcard) {
         if (!giftcardVendor.trim()) return toast({ title: 'Giftcard name is required.', variant: 'destructive' })
-        await addExpenses.mutateAsync([
-          payload,
-          {
-            date: form.date,
-            amount,
-            description: composeGiftcardDescription({ vendor: giftcardVendor, face: String(Number(amount.toFixed(2))), source: `Return ${original?.date || form.date}` }),
-            category: 'Giftcard',
-            paymentMethod: refundPaymentMethod,
-            reimbursement: '',
-          },
-        ])
+        await addExpense.mutateAsync({
+          date: form.date,
+          amount: 0,
+          description: composeGiftcardDescription({ vendor: giftcardVendor, face: String(Number(amount.toFixed(2))), source: `Return ${original?.date || form.date}` }),
+          category: 'Giftcard',
+          paymentMethod: refundPaymentMethod,
+          reimbursement: '',
+        })
       } else await addExpense.mutateAsync(payload)
-      toast({ title: returnExpense ? 'Return updated' : creatingNewGiftcard ? 'Return and giftcard added' : 'Return added' })
+      toast({ title: returnExpense ? 'Return updated' : creatingNewGiftcard ? 'Giftcard added' : 'Return added' })
       onOpenChange(false)
     } catch (error) {
       toast({ title: 'Could not save return', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
     }
   }
 
-  const saving = addExpense.isPending || addExpenses.isPending || updateExpense.isPending
+  const saving = addExpense.isPending || updateExpense.isPending
   return <Dialog
     open={open}
     onOpenChange={onOpenChange}
@@ -527,15 +523,15 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
           </button>
           <button type="button" aria-pressed={giftcardReturnMode === 'new'} onClick={() => chooseGiftcardReturnMode('new')} className={cn('rounded-2xl border p-3 text-left transition', giftcardReturnMode === 'new' ? 'border-coral/40 bg-coral/10 text-coral' : 'border-border bg-card/60 hover:bg-card')}>
             <span className="block text-sm font-extrabold">New giftcard / store credit</span>
-            <span className="mt-1 block text-xs font-medium text-muted-foreground">Creates a giftcard funded by return credit.</span>
+            <span className="mt-1 block text-xs font-medium text-muted-foreground">Creates one store-credit giftcard entry.</span>
           </button>
         </div>
         {giftcardReturnMode === 'new'
           ? <div className="grid gap-3 rounded-2xl bg-card/70 p-3 sm:grid-cols-2">
             <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">New giftcard name</span><Input value={newGiftcardVendor} onChange={(event) => { const vendor = event.target.value; setNewGiftcardVendor(vendor); setForm((current) => ({ ...current, paymentMethod: storeCreditPaymentMethod(vendor) })) }} placeholder={`${originalGiftcardMerchant || 'Store'} GC`} /></label>
             <div className="rounded-2xl bg-mint/10 p-3 text-xs font-semibold text-emerald-700 dark:text-mint">
-              <p>Will add: {ensureGiftcardVendor(newGiftcardVendor)} · Face {currency.format(fullRefund && originalAmount > 0 ? originalAmount : Math.abs(Number(form.amount) || 0))} · Paid by return credit</p>
-              <p className="mt-1 text-muted-foreground">Return row payment method: {storeCreditPaymentMethod(newGiftcardVendor)}</p>
+              <p>Will add one entry: {ensureGiftcardVendor(newGiftcardVendor)} · Face {currency.format(fullRefund && originalAmount > 0 ? originalAmount : Math.abs(Number(form.amount) || 0))} · Paid $0.00</p>
+              <p className="mt-1 text-muted-foreground">Payment method: {storeCreditPaymentMethod(newGiftcardVendor)}</p>
             </div>
           </div>
           : <div className="rounded-2xl bg-card/70 p-3 text-xs font-semibold text-muted-foreground">The negative return row will use the original giftcard payment method so the existing giftcard balance gets restored.</div>}
