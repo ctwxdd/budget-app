@@ -1,8 +1,8 @@
 import * as React from 'react'
 import { format } from 'date-fns'
-import { ChevronDown, Gift, Pencil, Plus, WalletCards } from 'lucide-react'
+import { ChevronDown, Gift, Pencil, Plus, Search, WalletCards, X } from 'lucide-react'
 import { PageErrorBoundary } from '../components/ErrorBoundary'
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '../components/ui'
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { ExpenseDialog, type FormState } from '../components/expenses/ExpenseDialog'
@@ -47,6 +47,7 @@ function GiftcardsContent() {
   const { toast } = useToast()
   const [expanded, setExpanded] = React.useState<string[]>([])
   const [showInactive, setShowInactive] = React.useState(false)
+  const [search, setSearch] = React.useState('')
   const [selectedKey, setSelectedKey] = React.useState<string | null>(null)
   const [spendTemplate, setSpendTemplate] = React.useState<FormState | null>(null)
   const [editingPurchase, setEditingPurchase] = React.useState<Expense | null>(null)
@@ -97,8 +98,14 @@ function GiftcardsContent() {
   const totalPurchased = merchants.length ? sum(merchants, 'purchased') : sum(cards, 'face')
   const totalSpent = merchants.length ? sum(merchants, 'spent') : cards.reduce((total, card) => total + card.direct + card.fifo, 0)
   const activeCards = cards.filter((card) => card.balance > 0.005).length
+  const searchQuery = search.trim().toLocaleLowerCase()
   const merchantRows = [...merchants].sort((a, b) => Number(b.active) - Number(a.active) || b.balance - a.balance || a.merchant.localeCompare(b.merchant))
-  const visibleMerchantRows = showInactive ? merchantRows : merchantRows.filter((merchant) => merchant.active || merchant.balance > 0.005)
+  const visibleMerchantRows = merchantRows.filter((merchant) => {
+    if (!showInactive && !merchant.active && merchant.balance <= 0.005) return false
+    if (!searchQuery) return true
+    if (merchant.merchant.toLocaleLowerCase().includes(searchQuery)) return true
+    return cards.some((card) => card.vendor === merchant.merchant && [card.card, card.date].some((value) => value.toLocaleLowerCase().includes(searchQuery)))
+  })
   const kpis = [
     { label: 'Total balance', emoji: '💰', value: currency.format(totalBalance), tint: 'from-mint/15 to-sage/15' },
     { label: 'Active cards', emoji: '🎁', value: String(activeCards), tint: 'from-coral/15 to-peach/20' },
@@ -110,22 +117,25 @@ function GiftcardsContent() {
 
   return <div className="relative space-y-5 md:space-y-7">
     <div className="soft-blob left-1/3 top-0 hidden h-64 w-64 bg-peach/25 md:block" />
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 className="font-display text-2xl font-extrabold tracking-tight md:text-3xl">Giftcards</h1>
-        <p className="text-sm text-muted-foreground">Track balances and spending by card. Tap a card to spend from it or edit the purchase.</p>
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">{kpis.map((item) => <Card key={item.label} className={`overflow-hidden rounded-2xl bg-gradient-to-br ${item.tint}`}><CardHeader className="p-3 pb-1 md:p-4 md:pb-1.5"><CardTitle className="flex items-center gap-1.5 text-[11px] text-muted-foreground md:text-xs"><span>{item.emoji}</span>{item.label}</CardTitle></CardHeader><CardContent className="px-3 pb-3 pt-0 md:px-4 md:pb-4"><div className="truncate font-display text-lg font-extrabold md:text-2xl">{item.value}</div></CardContent></Card>)}</div>
+    <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-white/60 p-2 shadow-sm backdrop-blur dark:bg-card/60 sm:flex-row sm:items-center">
+      <div className="relative flex-1">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by merchant, card, date…" className="pl-9 pr-9" />
+        {search && <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-accent" aria-label="Clear search"><X className="h-4 w-4" /></button>}
       </div>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" className="rounded-full border border-border/70 bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground shadow-sm transition hover:text-foreground" onClick={() => setShowInactive((current) => !current)}>
-          {showInactive ? 'Hide depleted' : 'Show depleted'}
-        </button>
-        <div className="grid grid-cols-2 gap-1 rounded-full bg-accent/60 p-0.5">
-          {(['cards', 'list'] as const).map((mode) => <button key={mode} type="button" className={cn('h-8 rounded-full px-3 text-xs font-semibold capitalize transition', view === mode ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => setView(mode)}>{mode === 'cards' ? '▦ Cards' : '≣ List'}</button>)}
-        </div>
+      <button type="button" role="switch" aria-checked={showInactive} onClick={() => setShowInactive((current) => !current)} className="flex h-10 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold text-muted-foreground transition hover:bg-accent/50 hover:text-foreground">
+        <span className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition', showInactive ? 'bg-coral' : 'bg-border')}>
+          <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white shadow transition', showInactive ? 'translate-x-[1.125rem]' : 'translate-x-0.5')} />
+        </span>
+        Show depleted
+      </button>
+      <span className="hidden whitespace-nowrap text-xs font-medium text-muted-foreground sm:inline">{visibleMerchantRows.length} of {merchantRows.length}</span>
+      <div className="grid h-10 shrink-0 grid-cols-2 gap-1 rounded-full bg-accent/60 p-0.5">
+        {(['cards', 'list'] as const).map((mode) => <button key={mode} type="button" className={cn('rounded-full px-3 text-xs font-semibold capitalize transition', view === mode ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => setView(mode)}>{mode === 'cards' ? '▦ Cards' : '≣ List'}</button>)}
       </div>
     </div>
-    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">{kpis.map((item) => <Card key={item.label} className={`overflow-hidden rounded-2xl bg-gradient-to-br ${item.tint}`}><CardHeader className="p-3 pb-1 md:p-4 md:pb-1.5"><CardTitle className="flex items-center gap-1.5 text-[11px] text-muted-foreground md:text-xs"><span>{item.emoji}</span>{item.label}</CardTitle></CardHeader><CardContent className="px-3 pb-3 pt-0 md:px-4 md:pb-4"><div className="truncate font-display text-lg font-extrabold md:text-2xl">{item.value}</div></CardContent></Card>)}</div>
-    {!merchantRows.length ? <EmptyState title="No giftcards yet" text="Giftcard purchases and balances will appear here after the Giftcard tab formulas produce rows." /> : view === 'list' ? <GiftcardList merchants={visibleMerchantRows} cards={cards} showInactive={showInactive} {...cardProps} /> : !visibleMerchantRows.length ? <EmptyState title="No active merchants" text="Use Show depleted to include merchants with no remaining balance." /> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    {!merchantRows.length ? <EmptyState title="No giftcards yet" text="Giftcard purchases and balances will appear here after the Giftcard tab formulas produce rows." /> : view === 'list' ? <GiftcardList merchants={visibleMerchantRows} cards={cards} showInactive={showInactive} {...cardProps} /> : !visibleMerchantRows.length ? <EmptyState title={search ? 'No matches' : 'No active merchants'} text={search ? `Nothing matches "${search}".` : 'Use Show depleted to include merchants with no remaining balance.'} /> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {visibleMerchantRows.map((merchant) => {
         const open = expanded.includes(merchant.merchant)
         const merchantCards = cards.filter((card) => card.vendor === merchant.merchant && (showInactive || card.balance > 0.005)).sort((a, b) => a.date.localeCompare(b.date))

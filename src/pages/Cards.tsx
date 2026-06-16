@@ -88,6 +88,9 @@ function CardsContent() {
   const [editing, setEditing] = React.useState<CardRow | null>(null)
   const [spendTemplate, setSpendTemplate] = React.useState<FormState | null>(null)
   const [selectedRow, setSelectedRow] = React.useState<number | null>(null)
+  const [search, setSearch] = React.useState('')
+  const [showInactive, setShowInactive] = React.useState(false)
+  const [expanded, setExpanded] = React.useState<Set<number>>(() => new Set())
   const handleSpend = React.useCallback((card: CardRow) => {
     setSpendTemplate({
       date: format(new Date(), 'yyyy-MM-dd'),
@@ -105,10 +108,6 @@ function CardsContent() {
   const handleSelect = React.useCallback((rowIndex: number) => {
     setSelectedRow((current) => (current === rowIndex ? null : rowIndex))
   }, [])
-  const [search, setSearch] = React.useState('')
-  const [showInactive, setShowInactive] = React.useState(false)
-  const [expanded, setExpanded] = React.useState<Set<number>>(() => new Set())
-
   const toggleExpanded = React.useCallback((rowIndex: number) => {
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -214,13 +213,6 @@ function CardsContent() {
 
   return <div className="relative space-y-5 md:space-y-7">
     <div className="soft-blob right-10 top-0 hidden h-64 w-64 bg-peach/25 md:block" />
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 className="font-display text-2xl font-extrabold tracking-tight md:text-3xl">Credit Cards</h1>
-        <p className="text-sm text-muted-foreground">List sourced from your <span className="font-semibold text-foreground">Cards</span> tab · spend pulled from your expenses.</p>
-      </div>
-      <Button onClick={openAdd}><Plus className="h-4 w-4" />Add card</Button>
-    </div>
     <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
       <Kpi label="Cards on list" emoji="💳" value={String(cards.length)} tint="from-sky/15 to-lavender/10" />
       <Kpi label="SUB open" emoji="🎁" value={String(subActiveCount)} tint="from-coral/15 to-peach/20" />
@@ -228,19 +220,20 @@ function CardsContent() {
       <Kpi label="Annual fees" emoji="🧾" value={currency.format(annualFeeTotal)} tint="from-amber-200/30 to-peach/20" />
     </div>
 
-    <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-white/60 p-2 dark:bg-card/60 sm:flex-row sm:items-center">
+    <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-white/60 p-2 shadow-sm backdrop-blur dark:bg-card/60 sm:flex-row sm:items-center">
       <div className="relative flex-1">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name, issuer, last4, note…" className="pl-9 pr-9" />
         {search && <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-accent" aria-label="Clear search"><X className="h-4 w-4" /></button>}
       </div>
-      <button type="button" role="switch" aria-checked={showInactive} onClick={() => setShowInactive((v) => !v)} className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground sm:px-2">
+      <button type="button" role="switch" aria-checked={showInactive} onClick={() => setShowInactive((v) => !v)} className="flex h-10 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold text-muted-foreground transition hover:bg-accent/50 hover:text-foreground">
         <span className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition', showInactive ? 'bg-coral' : 'bg-border')}>
           <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white shadow transition', showInactive ? 'translate-x-[1.125rem]' : 'translate-x-0.5')} />
         </span>
         Show inactive
       </button>
-      <span className="hidden text-xs font-medium text-muted-foreground sm:inline sm:pr-2">{visibleCards.length} of {cards.length}</span>
+      <span className="hidden whitespace-nowrap text-xs font-medium text-muted-foreground sm:inline">{visibleCards.length} of {cards.length}</span>
+      <Button onClick={openAdd} className="h-10 justify-center whitespace-nowrap"><Plus className="h-4 w-4" />Add card</Button>
     </div>
 
     {!visibleCards.length ? <EmptyState title={search ? 'No matches' : (!showInactive && cards.some((c) => !c.active) ? 'No active cards' : 'No cards yet')} text={search ? `Nothing matches "${search}".` : (!showInactive && cards.some((c) => !c.active) ? 'All your cards are marked inactive — enable "Show inactive" to see them.' : 'Add credit cards here so they show up first in the Expense payment method picker.')} /> : <Card className="overflow-hidden rounded-2xl">
