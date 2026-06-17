@@ -111,61 +111,15 @@ function DateQuickChips({ selected, onPick }: { selected: string; onPick: (value
 
 type DescriptionSuggestion = { display: string; count: number; sameCategory: number; lastDate: string }
 
-function parseAmountExpression(input: string): number | null {
-  const expression = input.replace(/\s+/g, '')
-  if (!expression) return null
-  let index = 0
-  const peek = () => expression[index]
-  const consume = (char: string) => {
-    if (peek() !== char) return false
-    index += 1
-    return true
+function sumAmountExpression(input: string): number | null {
+  const parts = input.split('+').filter(Boolean)
+  if (!parts.length) return null
+  let total = 0
+  for (const part of parts) {
+    if (!/^\d+(\.\d*)?$|^\.\d+$/.test(part)) return null
+    total += Number(part)
   }
-  const parseNumber = () => {
-    const start = index
-    while (/\d|\./.test(peek() || '')) index += 1
-    if (start === index) return null
-    const token = expression.slice(start, index)
-    if ((token.match(/\./g) || []).length > 1) return null
-    const value = Number(token)
-    return Number.isFinite(value) ? value : null
-  }
-  const parseFactor = (): number | null => {
-    if (consume('+')) return parseFactor()
-    if (consume('-')) {
-      const value = parseFactor()
-      return value === null ? null : -value
-    }
-    if (consume('(')) {
-      const value = parseAddSub()
-      return value !== null && consume(')') ? value : null
-    }
-    return parseNumber()
-  }
-  const parseMulDiv = (): number | null => {
-    let value = parseFactor()
-    if (value === null) return null
-    while (peek() === '*' || peek() === '/') {
-      const op = expression[index++]
-      const right = parseFactor()
-      if (right === null || (op === '/' && right === 0)) return null
-      value = op === '*' ? value * right : value / right
-    }
-    return value
-  }
-  function parseAddSub(): number | null {
-    let value = parseMulDiv()
-    if (value === null) return null
-    while (peek() === '+' || peek() === '-') {
-      const op = expression[index++]
-      const right = parseMulDiv()
-      if (right === null) return null
-      value = op === '+' ? value + right : value - right
-    }
-    return value
-  }
-  const value = parseAddSub()
-  return value !== null && index === expression.length && Number.isFinite(value) ? Math.abs(value) : null
+  return Number.isFinite(total) ? total : null
 }
 
 function formatAmountInput(value: number) {
@@ -177,18 +131,18 @@ function AmountInputWithCalculator({ label, value, onChange }: { label: string; 
   const [expression, setExpression] = React.useState('')
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const popoverRef = React.useRef<HTMLDivElement>(null)
-  const result = React.useMemo(() => parseAmountExpression(expression), [expression])
+  const result = React.useMemo(() => sumAmountExpression(expression), [expression])
   const amountValue = formatAmountInput(value)
   const addToken = (token: string) => {
     setExpression((current) => {
-      if (/^\d$/.test(token)) return current === '0' ? token : current + token
+      if (/^\d+$/.test(token)) return current === '0' ? token : current + token
       if (token === '.') {
-        const segment = current.split(/[+\-*/]/).pop() || ''
+        const segment = current.split('+').pop() || ''
         if (segment.includes('.')) return current
-        return current && !/[+\-*/]$/.test(current) ? `${current}.` : `${current}0.`
+        return current && !current.endsWith('+') ? `${current}.` : `${current}0.`
       }
-      if (!current) return token === '-' ? '-' : current
-      return /[+\-*/]$/.test(current) ? `${current.slice(0, -1)}${token}` : `${current}${token}`
+      if (!current || current.endsWith('+')) return current
+      return `${current}+`
     })
   }
   const backspace = () => setExpression((current) => current.slice(0, -1))
@@ -239,8 +193,8 @@ function AmountInputWithCalculator({ label, value, onChange }: { label: string; 
           <div className="mt-0.5 h-4 text-xs font-semibold text-muted-foreground">{result === null ? 'Tap numbers and + to add items' : currency.format(result)}</div>
         </div>
         <div className="grid grid-cols-4 gap-2">
-          {['7', '8', '9', '+', '4', '5', '6', '-', '1', '2', '3', '*', '0', '.', 'Del', '/'].map((key) => {
-            const operator = ['+', '-', '*', '/'].includes(key)
+          {['7', '8', '9', 'Del', '4', '5', '6', '+', '1', '2', '3', '00', '0', '.'].map((key) => {
+            const operator = key === '+'
             return <button
               key={key}
               type="button"

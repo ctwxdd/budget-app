@@ -47,7 +47,7 @@ npm install
 npm run build
 ```
 
-Output: `dist/` — a static bundle (`index.html`, `assets/*.js`, `assets/*.css`, `favicon.svg`, `web.config`, `staticwebapp.config.json`).
+Output: `dist/` — a static bundle (`index.html`, `assets/*.js`, `assets/*.css`, favicon PNGs, `web.config`, `staticwebapp.config.json`).
 
 ---
 
