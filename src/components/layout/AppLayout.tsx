@@ -65,14 +65,35 @@ function useKeyboardOffsetVar() {
   React.useEffect(() => {
     const root = document.documentElement
     const viewport = window.visualViewport
-    if (!viewport) {
+    const isEditableFocused = () => {
+      const active = document.activeElement
+      return active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        active instanceof HTMLSelectElement ||
+        Boolean(active instanceof HTMLElement && active.isContentEditable)
+    }
+    const reset = () => {
       root.style.setProperty('--keyboard-offset', '0px')
-      return () => root.style.removeProperty('--keyboard-offset')
+      delete root.dataset.keyboardOpen
+    }
+    if (!viewport) {
+      reset()
+      return () => {
+        root.style.removeProperty('--keyboard-offset')
+        delete root.dataset.keyboardOpen
+      }
     }
     let raf = 0
     const update = () => {
       raf = 0
-      const offset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      const rawOffset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      const keyboardOpen = isEditableFocused() && rawOffset > 120
+      if (!keyboardOpen) {
+        reset()
+        return
+      }
+      const offset = rawOffset
+      root.dataset.keyboardOpen = 'true'
       root.style.setProperty('--keyboard-offset', `${Math.round(offset)}px`)
     }
     const schedule = () => {
@@ -81,13 +102,18 @@ function useKeyboardOffsetVar() {
     update()
     viewport.addEventListener('resize', schedule)
     viewport.addEventListener('scroll', schedule)
+    window.addEventListener('focusin', schedule)
+    window.addEventListener('focusout', schedule)
     window.addEventListener('orientationchange', schedule)
     return () => {
       if (raf) cancelAnimationFrame(raf)
       viewport.removeEventListener('resize', schedule)
       viewport.removeEventListener('scroll', schedule)
+      window.removeEventListener('focusin', schedule)
+      window.removeEventListener('focusout', schedule)
       window.removeEventListener('orientationchange', schedule)
       root.style.removeProperty('--keyboard-offset')
+      delete root.dataset.keyboardOpen
     }
   }, [])
 }
