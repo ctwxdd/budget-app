@@ -44,6 +44,7 @@ const zeroSpend: CardSpend = { month: 0, total: 0, count: 0 }
 
 type SubStatus = {
   spent: number
+  goal: number
   remaining: number
   daysLeft: number
   totalDays: number
@@ -59,20 +60,21 @@ const daysBetween = (a: string, b: string) => Math.round((new Date(b).getTime() 
 
 function computeSubStatus(card: CardRow, spentInWindow: number): SubStatus | null {
   if (!card.subRequired || !card.subStart || !card.subDeadline) return null
+  const goal = card.subRequired + Math.max(0, card.annualFee || 0)
   const today = TODAY()
   const totalDays = Math.max(1, daysBetween(card.subStart, card.subDeadline))
   const elapsedDays = Math.max(0, Math.min(totalDays, daysBetween(card.subStart, today)))
-  const remaining = Math.max(0, card.subRequired - spentInWindow)
+  const remaining = Math.max(0, goal - spentInWindow)
   const daysLeft = Math.max(0, daysBetween(today, card.subDeadline))
-  const progress = Math.min(1, spentInWindow / card.subRequired)
+  const progress = Math.min(1, spentInWindow / goal)
   const paceProgress = Math.min(1, elapsedDays / totalDays)
 
-  if (spentInWindow >= card.subRequired) return { spent: spentInWindow, remaining: 0, daysLeft, totalDays, progress: 1, paceProgress, state: 'met', label: 'Met', emoji: '✅' }
-  if (today < card.subStart) return { spent: spentInWindow, remaining, daysLeft, totalDays, progress, paceProgress, state: 'upcoming', label: 'Upcoming', emoji: '🕒' }
-  if (today > card.subDeadline) return { spent: spentInWindow, remaining, daysLeft: 0, totalDays, progress, paceProgress: 1, state: 'expired', label: 'Expired', emoji: '❌' }
+  if (spentInWindow >= goal) return { spent: spentInWindow, goal, remaining: 0, daysLeft, totalDays, progress: 1, paceProgress, state: 'met', label: 'Met', emoji: '✅' }
+  if (today < card.subStart) return { spent: spentInWindow, goal, remaining, daysLeft, totalDays, progress, paceProgress, state: 'upcoming', label: 'Upcoming', emoji: '🕒' }
+  if (today > card.subDeadline) return { spent: spentInWindow, goal, remaining, daysLeft: 0, totalDays, progress, paceProgress: 1, state: 'expired', label: 'Expired', emoji: '❌' }
   // Active window: compare spend pace vs. time pace
   const onTrack = progress >= paceProgress - 0.02
-  return { spent: spentInWindow, remaining, daysLeft, totalDays, progress, paceProgress, state: onTrack ? 'on-track' : 'behind', label: onTrack ? 'On track' : 'Behind', emoji: onTrack ? '🟢' : '🟠' }
+  return { spent: spentInWindow, goal, remaining, daysLeft, totalDays, progress, paceProgress, state: onTrack ? 'on-track' : 'behind', label: onTrack ? 'On track' : 'Behind', emoji: onTrack ? '🟢' : '🟠' }
 }
 
 const isSubActive = (status: SubStatus | null) => status?.state === 'on-track' || status?.state === 'behind'
@@ -301,7 +303,7 @@ function SubTracker({ card, sub }: { card: CardRow; sub: SubStatus }) {
       <div className="absolute top-0 h-2 w-px bg-foreground/40" style={{ left: `${pacePct}%` }} title={`Time pace ${pacePct}%`} />
     </div>
     <div className="mt-1.5 grid grid-cols-3 gap-2 tabular-nums">
-      <div><p className="text-[10px] uppercase tracking-wide text-muted-foreground">Spent</p><p className="font-semibold text-foreground">{currency.format(sub.spent)} <span className="text-[10px] font-normal text-muted-foreground">/ {currency.format(card.subRequired)}</span></p></div>
+      <div><p className="text-[10px] uppercase tracking-wide text-muted-foreground">Spent</p><p className="font-semibold text-foreground">{currency.format(sub.spent)} <span className="text-[10px] font-normal text-muted-foreground">/ {currency.format(sub.goal)}</span></p></div>
       <div className="text-center"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">To go</p><p className="font-semibold text-foreground">{currency.format(sub.remaining)}</p></div>
       <div className="text-right"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">Days left</p><p className="font-semibold text-foreground">{sub.daysLeft}</p></div>
     </div>
