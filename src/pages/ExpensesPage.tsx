@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { ArrowLeft, Pencil, Trash2, X } from 'lucide-react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom'
 import { BatchEditDialog } from '../components/expenses/BatchEditDialog'
 import { ExpenseDialog, ReturnDialog, type FormState } from '../components/expenses/ExpenseDialog'
 import { ExpenseFilterBar, ExpenseTable, applyExpenseFilters, defaultFilters, type ExpenseFilters } from '../components/expenses/ExpenseTable'
@@ -11,8 +11,19 @@ import { useToast } from '../components/ui/Toast'
 import { useBatchDeleteExpenses, useExpenses } from '../hooks/useExpenses'
 import type { Expense } from '../lib/types'
 
+type AppOutletContext = {
+  openExpenseDialog: (template?: FormState | null) => void
+  setExpenseDialogTemplate?: (factory: (() => FormState | null) | null) => void
+}
+
+const todayIso = () => {
+  const today = new Date()
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
 export function ExpensesPage() {
   const navigate = useNavigate()
+  const outlet = useOutletContext<AppOutletContext>()
   const [searchParams, setSearchParams] = useSearchParams()
   const drilldownCategory = searchParams.get('category') || ''
   const drilldownPayment = searchParams.get('payment') || ''
@@ -47,6 +58,13 @@ export function ExpensesPage() {
   const { toast } = useToast()
   const filtered = React.useMemo(() => applyExpenseFilters(data, filters), [data, filters])
   const selectedExpenses = React.useMemo(() => data.filter((expense) => selectedIds.has(expense.rowIndex)), [data, selectedIds])
+  const activePaymentFilter = filters.payments.length === 1 ? filters.payments[0].trim() : ''
+  React.useEffect(() => {
+    outlet.setExpenseDialogTemplate?.(activePaymentFilter
+      ? () => ({ date: todayIso(), amount: 0, description: '', category: '', paymentMethod: activePaymentFilter, reimbursement: '' })
+      : null)
+    return () => outlet.setExpenseDialogTemplate?.(null)
+  }, [activePaymentFilter, outlet])
   const clearDrilldown = () => {
     setFilters(defaultFilters)
     setSearchParams({}, { replace: true })
@@ -90,10 +108,6 @@ export function ExpensesPage() {
 
   if (isLoading) return <SkeletonCards />
   if (error) return <QueryError error={error} onRetry={() => { void refetch() }} />
-  const todayIso = () => {
-    const today = new Date()
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-  }
   const duplicate = (expense: Expense) => {
     setTemplate({ date: todayIso(), amount: expense.amount, description: expense.description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: expense.reimbursement })
     setTemplateOpen(true)

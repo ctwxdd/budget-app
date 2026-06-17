@@ -6,7 +6,7 @@ import { SHEET_ID_KEY } from '../../lib/defaults'
 import { useAuth } from '../../lib/auth'
 import { useTheme } from '../../hooks/useTheme'
 import { Button } from '../ui'
-import { ExpenseDialog } from '../expenses/ExpenseDialog'
+import { ExpenseDialog, type FormState } from '../expenses/ExpenseDialog'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { LoveNoteIcon } from '../LoveNoteIcon'
 import { useSheetId } from '../../hooks/useExpenses'
@@ -355,7 +355,9 @@ function AccountMenu({ onLogout }: { onLogout: () => void }) {
 
 export function AppLayout() {
   const [expenseOpen, setExpenseOpen] = React.useState(false)
+  const [expenseTemplate, setExpenseTemplate] = React.useState<FormState | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
+  const expenseTemplateFactoryRef = React.useRef<(() => FormState | null) | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
   const { signOut } = useAuth()
@@ -363,6 +365,18 @@ export function AppLayout() {
   const page = nav.find((item) => item.to === location.pathname) ?? nav[0]
   const cycleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
   const logout = () => { signOut(); localStorage.removeItem(SHEET_ID_KEY); navigate('/login') }
+  const setExpenseDialogTemplate = React.useCallback((factory: (() => FormState | null) | null) => {
+    expenseTemplateFactoryRef.current = factory
+  }, [])
+  const openExpenseDialog = React.useCallback((template?: FormState | null) => {
+    setExpenseTemplate(template ?? expenseTemplateFactoryRef.current?.() ?? null)
+    setExpenseOpen(true)
+  }, [])
+  const closeExpenseDialog = React.useCallback((open: boolean) => {
+    setExpenseOpen(open)
+    if (!open) setExpenseTemplate(null)
+  }, [])
+  const outletContext = React.useMemo(() => ({ openExpenseDialog, setExpenseDialogTemplate }), [openExpenseDialog, setExpenseDialogTemplate])
   useBundleUpdateOnFocus()
   return <div className="min-h-[100dvh] bg-background text-foreground [overflow-x:clip]">
     <PullToRefresh />
@@ -371,13 +385,13 @@ export function AppLayout() {
       <div className="md:pl-72">
         <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between relative border-b border-border/70 bg-background/85 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:h-20 md:px-8 md:pt-0">
           <div className="flex min-w-0 items-center gap-2 md:gap-3"><Button variant="ghost" size="icon" className="md:hidden" aria-label="Open navigation menu" onClick={() => setMobileMenuOpen(true)}><Menu className="h-5 w-5" /></Button><div className="hidden min-w-0 md:block"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">{page.emoji} {page.pageLabel}</p><h1 className="truncate font-display text-2xl font-extrabold">{page.pageLabel}</h1></div></div><h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 font-display text-lg font-extrabold md:hidden">{page.pageLabel}</h1>
-          <div className="flex items-center gap-1.5 md:gap-2"><Button size="sm" className="hidden md:inline-flex" onClick={() => setExpenseOpen(true)}><Plus className="h-4 w-4" />Add expense</Button><Button variant="ghost" size="icon" onClick={cycleTheme} aria-label="Toggle theme">{theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}</Button><AccountMenu onLogout={logout} /></div>
+          <div className="flex items-center gap-1.5 md:gap-2"><Button size="sm" className="hidden md:inline-flex" onClick={() => openExpenseDialog()}><Plus className="h-4 w-4" />Add expense</Button><Button variant="ghost" size="icon" onClick={cycleTheme} aria-label="Toggle theme">{theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}</Button><AccountMenu onLogout={logout} /></div>
         </header>
-        <main className="relative p-4 pb-[calc(8rem+env(safe-area-inset-bottom))] md:p-8"><div className="soft-blob right-10 top-10 hidden h-56 w-56 bg-coral/20 md:block" /><ErrorBoundary resetKey={location.pathname}><Outlet context={{ openExpenseDialog: () => setExpenseOpen(true) }} /></ErrorBoundary></main>
+        <main className="relative p-4 pb-[calc(8rem+env(safe-area-inset-bottom))] md:p-8"><div className="soft-blob right-10 top-10 hidden h-56 w-56 bg-coral/20 md:block" /><ErrorBoundary resetKey={location.pathname}><Outlet context={outletContext} /></ErrorBoundary></main>
       </div>
     </div>
     <MobileMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} />
-    <BottomNav onAdd={() => setExpenseOpen(true)} />
-    {expenseOpen && <ExpenseDialog open onOpenChange={setExpenseOpen} />}
+    <BottomNav onAdd={() => openExpenseDialog()} />
+    {expenseOpen && <ExpenseDialog open onOpenChange={closeExpenseDialog} template={expenseTemplate} />}
   </div>
 }
