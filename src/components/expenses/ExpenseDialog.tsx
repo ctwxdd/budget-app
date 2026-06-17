@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { format } from 'date-fns'
+import { Calculator } from 'lucide-react'
 import type { Expense } from '../../lib/types'
 import { Button, Dialog, FadeScroll, Input, Select } from '../ui'
 import { useAddExpense, useCategories, useExpenses, useUpdateExpense } from '../../hooks/useExpenses'
@@ -109,6 +110,125 @@ function DateQuickChips({ selected, onPick }: { selected: string; onPick: (value
 }
 
 type DescriptionSuggestion = { display: string; count: number; sameCategory: number; lastDate: string }
+
+function parseAmountExpression(input: string): number | null {
+  const expression = input.replace(/\s+/g, '')
+  if (!expression) return null
+  let index = 0
+  const peek = () => expression[index]
+  const consume = (char: string) => {
+    if (peek() !== char) return false
+    index += 1
+    return true
+  }
+  const parseNumber = () => {
+    const start = index
+    while (/\d|\./.test(peek() || '')) index += 1
+    if (start === index) return null
+    const token = expression.slice(start, index)
+    if ((token.match(/\./g) || []).length > 1) return null
+    const value = Number(token)
+    return Number.isFinite(value) ? value : null
+  }
+  const parseFactor = (): number | null => {
+    if (consume('+')) return parseFactor()
+    if (consume('-')) {
+      const value = parseFactor()
+      return value === null ? null : -value
+    }
+    if (consume('(')) {
+      const value = parseAddSub()
+      return value !== null && consume(')') ? value : null
+    }
+    return parseNumber()
+  }
+  const parseMulDiv = (): number | null => {
+    let value = parseFactor()
+    if (value === null) return null
+    while (peek() === '*' || peek() === '/') {
+      const op = expression[index++]
+      const right = parseFactor()
+      if (right === null || (op === '/' && right === 0)) return null
+      value = op === '*' ? value * right : value / right
+    }
+    return value
+  }
+  function parseAddSub(): number | null {
+    let value = parseMulDiv()
+    if (value === null) return null
+    while (peek() === '+' || peek() === '-') {
+      const op = expression[index++]
+      const right = parseMulDiv()
+      if (right === null) return null
+      value = op === '+' ? value + right : value - right
+    }
+    return value
+  }
+  const value = parseAddSub()
+  return value !== null && index === expression.length && Number.isFinite(value) ? Math.abs(value) : null
+}
+
+function formatAmountInput(value: number) {
+  return value ? String(value) : ''
+}
+
+function AmountInputWithCalculator({ label, value, onChange }: { label: string; value: number; onChange: (value: string) => void }) {
+  const [open, setOpen] = React.useState(false)
+  const [expression, setExpression] = React.useState('')
+  const result = React.useMemo(() => parseAmountExpression(expression), [expression])
+  const amountValue = formatAmountInput(value)
+  const apply = () => {
+    if (result === null) return
+    onChange(result.toFixed(2))
+    setOpen(false)
+  }
+
+  return <div className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">
+    <span className="block">{label}</span>
+    <div className="relative">
+      <div className="flex min-w-0 gap-2">
+        <Input className="min-w-0 flex-1" inputMode="decimal" type="number" min="0.01" step="0.01" required value={amountValue} onChange={(event) => onChange(event.target.value)} />
+        <button
+          type="button"
+          aria-label="Open amount calculator"
+          className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-full border border-input bg-white/80 text-muted-foreground shadow-sm transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-card', open && 'bg-accent text-coral')}
+          onClick={() => {
+            setExpression((current) => current || amountValue)
+            setOpen((current) => !current)
+          }}
+        >
+          <Calculator className="h-4 w-4" />
+        </button>
+      </div>
+      {open && <div className="absolute left-0 right-0 top-full z-20 mt-1.5 space-y-2 rounded-2xl border border-border bg-card p-3 text-sm shadow-lift">
+        <Input
+          value={expression}
+          inputMode="text"
+          placeholder="12.99 + 4.50 + 1.20"
+          onChange={(event) => setExpression(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              apply()
+            } else if (event.key === 'Escape') {
+              setOpen(false)
+            }
+          }}
+          autoFocus
+        />
+        <div className="flex items-center justify-between gap-2">
+          <span className={cn('min-w-0 truncate text-xs font-semibold', result === null ? 'text-muted-foreground' : 'text-foreground')}>
+            {result === null ? 'Enter math with + - * /' : `Result ${currency.format(result)}`}
+          </span>
+          <div className="flex shrink-0 gap-1.5">
+            <Button type="button" size="sm" variant="ghost" onClick={() => setExpression('')}>Clear</Button>
+            <Button type="button" size="sm" onClick={apply} disabled={result === null}>Use</Button>
+          </div>
+        </div>
+      </div>}
+    </div>
+  </div>
+}
 
 function buildDescriptionSuggestions(expenses: Expense[], category: string): DescriptionSuggestion[] {
   const counts = new Map<string, DescriptionSuggestion>()
@@ -331,13 +451,13 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   >
     <form id={formId} onSubmit={submit} className="grid w-full min-w-0 max-w-full gap-x-5 gap-y-4 px-0.5 pb-0.5 sm:grid-cols-2">
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">{giftcardPurchase ? 'Cost paid' : 'Amount'}</span><Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setAmount(event.target.value)} /></label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="block">Description</span>
         {giftcardPurchase
           ? <GiftcardComposer parts={giftcardParts} structured={giftcardStructured} vendors={vendors} sources={giftcardSources} rawDescription={form.description} paidAmount={Number(form.amount) || 0} onRawChange={(description) => setForm({ ...form, description })} onStructuredChange={setGiftcardStructured} onChange={setGiftcardParts} />
           : <DescriptionAutosuggest value={form.description} onChange={(description) => setForm({ ...form, description })} suggestions={descriptionSuggestions} currentCategory={form.category} placeholder="Groceries, rent, coffee..." isOpen={activeMenu === 'description'} onOpenChange={setMenu('description')} />}
       </div>
+      <AmountInputWithCalculator label={giftcardPurchase ? 'Cost paid' : 'Amount'} value={form.amount} onChange={setAmount} />
       <div className="min-h-6 sm:col-span-2">
         {noteOpen ? <label className="block space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Note</span><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label> : <Button type="button" variant="ghost" size="sm" className="h-6 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
       </div>
