@@ -310,6 +310,9 @@
     contain: layout style;
     transform: translateZ(0);
   }
+  nav[data-no-pull] {
+    transform: translateY(var(--keyboard-offset, 0px));
+  }
   .bottom-nav-link,
   .bottom-nav-add {
     touch-action: manipulation;

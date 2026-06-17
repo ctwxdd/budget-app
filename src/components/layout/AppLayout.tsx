@@ -50,6 +50,37 @@ function scheduleIdleTask(callback: () => void, timeout: number, fallbackDelay: 
   return () => window.clearTimeout(handle)
 }
 
+function useKeyboardOffsetVar() {
+  React.useEffect(() => {
+    const root = document.documentElement
+    const viewport = window.visualViewport
+    if (!viewport) {
+      root.style.setProperty('--keyboard-offset', '0px')
+      return () => root.style.removeProperty('--keyboard-offset')
+    }
+    let raf = 0
+    const update = () => {
+      raf = 0
+      const offset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      root.style.setProperty('--keyboard-offset', `${Math.round(offset)}px`)
+    }
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(update)
+    }
+    update()
+    viewport.addEventListener('resize', schedule)
+    viewport.addEventListener('scroll', schedule)
+    window.addEventListener('orientationchange', schedule)
+    return () => {
+      if (raf) cancelAnimationFrame(raf)
+      viewport.removeEventListener('resize', schedule)
+      viewport.removeEventListener('scroll', schedule)
+      window.removeEventListener('orientationchange', schedule)
+      root.style.removeProperty('--keyboard-offset')
+    }
+  }, [])
+}
+
 function resetHomeScroll() {
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
 }
@@ -415,6 +446,7 @@ export function AppLayout() {
   }, [])
   const outletContext = React.useMemo(() => ({ openExpenseDialog, setExpenseDialogTemplate }), [openExpenseDialog, setExpenseDialogTemplate])
   useBundleUpdateOnFocus()
+  useKeyboardOffsetVar()
   React.useEffect(() => {
     const preloadBottomRoutes = () => mobileNav.forEach((item) => preloadRoute(item.to))
     return scheduleIdleTask(preloadBottomRoutes, 4000, 1200)
