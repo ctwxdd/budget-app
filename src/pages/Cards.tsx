@@ -57,6 +57,7 @@ type SubStatus = {
 
 const TODAY = () => new Date().toISOString().slice(0, 10)
 const daysBetween = (a: string, b: string) => Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000)
+const isAnnualFeeCategory = (category: string) => /annual\s*fee/i.test(category)
 
 function computeSubStatus(card: CardRow, spentInWindow: number): SubStatus | null {
   if (!card.subRequired || !card.subStart || !card.subDeadline) return null
@@ -137,6 +138,7 @@ function CardsContent() {
     const monthSet = new Set(filterByDateRange(data, range.start, range.end).map((expense) => expense.rowIndex))
     const map = new Map<string, CardSpend>()
     data.forEach((expense) => {
+      if (isAnnualFeeCategory(expense.category)) return
       const key = expense.paymentMethod.trim().toLocaleLowerCase()
       if (!key) return
       const entry = map.get(key) || { month: 0, total: 0, count: 0 }
@@ -159,6 +161,7 @@ function CardsContent() {
     windows.forEach((w) => map.set(w.rowIndex, 0))
     if (!windows.length) return map
     data.forEach((expense) => {
+      if (isAnnualFeeCategory(expense.category)) return
       const key = expense.paymentMethod.trim().toLocaleLowerCase()
       if (!key) return
       for (const w of windows) {
