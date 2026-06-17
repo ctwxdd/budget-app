@@ -300,8 +300,10 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     event.preventDefault()
     const amount = Math.abs(Number(form.amount))
     if (!Number.isFinite(amount) || amount === 0) return toast({ title: 'Amount is required.', variant: 'destructive' })
+    if (!form.paymentMethod.trim()) return toast({ title: 'Payment method is required.', variant: 'destructive' })
     if (giftcardPurchase && amount <= 0) return toast({ title: 'Giftcard purchase cost must be greater than zero.', variant: 'destructive' })
     if (giftcardPurchase && giftcardStructured && !giftcardParts.vendor.trim()) return toast({ title: 'Vendor is required for giftcard purchases.', variant: 'destructive' })
+    if (!(giftcardPurchase && giftcardStructured) && !form.description.trim()) return toast({ title: 'Description is required.', variant: 'destructive' })
     const description = giftcardPurchase && giftcardStructured
       ? composeGiftcardDescription(giftcardParts, note)
       : appendNoteToDescription(form.description, note)

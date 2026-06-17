@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as React from 'react'
 import { DEFAULT_CATEGORIES, DEFAULT_PAYMENT_METHODS, SHEET_ID_KEY } from '../lib/defaults'
 import { expenseToRow, parseExpenseRows } from '../lib/parse'
-import { appendRow, batchUpdateExpenseFields, deleteRow, deleteRows, getSheet, getSheetMeta, isRateLimitError, updateRow } from '../lib/sheets'
+import { appendRow, batchUpdateExpenseFields, deleteRow, deleteRows, getSheet, getSheetMeta, insertRow, isRateLimitError, updateRow } from '../lib/sheets'
 import { clearLocalCache, readLocalCache, writeLocalCache } from '../lib/localCache'
 import { rememberSheet } from '../lib/recentSheets'
 import type { Expense } from '../lib/types'
@@ -53,14 +53,28 @@ export function useAddExpense() {
   const queryClient = useQueryClient()
   const sheetId = useSheetId()
   return useMutation({
-    mutationFn: (expense: Omit<Expense, 'rowIndex'>) => appendRow(sheetId, 'Expense!A:F', expenseToRow(expense)),
+    mutationFn: async (expense: Omit<Expense, 'rowIndex'>) => {
+      const current = parseExpenseRows((await getSheet(sheetId, 'Expense!A2:F')).values || [])
+      const insertBefore = current.find((item) => item.date > expense.date)
+      if (!insertBefore) return appendRow(sheetId, 'Expense!A:F', expenseToRow(expense))
+      const sheetGid = (await getSheetMeta(sheetId)).sheets.find((sheet) => sheet.title === 'Expense')?.sheetId
+      if (sheetGid === undefined) throw new Error('Could not find an Expense tab in this spreadsheet.')
+      await insertRow(sheetId, sheetGid, insertBefore.rowIndex - 1)
+      return updateRow(sheetId, `Expense!A${insertBefore.rowIndex}:F${insertBefore.rowIndex}`, expenseToRow(expense))
+    },
     onMutate: async (expense) => {
       const queryKey = ['expenses', sheetId]
       await queryClient.cancelQueries({ queryKey })
       const previous = queryClient.getQueryData<Expense[]>(queryKey)
       const optimisticRowIndex = -Date.now()
       const optimistic: Expense = { ...expense, rowIndex: optimisticRowIndex }
-      queryClient.setQueryData<Expense[]>(queryKey, (old) => [...(old || []), optimistic])
+      queryClient.setQueryData<Expense[]>(queryKey, (old) => {
+        const next = [...(old || [])]
+        const index = next.findIndex((item) => item.date > expense.date)
+        if (index === -1) next.push(optimistic)
+        else next.splice(index, 0, optimistic)
+        return next
+      })
       return { previous }
     },
     onError: (_error, _expense, context) => {

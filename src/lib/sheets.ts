@@ -90,6 +90,20 @@ export async function updateRow(sheetId: string, range: string, row: unknown[]) 
   })
 }
 
+export async function insertRow(sheetId: string, sheetGid: number, rowIndex: number) {
+  return sheetsFetch(`${base(sheetId)}:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      requests: [{
+        insertDimension: {
+          range: { sheetId: sheetGid, dimension: 'ROWS', startIndex: rowIndex, endIndex: rowIndex + 1 },
+          inheritFromBefore: rowIndex > 1,
+        },
+      }],
+    }),
+  })
+}
+
 export async function addSheetTab(sheetId: string, title: string, headers: string[] = []) {
   const newSheetId = 1 + Math.floor(Date.now() % 1_000_000_000)
   return sheetsFetch(`${base(sheetId)}:batchUpdate`, {
