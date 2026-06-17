@@ -329,7 +329,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     mobileBottomSheet
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>}
   >
-    <form id={formId} onSubmit={submit} className="grid w-full min-w-0 max-w-full gap-x-5 gap-y-4 overflow-x-hidden sm:grid-cols-2">
+    <form id={formId} onSubmit={submit} className="grid w-full min-w-0 max-w-full gap-x-5 gap-y-4 px-0.5 pb-0.5 sm:grid-cols-2">
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">{giftcardPurchase ? 'Cost paid' : 'Amount'}</span><Input className="min-w-0 max-w-full" inputMode="decimal" type="number" min="0.01" step="0.01" required value={form.amount || ''} onChange={(event) => setAmount(event.target.value)} /></label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
@@ -513,7 +513,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     mobileBottomSheet
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={saving}>{saving ? 'Saving...' : (returnExpense ? 'Save return' : 'Add return')}</Button></div>}
   >
-    <form id={formId} onSubmit={submit} className="grid w-full min-w-0 max-w-full gap-x-5 gap-y-4 overflow-x-hidden sm:grid-cols-2">
+    <form id={formId} onSubmit={submit} className="grid w-full min-w-0 max-w-full gap-x-5 gap-y-4 px-0.5 pb-0.5 sm:grid-cols-2">
       {original && <button type="button" aria-pressed={fullRefund} onClick={toggleFullRefund} className={cn('flex items-center gap-3 rounded-3xl border p-3 text-left transition sm:col-span-2', fullRefund ? 'border-mint/40 bg-mint/10 text-emerald-700 dark:text-mint' : 'border-border bg-accent/35 text-foreground hover:bg-accent/60')}>
         <span className={cn('grid h-6 w-6 shrink-0 place-items-center rounded-full border text-xs font-bold', fullRefund ? 'border-mint bg-mint text-white' : 'border-muted-foreground/40 text-transparent')}>✓</span>
         <span className="min-w-0"><span className="block text-sm font-extrabold">Full refund</span><span className="block text-xs font-medium text-muted-foreground">Use the full purchase amount: {currency.format(originalAmount)}</span></span>
@@ -680,16 +680,127 @@ function describeCard(card: CardRow) {
   return `${card.name}${tail}${issuer}`
 }
 
+function normalizeSearch(value: string) {
+  return value.trim().toLocaleLowerCase()
+}
+
 function CardPaymentPicker({ value, onChange, cards }: { value: string; onChange: (value: string) => void; cards: CardRow[] }) {
-  const matchesOption = !value || cards.some((card) => card.name === value)
+  const [focused, setFocused] = React.useState(false)
+  const [query, setQuery] = React.useState('')
+  const [highlight, setHighlight] = React.useState(0)
+  const blurTimerRef = React.useRef<number | null>(null)
+  const listId = React.useId()
+  const selectedCard = React.useMemo(() => cards.find((card) => card.name === value), [cards, value])
+  const existingOption = value && !selectedCard ? value : ''
+  const normalizedQuery = normalizeSearch(query)
+  const filteredCards = React.useMemo(() => {
+    const ranked = cards.filter((card) => {
+      if (!normalizedQuery) return true
+      return normalizeSearch(`${card.name} ${card.issuer} ${card.last4}`).includes(normalizedQuery)
+    })
+    return ranked.slice(0, 8)
+  }, [cards, normalizedQuery])
+  const showExistingOption = Boolean(existingOption && (!normalizedQuery || normalizeSearch(existingOption).includes(normalizedQuery)))
+  const optionCount = filteredCards.length + (showExistingOption ? 1 : 0)
+  const displayValue = focused ? query : (selectedCard ? describeCard(selectedCard) : value)
+
+  React.useEffect(() => { setHighlight(0) }, [query, focused])
+  React.useEffect(() => () => { if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current) }, [])
+
+  const close = () => {
+    setFocused(false)
+    setQuery('')
+  }
+  const pick = (nextValue: string) => {
+    onChange(nextValue)
+    close()
+  }
+  const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
+    if (!focused || optionCount === 0) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setHighlight((current) => (current + 1) % optionCount)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setHighlight((current) => (current <= 0 ? optionCount - 1 : current - 1))
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      if (showExistingOption && highlight === 0) pick(existingOption)
+      else {
+        const index = highlight - (showExistingOption ? 1 : 0)
+        const card = filteredCards[index]
+        if (card) pick(card.name)
+      }
+    } else if (event.key === 'Escape') {
+      close()
+    }
+  }
+  const open = focused && optionCount > 0
+
   return <div className="space-y-1.5">
-    <Select value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="">Select card…</option>
-      {cards.length > 0 && <optgroup label="Your cards">
-        {cards.map((card) => <option key={`mc-${card.rowIndex}`} value={card.name}>{describeCard(card)}</option>)}
-      </optgroup>}
-      {!matchesOption && value && <optgroup label="Existing"><option value={value}>{value} (not in Cards tab)</option></optgroup>}
-    </Select>
+    <div className="relative">
+      <Input
+        role="combobox"
+        aria-controls={listId}
+        aria-expanded={open}
+        aria-autocomplete="list"
+        value={displayValue}
+        onChange={(event) => { setQuery(event.target.value); setFocused(true) }}
+        onFocus={() => {
+          if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current)
+          setQuery('')
+          setFocused(true)
+        }}
+        onBlur={() => { blurTimerRef.current = window.setTimeout(close, 150) }}
+        onKeyDown={onKeyDown}
+        placeholder="Search cards..."
+        autoComplete="off"
+        className={value ? 'pr-10' : undefined}
+      />
+      {value && <button
+        type="button"
+        aria-label="Clear card"
+        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-1.5 py-0.5 text-xs font-bold text-muted-foreground transition hover:bg-accent hover:text-foreground"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => onChange('')}
+      >×</button>}
+      {open && <FadeScroll
+        outerClassName="absolute left-0 right-0 top-full z-20 mt-1.5 rounded-2xl border border-border bg-card shadow-lift"
+        className="max-h-64 overflow-auto p-1"
+      >
+        <div id={listId} role="listbox">
+          {showExistingOption && <button
+            type="button"
+            role="option"
+            aria-selected={highlight === 0}
+            className={cn('flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition', highlight === 0 ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/70')}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => pick(existingOption)}
+          >
+            <span className="min-w-0 flex-1 truncate font-medium text-foreground">{existingOption}</span>
+            <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">current</span>
+          </button>}
+          {filteredCards.map((card, index) => {
+            const actualIndex = index + (showExistingOption ? 1 : 0)
+            return <button
+              key={`mc-${card.rowIndex}`}
+              type="button"
+              role="option"
+              aria-selected={highlight === actualIndex}
+              className={cn('flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition', highlight === actualIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/70')}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => pick(card.name)}
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-medium text-foreground">{card.name}</span>
+                {(card.last4 || card.issuer) && <span className="block truncate text-xs font-medium text-muted-foreground">{[card.last4 ? `••${card.last4}` : '', card.issuer].filter(Boolean).join(' · ')}</span>}
+              </span>
+              {value === card.name && <span className="shrink-0 text-xs font-bold text-coral">Selected</span>}
+            </button>
+          })}
+        </div>
+      </FadeScroll>}
+    </div>
     {!cards.length && <p className="rounded-2xl bg-accent/50 p-2 text-xs font-medium">Add cards in the Cards tab for faster picking.</p>}
   </div>
 }
