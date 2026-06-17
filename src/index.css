@@ -7,10 +7,20 @@
     min-height: 100%;
     max-width: 100vw;
     overflow-x: clip;
+    scrollbar-width: none;
     touch-action: pan-x pan-y;
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
+  }
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar,
+  #root::-webkit-scrollbar,
+  *::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    scrollbar-width: none;
   }
   input, textarea, [contenteditable='true'] {
     -webkit-user-select: text;
