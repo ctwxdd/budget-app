@@ -50,6 +50,17 @@ function scheduleIdleTask(callback: () => void, timeout: number, fallbackDelay: 
   return () => window.clearTimeout(handle)
 }
 
+function isFormStateTemplate(value: unknown): value is FormState {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<FormState>
+  return typeof candidate.date === 'string' &&
+    typeof candidate.amount === 'number' &&
+    typeof candidate.description === 'string' &&
+    typeof candidate.category === 'string' &&
+    typeof candidate.paymentMethod === 'string' &&
+    typeof candidate.reimbursement === 'string'
+}
+
 function useKeyboardOffsetVar() {
   React.useEffect(() => {
     const root = document.documentElement
@@ -436,8 +447,8 @@ export function AppLayout() {
   const setExpenseDialogTemplate = React.useCallback((factory: (() => FormState | null) | null) => {
     expenseTemplateFactoryRef.current = factory
   }, [])
-  const openExpenseDialog = React.useCallback((template?: FormState | null) => {
-    setExpenseTemplate(template ?? expenseTemplateFactoryRef.current?.() ?? null)
+  const openExpenseDialog = React.useCallback((template?: FormState | null | unknown) => {
+    setExpenseTemplate(isFormStateTemplate(template) ? template : expenseTemplateFactoryRef.current?.() ?? null)
     setExpenseOpen(true)
   }, [])
   const closeExpenseDialog = React.useCallback((open: boolean) => {
