@@ -6,7 +6,7 @@ import type { DatePreset, Expense } from '../../lib/types'
 import { categoryColor, categoryIcon, categoryName, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
 import { cn } from '../../lib/utils'
 import { Badge, Button, Card, Dialog, Input, Select } from '../ui'
-import { useCategories, useDeleteExpense, usePaymentMethods, useSheetId } from '../../hooks/useExpenses'
+import { useAddExpense, useCategories, useDeleteExpense, usePaymentMethods, useSheetId } from '../../hooks/useExpenses'
 import { useToast } from '../ui/Toast'
 
 export type ExpenseFilters = { preset: DatePreset; start: string; end: string; categories: string[]; payments: string[]; reimbursement: string; search: string }
@@ -336,10 +336,10 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
   const [page, setPage] = React.useState(1)
   const [mobileView, setMobileView] = React.useState<'cards' | 'list'>(() => localStorage.getItem('budget.expenseMobileView') === 'cards' ? 'cards' : 'list')
   const deleteExpense = useDeleteExpense()
+  const addExpense = useAddExpense()
   const queryClient = useQueryClient()
   const sheetId = useSheetId()
   const { toast } = useToast()
-  const pendingDeleteRef = React.useRef<{ timer: number; flush: () => Promise<void> } | null>(null)
   const sorted = React.useMemo(() => [...expenses].sort((a, b) => { const result = sortKey === 'date' ? a.date.localeCompare(b.date) : a.amount - b.amount; return sortDir === 'asc' ? result : -result }), [expenses, sortKey, sortDir])
   const pageSize = 50
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
@@ -349,41 +349,37 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
   const partiallyVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < sorted.length
   React.useEffect(() => setPage(1), [expenses.length])
   React.useEffect(() => { localStorage.setItem('budget.expenseMobileView', mobileView) }, [mobileView])
-  React.useEffect(() => () => { void pendingDeleteRef.current?.flush() }, [])
   const toggleSort = (key: SortKey) => { setSortDir(sortKey === key && sortDir === 'desc' ? 'asc' : 'desc'); setSortKey(key) }
   const remove = async (expense: Expense) => {
-    if (pendingDeleteRef.current) await pendingDeleteRef.current.flush()
     const queryKey = ['expenses', sheetId]
     const previous = queryClient.getQueryData<Expense[]>(queryKey)
     queryClient.setQueryData<Expense[]>(queryKey, (old) => (old || []).filter((item) => item.rowIndex !== expense.rowIndex))
-    let committed = false
-    const flush = async () => {
-      if (committed) return
-      committed = true
-      window.clearTimeout(timer)
-      if (pendingDeleteRef.current?.flush === flush) pendingDeleteRef.current = null
-      try {
-        await deleteExpense.mutateAsync(expense)
-      } catch (error) {
-        queryClient.setQueryData(queryKey, previous)
-        toast({ title: 'Could not delete expense', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
-      }
-    }
-    const undo = () => {
-      if (committed) return
-      committed = true
-      window.clearTimeout(timer)
-      if (pendingDeleteRef.current?.flush === flush) pendingDeleteRef.current = null
+    try {
+      await deleteExpense.mutateAsync(expense)
+      toast({
+        title: 'Expense deleted',
+        description: expense.description || expense.category || 'Expense',
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            void addExpense.mutateAsync({
+              date: expense.date,
+              amount: expense.amount,
+              description: expense.description,
+              category: expense.category,
+              paymentMethod: expense.paymentMethod,
+              reimbursement: expense.reimbursement,
+            }).catch((error) => {
+              toast({ title: 'Could not restore expense', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+            })
+          },
+        },
+        duration: 5000,
+      })
+    } catch (error) {
       queryClient.setQueryData(queryKey, previous)
+      toast({ title: 'Could not delete expense', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
     }
-    const timer = window.setTimeout(() => { void flush() }, 5000)
-    pendingDeleteRef.current = { timer, flush }
-    toast({
-      title: 'Expense deleted',
-      description: expense.description || expense.category || 'Expense',
-      action: { label: 'Undo', onClick: undo },
-      duration: 5000,
-    })
   }
 
   return <Card className="overflow-hidden">
