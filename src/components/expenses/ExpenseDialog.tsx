@@ -175,13 +175,45 @@ function formatAmountInput(value: number) {
 function AmountInputWithCalculator({ label, value, onChange }: { label: string; value: number; onChange: (value: string) => void }) {
   const [open, setOpen] = React.useState(false)
   const [expression, setExpression] = React.useState('')
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  const popoverRef = React.useRef<HTMLDivElement>(null)
   const result = React.useMemo(() => parseAmountExpression(expression), [expression])
   const amountValue = formatAmountInput(value)
+  const addToken = (token: string) => {
+    setExpression((current) => {
+      if (/^\d$/.test(token)) return current === '0' ? token : current + token
+      if (token === '.') {
+        const segment = current.split(/[+\-*/]/).pop() || ''
+        if (segment.includes('.')) return current
+        return current && !/[+\-*/]$/.test(current) ? `${current}.` : `${current}0.`
+      }
+      if (!current) return token === '-' ? '-' : current
+      return /[+\-*/]$/.test(current) ? `${current.slice(0, -1)}${token}` : `${current}${token}`
+    })
+  }
+  const backspace = () => setExpression((current) => current.slice(0, -1))
   const apply = () => {
     if (result === null) return
     onChange(result.toFixed(2))
     setOpen(false)
   }
+  React.useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (triggerRef.current?.contains(target) || popoverRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
 
   return <div className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">
     <span className="block">{label}</span>
@@ -189,6 +221,7 @@ function AmountInputWithCalculator({ label, value, onChange }: { label: string; 
       <div className="flex min-w-0 gap-2">
         <Input className="min-w-0 flex-1" inputMode="decimal" type="number" min="0.01" step="0.01" required value={amountValue} onChange={(event) => onChange(event.target.value)} />
         <button
+          ref={triggerRef}
           type="button"
           aria-label="Open amount calculator"
           className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-full border border-input bg-white/80 text-muted-foreground shadow-sm transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-card', open && 'bg-accent text-coral')}
@@ -200,25 +233,25 @@ function AmountInputWithCalculator({ label, value, onChange }: { label: string; 
           <Calculator className="h-4 w-4" />
         </button>
       </div>
-      {open && <div className="absolute left-0 right-0 top-full z-20 mt-1.5 space-y-2 rounded-2xl border border-border bg-card p-3 text-sm shadow-lift">
-        <Input
-          value={expression}
-          inputMode="text"
-          placeholder="12.99 + 4.50 + 1.20"
-          onChange={(event) => setExpression(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault()
-              apply()
-            } else if (event.key === 'Escape') {
-              setOpen(false)
-            }
-          }}
-          autoFocus
-        />
+      {open && <div ref={popoverRef} className="absolute left-0 right-0 top-full z-20 mt-1.5 space-y-3 rounded-2xl border border-border bg-card p-3 text-sm shadow-lift">
+        <div className="min-h-11 rounded-2xl border border-border bg-background/70 px-3 py-2 text-right">
+          <div className="truncate font-mono text-lg font-bold text-foreground">{expression || '0'}</div>
+          <div className="mt-0.5 h-4 text-xs font-semibold text-muted-foreground">{result === null ? 'Tap numbers and + to add items' : currency.format(result)}</div>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {['7', '8', '9', '+', '4', '5', '6', '-', '1', '2', '3', '*', '0', '.', 'Del', '/'].map((key) => {
+            const operator = ['+', '-', '*', '/'].includes(key)
+            return <button
+              key={key}
+              type="button"
+              className={cn('h-11 rounded-2xl border border-border bg-white/80 text-base font-extrabold text-foreground shadow-sm transition motion-safe:active:scale-[0.97] hover:bg-accent dark:bg-card', operator && 'bg-coral/10 text-coral hover:bg-coral/15', key === 'Del' && 'text-muted-foreground')}
+              onClick={() => key === 'Del' ? backspace() : addToken(key)}
+            >{key}</button>
+          })}
+        </div>
         <div className="flex items-center justify-between gap-2">
           <span className={cn('min-w-0 truncate text-xs font-semibold', result === null ? 'text-muted-foreground' : 'text-foreground')}>
-            {result === null ? 'Enter math with + - * /' : `Result ${currency.format(result)}`}
+            {result === null ? 'No valid total yet' : `Result ${currency.format(result)}`}
           </span>
           <div className="flex shrink-0 gap-1.5">
             <Button type="button" size="sm" variant="ghost" onClick={() => setExpression('')}>Clear</Button>
