@@ -95,10 +95,10 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
   React.useEffect(() => {
     const el = stickyRef.current
     if (!el) return
+    const mobileQuery = window.matchMedia('(max-width: 767px)')
     // Scroll position drives a *target* progress 0..1 (shrink completes over
     // 100px of scroll right before the element pins, so it tracks the finger
-    // while you're actively scrolling). PIN_OFFSET covers the largest pin
-    // position (mobile with notch ~100px; desktop md:top-24 = 96px).
+    // while you're actively scrolling). Desktop keeps the full-size donut.
     const PIN_OFFSET = 100
     const RANGE = 100
     // A critically-underdamped spring interpolates the live --p toward the
@@ -112,6 +112,10 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
     let velocity = 0
     let raf = 0
     const computeTarget = () => {
+      if (!mobileQuery.matches) {
+        target = 0
+        return
+      }
       const top = el.getBoundingClientRect().top
       target = Math.max(0, Math.min(1, (PIN_OFFSET + RANGE - top) / RANGE))
     }
@@ -142,14 +146,25 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
       computeTarget()
       if (!raf) raf = requestAnimationFrame(tick)
     }
+    const onMediaChange = () => {
+      target = 0
+      current = 0
+      velocity = 0
+      if (raf) cancelAnimationFrame(raf)
+      raf = 0
+      el.style.setProperty('--p', '0')
+      if (mobileQuery.matches) onScroll()
+    }
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll)
+    mobileQuery.addEventListener('change', onMediaChange)
     computeTarget()
     current = target
     el.style.setProperty('--p', current.toFixed(4))
     return () => {
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
+      mobileQuery.removeEventListener('change', onMediaChange)
       if (raf) cancelAnimationFrame(raf)
     }
   }, [])
@@ -190,7 +205,7 @@ function CategoryBreakdown({ rows, onOpenExpenses }: { rows: { name: string; tot
                 innerRadius="54%"
                 paddingAngle={1.5}
                 cornerRadius={4}
-                isAnimationActive="auto"
+                isAnimationActive={false}
                 shape={(props, index) => <DonutSector {...props} isActive={selectedIndex === index} />}
                 onClick={(_, index, event) => {
                   event?.stopPropagation?.()
