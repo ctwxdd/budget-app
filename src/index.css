@@ -306,6 +306,24 @@
 @layer components {
   .skeleton { @apply animate-pulse rounded-3xl bg-muted; }
   .soft-blob { @apply pointer-events-none absolute -z-10 rounded-full blur-3xl; }
+  .bottom-nav-shell {
+    contain: layout style;
+    transform: translateZ(0);
+  }
+  .bottom-nav-link,
+  .bottom-nav-add {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bottom-nav-link {
+    transition: color 120ms ease, background-color 120ms ease;
+  }
+  .bottom-nav-link:active {
+    transform: scale(0.96);
+  }
+  .bottom-nav-add:active {
+    transform: translate(-50%, -50%) scale(0.96);
+  }
 }
 
 @media (display-mode: standalone) and (max-width: 767px) {

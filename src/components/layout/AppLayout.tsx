@@ -19,6 +19,36 @@ const nav = [
   { to: '/analytics', label: 'Analytics', pageLabel: 'Analytics', emoji: '📊', icon: BarChart3 },
   { to: '/settings', label: 'Settings', pageLabel: 'Settings', emoji: '⚙️', icon: Settings },
 ]
+const mobileNav = nav.filter((item) => ['/', '/expenses', '/analytics', '/cards'].includes(item.to))
+const routePreloaders: Record<string, () => Promise<unknown>> = {
+  '/': () => import('../../pages/OverviewPage'),
+  '/expenses': () => import('../../pages/ExpensesPage'),
+  '/analytics': () => import('../../pages/AnalyticsPage'),
+  '/cards': () => import('../../pages/Cards'),
+  '/giftcards': () => import('../../pages/Giftcards'),
+  '/settings': () => import('../../pages/SettingsPage'),
+}
+const preloadedRoutes = new Set<string>()
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
+  cancelIdleCallback?: (handle: number) => void
+}
+
+function preloadRoute(to: string) {
+  if (preloadedRoutes.has(to)) return
+  preloadedRoutes.add(to)
+  void routePreloaders[to]?.()
+}
+
+function scheduleIdleTask(callback: () => void, timeout: number, fallbackDelay: number) {
+  const idleWindow = window as IdleWindow
+  if (idleWindow.requestIdleCallback) {
+    const handle = idleWindow.requestIdleCallback(callback, { timeout })
+    return () => idleWindow.cancelIdleCallback?.(handle)
+  }
+  const handle = window.setTimeout(callback, fallbackDelay)
+  return () => window.clearTimeout(handle)
+}
 
 function resetHomeScroll() {
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
@@ -37,16 +67,15 @@ function Sidebar() {
 }
 
 function BottomNav({ onAdd }: { onAdd: () => void }) {
-  const mobileNav = nav.filter((item) => ['/', '/expenses', '/analytics', '/cards'].includes(item.to))
-  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} onClick={item.to === '/' ? resetHomeScroll : undefined} className={({ isActive }) => `flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 pb-1 pt-2 text-[10px] font-bold transition sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="max-w-full truncate leading-none">{item.label}</span></NavLink>
-  return <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden">
-    <div className="relative mx-auto h-[calc(68px+env(safe-area-inset-bottom))] w-full border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl">
+  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} onPointerDown={() => preloadRoute(item.to)} onFocus={() => preloadRoute(item.to)} onClick={item.to === '/' ? resetHomeScroll : undefined} className={({ isActive }) => `bottom-nav-link flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 pb-1 pt-2 text-[10px] font-bold sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="max-w-full truncate leading-none">{item.label}</span></NavLink>
+  return <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden" data-no-pull>
+    <div className="bottom-nav-shell relative mx-auto h-[calc(68px+env(safe-area-inset-bottom))] w-full border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))]">
       <div className="mobile-bottom-items grid h-[68px] grid-cols-5 items-stretch px-1">
         {mobileNav.slice(0, 2).map(renderItem)}
         <div className="h-full" aria-hidden />
         {mobileNav.slice(2).map(renderItem)}
       </div>
-      <Button aria-label="Add expense" variant="gradient" onClick={onAdd} className="mobile-bottom-add absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full p-0 shadow-lift ring-4 ring-background transition hover:scale-[1.03]"><Plus className="h-7 w-7" /></Button>
+      <Button aria-label="Add expense" variant="gradient" onPointerDown={() => preloadRoute('/expenses')} onClick={onAdd} className="mobile-bottom-add bottom-nav-add absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full p-0 shadow-lift ring-4 ring-background"><Plus className="h-7 w-7" /></Button>
     </div>
   </nav>
 }
@@ -176,6 +205,7 @@ function PullToRefresh() {
     const onTouchStart = (event: TouchEvent) => {
       if (phaseRef.current === 'refreshing') return
       if (event.touches.length !== 1) return
+      if (event.target instanceof Element && event.target.closest('[data-no-pull]')) return
       if (window.scrollY > 0) return
       if (document.body.style.overflow === 'hidden') return
       startY.current = event.touches[0].clientY
@@ -282,6 +312,8 @@ function PullToRefresh() {
 function useBundleUpdateOnFocus() {
   React.useEffect(() => {
     let lastCheck = 0
+    let cancelled = false
+    let cancelInitialCheck: (() => void) | null = null
     const maybeCheck = async () => {
       if (document.hidden) return
       const now = Date.now()
@@ -289,10 +321,15 @@ function useBundleUpdateOnFocus() {
       lastCheck = now
       if (await checkForBundleUpdate()) window.location.reload()
     }
-    void maybeCheck()
+    const scheduleInitialCheck = () => {
+      cancelInitialCheck = scheduleIdleTask(() => { if (!cancelled) void maybeCheck() }, 5000, 1500)
+    }
+    scheduleInitialCheck()
     document.addEventListener('visibilitychange', maybeCheck)
     window.addEventListener('focus', maybeCheck)
     return () => {
+      cancelled = true
+      cancelInitialCheck?.()
       document.removeEventListener('visibilitychange', maybeCheck)
       window.removeEventListener('focus', maybeCheck)
     }
@@ -378,6 +415,10 @@ export function AppLayout() {
   }, [])
   const outletContext = React.useMemo(() => ({ openExpenseDialog, setExpenseDialogTemplate }), [openExpenseDialog, setExpenseDialogTemplate])
   useBundleUpdateOnFocus()
+  React.useEffect(() => {
+    const preloadBottomRoutes = () => mobileNav.forEach((item) => preloadRoute(item.to))
+    return scheduleIdleTask(preloadBottomRoutes, 4000, 1200)
+  }, [])
   return <div className="min-h-[100dvh] bg-background text-foreground [overflow-x:clip]">
     <PullToRefresh />
     <div className="pull-refresh-content">
