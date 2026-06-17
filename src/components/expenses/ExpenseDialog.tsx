@@ -404,7 +404,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     const amount = Math.abs(returnExpense?.amount ?? original?.amount ?? 0)
     const paymentMethod = source.paymentMethod
     const merchant = findMerchantForMethod(paymentMethod, giftcards.merchants) || ''
-    const defaultStoreCreditVendor = merchant ? ensureGiftcardVendor(merchant) : ensureGiftcardVendor(source.category || 'Store')
+    const defaultStoreCreditVendor = merchant ? ensureGiftcardVendor(merchant) : ''
     setForm({
       date: returnExpense?.date || todayIso(),
       amount,
@@ -479,11 +479,12 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     const creatingNewGiftcard = giftcardReturnMode === 'new' && !returnExpense
     const refundPaymentMethod = creatingNewGiftcard ? (original?.paymentMethod || form.paymentMethod) : form.paymentMethod
     const payload = { date: form.date, amount: -amount, description: form.description, category: form.category, paymentMethod: refundPaymentMethod, reimbursement: '' }
-    const giftcardVendor = ensureGiftcardVendor(newGiftcardVendor)
+    const giftcardVendorInput = newGiftcardVendor.trim()
+    const giftcardVendor = ensureGiftcardVendor(giftcardVendorInput)
     try {
       if (returnExpense) await updateExpense.mutateAsync({ ...payload, rowIndex: returnExpense.rowIndex })
       else if (creatingNewGiftcard) {
-        if (!giftcardVendor.trim()) return toast({ title: 'Giftcard name is required.', variant: 'destructive' })
+        if (!giftcardVendorInput) return toast({ title: 'Giftcard name is required.', variant: 'destructive' })
         await addExpense.mutateAsync({
           date: form.date,
           amount: 0,
@@ -524,9 +525,9 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
           ? <>
             <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">New giftcard / store credit</p><p className="mt-1 text-xs font-medium text-muted-foreground">Creates one giftcard entry and keeps the original payment method on that entry.</p></div>{originalIsGiftcard && <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full px-2 text-xs" onClick={() => chooseGiftcardReturnMode('original')}>Use original giftcard</Button>}</div>
             <div className="grid gap-3 rounded-2xl bg-card/70 p-3 sm:grid-cols-2">
-            <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">New giftcard name</span><StringAutosuggest value={newGiftcardVendor} onChange={setNewGiftcardVendor} options={giftcardVendorOptions} placeholder={`${originalGiftcardMerchant || 'Store'} GC`} /></label>
+            <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">New giftcard name</span><StringAutosuggest value={newGiftcardVendor} onChange={setNewGiftcardVendor} options={giftcardVendorOptions} placeholder="Select or type giftcard name" /></label>
             <div className="rounded-2xl bg-mint/10 p-3 text-xs font-semibold text-emerald-700 dark:text-mint">
-              <p>Will add one entry: {ensureGiftcardVendor(newGiftcardVendor)} · Face {currency.format(fullRefund && originalAmount > 0 ? originalAmount : Math.abs(Number(form.amount) || 0))} · Paid $0.00</p>
+              <p>Will add one entry: {newGiftcardVendor.trim() ? ensureGiftcardVendor(newGiftcardVendor) : 'Choose a giftcard name'} · Face {currency.format(fullRefund && originalAmount > 0 ? originalAmount : Math.abs(Number(form.amount) || 0))} · Paid $0.00</p>
               <p className="mt-1 text-muted-foreground">Paid by: {original?.paymentMethod || form.paymentMethod}</p>
               <p className="mt-1 text-muted-foreground">Source: {original ? returnDescription(original) : `Return (${form.date})`}</p>
             </div>
