@@ -29,16 +29,6 @@
   }
   html { background: hsl(var(--background)); }
   body { min-height: 100dvh; }
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0 0 auto;
-    z-index: 35;
-    height: env(safe-area-inset-top);
-    pointer-events: none;
-    background: hsl(var(--background));
-    transition: background-color 200ms ease;
-  }
   html[data-dialog-open='true'] { overscroll-behavior: none; }
   .font-display { font-variant-numeric: tabular-nums; }
   :root {
