@@ -61,7 +61,7 @@ const isAnnualFeeCategory = (category: string) => /annual\s*fee/i.test(category)
 
 function computeSubStatus(card: CardRow, spentInWindow: number): SubStatus | null {
   if (!card.subRequired || !card.subStart || !card.subDeadline) return null
-  const goal = card.subRequired + Math.max(0, card.annualFee || 0)
+  const goal = card.subRequired
   const today = TODAY()
   const totalDays = Math.max(1, daysBetween(card.subStart, card.subDeadline))
   const elapsedDays = Math.max(0, Math.min(totalDays, daysBetween(card.subStart, today)))
