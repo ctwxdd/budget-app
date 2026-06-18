@@ -118,9 +118,7 @@ function normalizeDescription(value: string) {
 function findLatestMatchingDescription(expenses: Expense[], description: string) {
   const key = normalizeDescription(description)
   if (!key) return null
-  return expenses
-    .filter((expense) => normalizeDescription(expense.description) === key)
-    .sort((a, b) => b.date.localeCompare(a.date) || b.rowIndex - a.rowIndex)[0] || null
+  return expenses.findLast((expense) => normalizeDescription(expense.description) === key) || null
 }
 
 function sameExpense(a: FormState, b: Expense) {
