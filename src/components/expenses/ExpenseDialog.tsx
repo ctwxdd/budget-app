@@ -111,6 +111,27 @@ function DateQuickChips({ selected, onPick }: { selected: string; onPick: (value
 
 type DescriptionSuggestion = { display: string; count: number; sameCategory: number; lastDate: string }
 
+function normalizeDescription(value: string) {
+  return splitDescriptionNote(value).base.trim().toLocaleLowerCase()
+}
+
+function findLatestMatchingDescription(expenses: Expense[], description: string) {
+  const key = normalizeDescription(description)
+  if (!key) return null
+  return expenses
+    .filter((expense) => normalizeDescription(expense.description) === key)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.rowIndex - a.rowIndex)[0] || null
+}
+
+function sameExpense(a: FormState, b: Expense) {
+  return a.date === b.date &&
+    Math.abs(Number(a.amount) - Number(b.amount)) < 0.005 &&
+    a.description.trim() === splitDescriptionNote(b.description).base.trim() &&
+    a.category.trim() === b.category.trim() &&
+    a.paymentMethod.trim() === b.paymentMethod.trim() &&
+    a.reimbursement.trim() === b.reimbursement.trim()
+}
+
 function sumAmountExpression(input: string): number | null {
   const parts = input.split('+').filter(Boolean)
   if (!parts.length) return null
@@ -319,6 +340,11 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
       : template
         ? { ...template }
         : emptyForm()
+    const matched = !expense && template?.description ? findLatestMatchingDescription(expensesQuery.data || [], template.description) : null
+    if (matched) {
+      if (!next.category) next.category = matched.category
+      if (!next.paymentMethod) next.paymentMethod = matched.paymentMethod
+    }
     const description = splitDescriptionNote(next.description)
     next.description = description.base
     setForm(next)
@@ -339,7 +365,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
       setSelectedMerchant('')
       setSelectedGiftcardCard('auto')
     }
-  }, [open, expense, template, giftcards.merchants])
+  }, [open, expense, template, expensesQuery.data, giftcards.merchants])
 
   const vendors = React.useMemo(() => Array.from(new Set(giftcards.cards.map((card) => card.vendor).filter(Boolean))).sort(), [giftcards.cards])
   const giftcardSources = React.useMemo(() => {
@@ -395,6 +421,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
       ? composeGiftcardDescription(giftcardParts, note)
       : appendNoteToDescription(form.description, note)
     const payload = { date: form.date, amount, description, category: form.category, paymentMethod: form.paymentMethod, reimbursement: form.reimbursement }
+    if (!expense && (expensesQuery.data || []).some((item) => sameExpense(payload, item)) && !window.confirm('This looks like a duplicate expense. Add it anyway?')) return
     try {
       if (expense) await updateExpense.mutateAsync({ ...payload, rowIndex: expense.rowIndex })
       else await addExpense.mutateAsync(payload)
