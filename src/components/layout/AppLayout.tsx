@@ -61,6 +61,44 @@ function isFormStateTemplate(value: unknown): value is FormState {
     typeof candidate.reimbursement === 'string'
 }
 
+function todayIso() {
+  const today = new Date()
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
+function firstParam(params: URLSearchParams, names: string[]) {
+  for (const name of names) {
+    const value = params.get(name)?.trim()
+    if (value) return value
+  }
+  return ''
+}
+
+const addExpenseParamNames = ['add', 'action', 'date', 'amount', 'description', 'desc', 'category', 'paymentMethod', 'payment', 'card', 'reimbursement']
+
+function expenseTemplateFromUrl(search: string): FormState | null {
+  const params = new URLSearchParams(search)
+  const action = (params.get('add') || params.get('action') || '').toLowerCase()
+  if (action !== 'expense' && action !== 'add-expense') return null
+  const amount = Number(firstParam(params, ['amount']))
+  const date = firstParam(params, ['date'])
+  return {
+    date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayIso(),
+    amount: Number.isFinite(amount) ? Math.abs(amount) : 0,
+    description: firstParam(params, ['description', 'desc']),
+    category: firstParam(params, ['category']),
+    paymentMethod: firstParam(params, ['paymentMethod', 'payment', 'card']),
+    reimbursement: firstParam(params, ['reimbursement']),
+  }
+}
+
+function searchWithoutExpenseTrigger(search: string) {
+  const params = new URLSearchParams(search)
+  addExpenseParamNames.forEach((name) => params.delete(name))
+  const next = params.toString()
+  return next ? `?${next}` : ''
+}
+
 function useKeyboardOffsetVar() {
   React.useEffect(() => {
     const root = document.documentElement
@@ -488,6 +526,12 @@ export function AppLayout() {
     const preloadBottomRoutes = () => mobileNav.forEach((item) => preloadRoute(item.to))
     return scheduleIdleTask(preloadBottomRoutes, 4000, 1200)
   }, [])
+  React.useEffect(() => {
+    const template = expenseTemplateFromUrl(location.search)
+    if (!template) return
+    openExpenseDialog(template)
+    navigate({ pathname: location.pathname, search: searchWithoutExpenseTrigger(location.search) }, { replace: true })
+  }, [location.pathname, location.search, navigate, openExpenseDialog])
   return <div className="min-h-[100dvh] bg-background text-foreground [overflow-x:clip]">
     <PullToRefresh />
     <div className="pull-refresh-content">

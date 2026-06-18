@@ -13,7 +13,8 @@ export function LoginPage() {
   const location = useLocation()
   const { toast } = useToast()
   const missingClientId = !import.meta.env.VITE_GOOGLE_CLIENT_ID
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname
+  const fromLocation = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from
+  const from = fromLocation ? `${fromLocation.pathname || '/'}${fromLocation.search || ''}` : ''
   const hasSheet = Boolean(localStorage.getItem(SHEET_ID_KEY))
   const successPath = from || (hasSheet ? '/' : '/setup')
   // If a silent refresh succeeds in the background, leave the login page.
