@@ -76,8 +76,16 @@ function firstParam(params: URLSearchParams, names: string[]) {
 
 const addExpenseParamNames = ['add', 'action', 'date', 'amount', 'description', 'desc', 'category', 'paymentMethod', 'payment', 'card', 'reimbursement']
 
-function expenseTemplateFromUrl(search: string): FormState | null {
+function paramsFromLocation(search: string, hash: string) {
   const params = new URLSearchParams(search)
+  const hashText = hash.replace(/^#/, '')
+  const hashQuery = hashText.includes('?') ? hashText.slice(hashText.indexOf('?') + 1) : hashText
+  new URLSearchParams(hashQuery).forEach((value, key) => { if (!params.has(key)) params.set(key, value) })
+  return params
+}
+
+function expenseTemplateFromUrl(search: string, hash = ''): FormState | null {
+  const params = paramsFromLocation(search, hash)
   const action = (params.get('add') || params.get('action') || '').toLowerCase()
   if (action !== 'expense' && action !== 'add-expense') return null
   const amount = Number(firstParam(params, ['amount']))
@@ -97,6 +105,18 @@ function searchWithoutExpenseTrigger(search: string) {
   addExpenseParamNames.forEach((name) => params.delete(name))
   const next = params.toString()
   return next ? `?${next}` : ''
+}
+
+function hashWithoutExpenseTrigger(hash: string) {
+  if (!hash) return ''
+  const hashText = hash.replace(/^#/, '')
+  const queryIndex = hashText.indexOf('?')
+  const path = queryIndex >= 0 ? hashText.slice(0, queryIndex) : ''
+  const params = new URLSearchParams(queryIndex >= 0 ? hashText.slice(queryIndex + 1) : hashText)
+  addExpenseParamNames.forEach((name) => params.delete(name))
+  const next = params.toString()
+  if (!path) return next ? `#${next}` : ''
+  return next ? `#${path}?${next}` : `#${path}`
 }
 
 function useKeyboardOffsetVar() {
@@ -527,11 +547,11 @@ export function AppLayout() {
     return scheduleIdleTask(preloadBottomRoutes, 4000, 1200)
   }, [])
   React.useEffect(() => {
-    const template = expenseTemplateFromUrl(location.search)
+    const template = expenseTemplateFromUrl(location.search, location.hash)
     if (!template) return
     openExpenseDialog(template)
-    navigate({ pathname: location.pathname, search: searchWithoutExpenseTrigger(location.search) }, { replace: true })
-  }, [location.pathname, location.search, navigate, openExpenseDialog])
+    navigate({ pathname: location.pathname, search: searchWithoutExpenseTrigger(location.search), hash: hashWithoutExpenseTrigger(location.hash) }, { replace: true })
+  }, [location.hash, location.pathname, location.search, navigate, openExpenseDialog])
   return <div className="min-h-[100dvh] bg-background text-foreground [overflow-x:clip]">
     <PullToRefresh />
     <div className="pull-refresh-content">
