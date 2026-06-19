@@ -169,15 +169,15 @@ function sumAmountExpression(input: string): number | null {
   return Number.isFinite(total) ? total : null
 }
 
-function formatAmountInput(value: number) {
-  return value ? String(value) : ''
+function formatAmountInput(value: number, allowZero = false) {
+  return value || allowZero ? String(value) : ''
 }
 
-function AmountInputWithCalculator({ label, value, onChange }: { label: string; value: number; onChange: (value: string) => void }) {
+function AmountInputWithCalculator({ label, value, onChange, allowZero = false }: { label: string; value: number; onChange: (value: string) => void; allowZero?: boolean }) {
   const [open, setOpen] = React.useState(false)
   const [expression, setExpression] = React.useState('')
   const result = React.useMemo(() => sumAmountExpression(expression), [expression])
-  const amountValue = formatAmountInput(value)
+  const amountValue = formatAmountInput(value, allowZero)
   const addToken = (token: string) => {
     setExpression((current) => {
       if (/^\d+$/.test(token)) return current === '0' ? token : current + token
@@ -201,7 +201,7 @@ function AmountInputWithCalculator({ label, value, onChange }: { label: string; 
     <span className="block">{label}</span>
     <div>
       <div className="flex min-w-0 gap-2">
-        <Input className="min-w-0 flex-1" inputMode="decimal" type="number" min="0.01" step="0.01" required value={amountValue} onChange={(event) => onChange(event.target.value)} />
+        <Input className="min-w-0 flex-1" inputMode="decimal" type="number" min={allowZero ? '0' : '0.01'} step="0.01" required value={amountValue} onChange={(event) => onChange(event.target.value)} />
         <button
           type="button"
           aria-label="Open amount calculator"
@@ -413,6 +413,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const selectedCards = React.useMemo(() => giftcards.cards.filter((card) => card.vendor === selectedMerchant).sort((a, b) => a.date.localeCompare(b.date)), [giftcards.cards, selectedMerchant])
   const giftcardPurchase = form.category === 'Giftcard'
   const splitEnabled = !giftcardPurchase && splitPayments.length > 0
+  const zeroCostGiftcardEntry = giftcardPurchase && Boolean(expense) && Math.abs(Number(expense?.amount) || 0) < 0.005
 
   React.useEffect(() => {
     if (giftcardPurchase && splitPayments.length) setSplitPayments([])
@@ -466,7 +467,6 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     const amount = Math.abs(Number(form.amount))
-    const zeroCostGiftcardEntry = giftcardPurchase && Boolean(expense) && Math.abs(Number(expense?.amount) || 0) < 0.005
     if (!Number.isFinite(amount) || (amount === 0 && !zeroCostGiftcardEntry)) return toast({ title: 'Amount is required.', variant: 'destructive' })
     if (!splitEnabled && !form.paymentMethod.trim()) return toast({ title: 'Payment method is required.', variant: 'destructive' })
     if (giftcardPurchase && amount <= 0 && !zeroCostGiftcardEntry) return toast({ title: 'Giftcard purchase cost must be greater than zero.', variant: 'destructive' })
@@ -535,7 +535,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
           ? <GiftcardComposer parts={giftcardParts} structured={giftcardStructured} vendors={vendors} sources={giftcardSources} rawDescription={form.description} paidAmount={Number(form.amount) || 0} onRawChange={(description) => setForm({ ...form, description })} onStructuredChange={setGiftcardStructured} onChange={setGiftcardParts} />
           : <DescriptionAutosuggest value={form.description} onChange={(description) => setForm({ ...form, description })} suggestions={descriptionSuggestions} currentCategory={form.category} placeholder="Groceries, rent, coffee..." isOpen={activeMenu === 'description'} onOpenChange={setMenu('description')} />}
       </div>
-      <AmountInputWithCalculator label={giftcardPurchase ? 'Cost paid' : 'Amount'} value={form.amount} onChange={setAmount} />
+      <AmountInputWithCalculator label={giftcardPurchase ? 'Cost paid' : 'Amount'} value={form.amount} onChange={setAmount} allowZero={zeroCostGiftcardEntry} />
       <div className="min-h-6 sm:col-span-2">
         {noteOpen ? <label className="block space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Note</span><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label> : <Button type="button" variant="ghost" size="sm" className="h-6 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
       </div>
