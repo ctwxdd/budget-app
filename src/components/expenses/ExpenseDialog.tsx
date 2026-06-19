@@ -466,9 +466,10 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     const amount = Math.abs(Number(form.amount))
-    if (!Number.isFinite(amount) || amount === 0) return toast({ title: 'Amount is required.', variant: 'destructive' })
+    const zeroCostGiftcardEntry = giftcardPurchase && Boolean(expense) && Math.abs(Number(expense?.amount) || 0) < 0.005
+    if (!Number.isFinite(amount) || (amount === 0 && !zeroCostGiftcardEntry)) return toast({ title: 'Amount is required.', variant: 'destructive' })
     if (!splitEnabled && !form.paymentMethod.trim()) return toast({ title: 'Payment method is required.', variant: 'destructive' })
-    if (giftcardPurchase && amount <= 0) return toast({ title: 'Giftcard purchase cost must be greater than zero.', variant: 'destructive' })
+    if (giftcardPurchase && amount <= 0 && !zeroCostGiftcardEntry) return toast({ title: 'Giftcard purchase cost must be greater than zero.', variant: 'destructive' })
     if (giftcardPurchase && giftcardStructured && !giftcardParts.vendor.trim()) return toast({ title: 'Vendor is required for giftcard purchases.', variant: 'destructive' })
     if (!(giftcardPurchase && giftcardStructured) && !form.description.trim()) return toast({ title: 'Description is required.', variant: 'destructive' })
     const description = giftcardPurchase && giftcardStructured
@@ -816,7 +817,8 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     const amount = fullRefund && originalAmount > 0 ? originalAmount : Math.abs(Number(form.amount))
-    if (!Number.isFinite(amount) || amount === 0) return toast({ title: 'Return amount is required.', variant: 'destructive' })
+    const zeroAmountReturnEdit = Boolean(returnExpense && Math.abs(Number(returnExpense.amount) || 0) < 0.005)
+    if (!Number.isFinite(amount) || (amount === 0 && !zeroAmountReturnEdit)) return toast({ title: 'Return amount is required.', variant: 'destructive' })
     if (originalAmount > 0 && amount - originalAmount > 0.005) return toast({ title: 'Return amount is more than the purchase.', description: `The original purchase was ${currency.format(originalAmount)}.`, variant: 'destructive' })
     const creatingNewGiftcard = giftcardReturnMode === 'new' && !returnExpense
     const refundPaymentMethod = creatingNewGiftcard ? (original?.paymentMethod || form.paymentMethod) : form.paymentMethod

@@ -10,7 +10,7 @@ import { useAddExpense, useCategories, useDeleteExpense, usePaymentMethods, useS
 import { useToast } from '../ui/Toast'
 
 export type ExpenseFilters = { preset: DatePreset; start: string; end: string; categories: string[]; payments: string[]; reimbursement: string; search: string }
-export const defaultFilters: ExpenseFilters = { preset: 'thisMonth', start: '', end: '', categories: [], payments: [], reimbursement: 'All', search: '' }
+export const defaultFilters: ExpenseFilters = { preset: 'all', start: '', end: '', categories: [], payments: [], reimbursement: 'All', search: '' }
 
 type SortKey = 'date' | 'amount'
 type FilterKey = keyof ExpenseFilters
@@ -156,7 +156,7 @@ export function ExpenseFilterBar({ filters, onChange, selectionMode = false, sel
   const clearChip = (chip: { key: FilterKey; value?: string }) => {
     if (chip.key === 'categories') onChange({ ...filters, categories: filters.categories.filter((item) => item !== chip.value) })
     else if (chip.key === 'payments') onChange({ ...filters, payments: filters.payments.filter((item) => item !== chip.value) })
-    else if (chip.key === 'preset') onChange({ ...filters, preset: 'thisMonth', start: '', end: '' })
+    else if (chip.key === 'preset') onChange({ ...filters, preset: 'all', start: '', end: '' })
     else onChange({ ...filters, search: '' })
   }
   return <>
