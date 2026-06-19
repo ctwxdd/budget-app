@@ -339,7 +339,7 @@ function CardListRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, on
       <span className="text-right font-display font-bold text-coral tabular-nums">{spend.month !== 0 ? currency.format(spend.month) : <span className="font-sans text-xs font-medium text-muted-foreground">—</span>}</span>
       <span className="text-right tabular-nums text-muted-foreground">{spend.total !== 0 ? <><span className="font-semibold text-foreground">{currency.format(spend.total)}</span><span className="ml-1 text-[11px]">· {spend.count}</span></> : '—'}</span>
       <span>{sub ? <SubChip sub={sub} compact /> : <span className="text-xs text-muted-foreground">—</span>}</span>
-      <span onClick={(event) => event.stopPropagation()}><ActiveToggle card={card} /></span>
+      <span><ActiveStatus card={card} /></span>
       <span onClick={(event) => event.stopPropagation()}><RowActions card={card} onEdit={onEdit} /></span>
     </div>
     {selected && <CardActionBar card={card} onSpend={onSpend} onViewExpenses={onViewExpenses} />}
@@ -362,7 +362,7 @@ function CardMobileRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, 
       </div>
       {card.note && <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{card.note}</p>}
       <div className="mt-3 flex items-center justify-between gap-2">
-        <span onClick={(event) => event.stopPropagation()}><ActiveToggle card={card} /></span>
+        <span><ActiveStatus card={card} /></span>
         {hasSub && sub && <button type="button" onClick={(event) => { event.stopPropagation(); onToggle() }} className="inline-flex items-center gap-1 rounded-full bg-accent/60 px-2.5 py-1 text-[11px] font-semibold text-foreground transition hover:bg-accent">
           <SubChip sub={sub} compact />
           <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
@@ -374,11 +374,8 @@ function CardMobileRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, 
   </div>
 }
 
-function ActiveToggle({ card }: { card: CardRow }) {
-  const updateCard = useUpdateCard()
-  return <button type="button" className="inline-flex items-center" onClick={() => updateCard.mutate({ ...card, active: !card.active })} disabled={updateCard.isPending}>
-    <Badge variant={card.active ? 'success' : 'outline'}>{card.active ? 'Active' : 'Inactive'}</Badge>
-  </button>
+function ActiveStatus({ card }: { card: CardRow }) {
+  return <Badge variant={card.active ? 'success' : 'outline'}>{card.active ? 'Active' : 'Inactive'}</Badge>
 }
 
 function RowActions({ card, onEdit }: { card: CardRow; onEdit: (card: CardRow) => void }) {
