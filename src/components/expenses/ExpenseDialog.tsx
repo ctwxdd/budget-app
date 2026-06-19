@@ -18,11 +18,39 @@ const emptyGiftcardParts = (): GiftcardDescriptionParts => ({ vendor: '', face: 
 const todayIso = () => format(new Date(), 'yyyy-MM-dd')
 const returnDescription = (expense: Expense) => `Return: ${expense.description || expense.category || 'Purchase'} (${expense.date})`
 type GiftcardReturnMode = 'original' | 'new'
+type SplitPayment = {
+  id: string
+  amount: number
+  paymentType: PaymentMethodType
+  paymentMethod: string
+  selectedMerchant: string
+  selectedGiftcardCard: 'auto' | string
+}
 const paymentTypes: { type: PaymentMethodType; label: string; emoji: string }[] = [
   { type: 'card', label: 'Card', emoji: '💳' },
   { type: 'giftcard', label: 'Giftcard', emoji: '🎁' },
   { type: 'cash', label: 'Cash', emoji: '💵' },
 ]
+
+function cents(value: number) {
+  return Math.round((Number(value) || 0) * 100)
+}
+
+function fromCents(value: number) {
+  return Number((value / 100).toFixed(2))
+}
+
+function newSplitPayment(amount = 0, seed?: Partial<SplitPayment>): SplitPayment {
+  const randomId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+  return {
+    id: randomId,
+    amount,
+    paymentType: seed?.paymentType || 'card',
+    paymentMethod: seed?.paymentMethod || '',
+    selectedMerchant: seed?.selectedMerchant || '',
+    selectedGiftcardCard: seed?.selectedGiftcardCard || 'auto',
+  }
+}
 
 function DatalistInput({ id, value, onChange, options, placeholder }: { id: string; value: string; onChange: (value: string) => void; options: string[]; placeholder?: string }) {
   return <><Input list={id} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} /><datalist id={id}>{options.map((option) => <option key={option} value={option} />)}</datalist></>
@@ -325,6 +353,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const [paymentType, setPaymentType] = React.useState<PaymentMethodType>('card')
   const [selectedMerchant, setSelectedMerchant] = React.useState('')
   const [selectedGiftcardCard, setSelectedGiftcardCard] = React.useState<'auto' | string>('auto')
+  const [splitPayments, setSplitPayments] = React.useState<SplitPayment[]>([])
   const formId = React.useId()
   // Only one suggestion popover can be open at a time so the Description
   // and Category dropdowns don't visually overlap.
@@ -363,6 +392,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
       setSelectedMerchant('')
       setSelectedGiftcardCard('auto')
     }
+    setSplitPayments([])
   }, [open, expense, template, expensesQuery.data, giftcards.merchants])
 
   const vendors = React.useMemo(() => Array.from(new Set(giftcards.cards.map((card) => card.vendor).filter(Boolean))).sort(), [giftcards.cards])
@@ -381,6 +411,12 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     return selected && !activeMerchants.some((merchant) => merchant.merchant === selected.merchant) ? [selected, ...activeMerchants] : activeMerchants
   }, [activeMerchants, giftcards.merchants, selectedMerchant])
   const selectedCards = React.useMemo(() => giftcards.cards.filter((card) => card.vendor === selectedMerchant).sort((a, b) => a.date.localeCompare(b.date)), [giftcards.cards, selectedMerchant])
+  const giftcardPurchase = form.category === 'Giftcard'
+  const splitEnabled = !expense && !giftcardPurchase && splitPayments.length > 0
+
+  React.useEffect(() => {
+    if (giftcardPurchase && splitPayments.length) setSplitPayments([])
+  }, [giftcardPurchase, splitPayments.length])
 
   const setCategory = (category: string) => {
     setForm((current) => ({ ...current, category }))
@@ -407,30 +443,75 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     setForm((current) => ({ ...current, amount: Number.isFinite(amount) ? Math.abs(amount) : 0 }))
   }
 
+  const updateSplitPayment = (id: string, patch: Partial<SplitPayment>) => {
+    setSplitPayments((current) => current.map((payment) => payment.id === id ? { ...payment, ...patch } : payment))
+  }
+
+  const startSplitPayments = () => {
+    setSplitPayments([
+      newSplitPayment(form.amount || 0, { paymentType, paymentMethod: form.paymentMethod, selectedMerchant, selectedGiftcardCard }),
+      newSplitPayment(0),
+    ])
+  }
+
+  const addSplitPayment = () => {
+    const remaining = fromCents(Math.max(0, cents(form.amount) - splitPayments.reduce((sum, payment) => sum + cents(Math.abs(payment.amount)), 0)))
+    setSplitPayments((current) => [...current, newSplitPayment(remaining)])
+  }
+
+  const removeSplitPayment = (id: string) => {
+    setSplitPayments((current) => current.filter((payment) => payment.id !== id))
+  }
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     const amount = Math.abs(Number(form.amount))
     if (!Number.isFinite(amount) || amount === 0) return toast({ title: 'Amount is required.', variant: 'destructive' })
-    if (!form.paymentMethod.trim()) return toast({ title: 'Payment method is required.', variant: 'destructive' })
+    if (!splitEnabled && !form.paymentMethod.trim()) return toast({ title: 'Payment method is required.', variant: 'destructive' })
     if (giftcardPurchase && amount <= 0) return toast({ title: 'Giftcard purchase cost must be greater than zero.', variant: 'destructive' })
     if (giftcardPurchase && giftcardStructured && !giftcardParts.vendor.trim()) return toast({ title: 'Vendor is required for giftcard purchases.', variant: 'destructive' })
     if (!(giftcardPurchase && giftcardStructured) && !form.description.trim()) return toast({ title: 'Description is required.', variant: 'destructive' })
     const description = giftcardPurchase && giftcardStructured
       ? composeGiftcardDescription(giftcardParts, note)
       : appendNoteToDescription(form.description, note)
-    const payload = { date: form.date, amount, description, category: form.category, paymentMethod: form.paymentMethod, reimbursement: form.reimbursement }
-    if (!expense && (expensesQuery.data || []).some((item) => sameExpense(payload, item)) && !window.confirm('This looks like a duplicate expense. Add it anyway?')) return
+    const basePayload = { date: form.date, amount, description, category: form.category, paymentMethod: form.paymentMethod, reimbursement: form.reimbursement }
+    let payloads = [basePayload]
+    if (splitEnabled) {
+      if (splitPayments.length < 2) return toast({ title: 'Add at least two payment methods.', variant: 'destructive' })
+      const invalidAmount = splitPayments.find((payment) => cents(Math.abs(payment.amount)) <= 0)
+      if (invalidAmount) return toast({ title: 'Each split amount must be greater than zero.', variant: 'destructive' })
+      const missingMethod = splitPayments.find((payment) => !payment.paymentMethod.trim())
+      if (missingMethod) return toast({ title: 'Every split needs a payment method.', variant: 'destructive' })
+      const splitTotal = splitPayments.reduce((sum, payment) => sum + cents(Math.abs(payment.amount)), 0)
+      const expectedTotal = cents(amount)
+      if (splitTotal !== expectedTotal) {
+        const difference = fromCents(expectedTotal - splitTotal)
+        return toast({
+          title: 'Split amounts must add up.',
+          description: `You are ${difference > 0 ? 'short' : 'over'} by ${currency.format(Math.abs(difference))}.`,
+          variant: 'destructive',
+        })
+      }
+      payloads = splitPayments.map((payment) => ({
+        ...basePayload,
+        amount: fromCents(cents(Math.abs(payment.amount))),
+        paymentMethod: payment.paymentMethod.trim(),
+      }))
+    }
+    if (!expense && payloads.some((payload) => (expensesQuery.data || []).some((item) => sameExpense(payload, item))) && !window.confirm('This looks like a duplicate expense. Add it anyway?')) return
     try {
-      if (expense) await updateExpense.mutateAsync({ ...payload, rowIndex: expense.rowIndex })
-      else await addExpense.mutateAsync(payload)
-      toast({ title: expense ? 'Expense updated' : 'Expense added' })
+      if (expense) await updateExpense.mutateAsync({ ...basePayload, rowIndex: expense.rowIndex })
+      else {
+        for (const payload of payloads) await addExpense.mutateAsync(payload)
+      }
+      toast({ title: expense ? 'Expense updated' : splitEnabled ? `Added ${payloads.length} expense rows` : 'Expense added' })
       onOpenChange(false)
     } catch (error) {
       toast({ title: 'Could not save expense', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
     }
   }
 
-  const giftcardPurchase = form.category === 'Giftcard'
+  const saving = addExpense.isPending || updateExpense.isPending
   const descriptionSuggestions = React.useMemo(() => buildDescriptionSuggestions(expensesQuery.data || [], form.category), [expensesQuery.data, form.category])
   return <Dialog
     open={open}
@@ -439,7 +520,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     description="Saved directly to your Google Sheet"
     className="overflow-x-hidden"
     mobileBottomSheet
-    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={addExpense.isPending || updateExpense.isPending}>{(addExpense.isPending || updateExpense.isPending) ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>}
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={saving}>{saving ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>}
   >
     <form id={formId} onSubmit={submit} className="grid w-full min-w-0 max-w-full gap-x-5 gap-y-4 px-0.5 pb-0.5 sm:grid-cols-2">
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
@@ -454,32 +535,164 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
         {noteOpen ? <label className="block space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Note</span><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label> : <Button type="button" variant="ghost" size="sm" className="h-6 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
       </div>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Category</span><CategoryCombobox value={form.category} onChange={setCategory} options={categories} isOpen={activeMenu === 'category'} onOpenChange={setMenu('category')} /></label>
-      <div className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">
-        <span className="block">Payment method</span>
-        <div className="grid grid-cols-3 gap-1 rounded-full bg-accent/50 p-0.5">
-          {paymentTypes.map((item) => <button key={item.type} type="button" aria-label={item.label} className={cn('flex h-9 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-none transition md:h-8 md:px-3 md:text-xs', paymentType === item.type ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => {
-            const previousType = paymentType
-            setPaymentType(item.type)
-            if (item.type === 'giftcard') {
-              const merchant = findMerchantForMethod(form.paymentMethod, giftcards.merchants) || selectedMerchant
-              const specificCard = merchant && form.paymentMethod !== merchant ? form.paymentMethod : ''
-              setSelectedMerchant(merchant)
-              setSelectedGiftcardCard(specificCard || 'auto')
-            } else if (item.type === 'cash') {
-              setForm({ ...form, paymentMethod: 'Cash' })
-            } else if (previousType !== item.type && classifyPaymentMethod(form.paymentMethod) !== item.type) {
-              setForm({ ...form, paymentMethod: '' })
-            }
-          }} title={item.label}><span>{item.emoji}</span><span>{item.label}</span></button>)}
-        </div>
-        {paymentType !== 'cash' && <div className="pt-1.5">
-          {paymentType === 'giftcard'
-            ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
-            : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} />}
-        </div>}
+      <div className={cn('min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground', splitEnabled && 'sm:col-span-2')}>
+        {splitEnabled
+          ? <SplitPaymentEditor
+            total={form.amount}
+            payments={splitPayments}
+            cards={sortedCardOptions}
+            merchants={activeMerchants}
+            allMerchants={giftcards.merchants}
+            giftcardCards={giftcards.cards}
+            onAdd={addSplitPayment}
+            onRemove={removeSplitPayment}
+            onCancel={() => setSplitPayments([])}
+            onChange={updateSplitPayment}
+          />
+          : <>
+            <span className="block">Payment method</span>
+            <div className="grid grid-cols-3 gap-1 rounded-full bg-accent/50 p-0.5">
+              {paymentTypes.map((item) => <button key={item.type} type="button" aria-label={item.label} className={cn('flex h-9 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-none transition md:h-8 md:px-3 md:text-xs', paymentType === item.type ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => {
+                const previousType = paymentType
+                setPaymentType(item.type)
+                if (item.type === 'giftcard') {
+                  const merchant = findMerchantForMethod(form.paymentMethod, giftcards.merchants) || selectedMerchant
+                  const specificCard = merchant && form.paymentMethod !== merchant ? form.paymentMethod : ''
+                  setSelectedMerchant(merchant)
+                  setSelectedGiftcardCard(specificCard || 'auto')
+                } else if (item.type === 'cash') {
+                  setForm({ ...form, paymentMethod: 'Cash' })
+                } else if (previousType !== item.type && classifyPaymentMethod(form.paymentMethod) !== item.type) {
+                  setForm({ ...form, paymentMethod: '' })
+                }
+              }} title={item.label}><span>{item.emoji}</span><span>{item.label}</span></button>)}
+            </div>
+            {paymentType !== 'cash' && <div className="pt-1.5">
+              {paymentType === 'giftcard'
+                ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
+                : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} />}
+            </div>}
+            {!expense && !giftcardPurchase && <button
+              type="button"
+              className="mt-2 w-full rounded-2xl border border-dashed border-coral/35 bg-coral/5 px-3 py-2 text-left text-xs font-bold text-coral transition hover:bg-coral/10"
+              onClick={startSplitPayments}
+            >Split across multiple payment methods</button>}
+          </>}
       </div>
     </form>
   </Dialog>
+}
+
+function SplitPaymentEditor({
+  total,
+  payments,
+  cards,
+  merchants,
+  allMerchants,
+  giftcardCards,
+  onAdd,
+  onRemove,
+  onCancel,
+  onChange,
+}: {
+  total: number
+  payments: SplitPayment[]
+  cards: CardRow[]
+  merchants: MerchantRow[]
+  allMerchants: MerchantRow[]
+  giftcardCards: GiftcardRow[]
+  onAdd: () => void
+  onRemove: (id: string) => void
+  onCancel: () => void
+  onChange: (id: string, patch: Partial<SplitPayment>) => void
+}) {
+  const totalCents = cents(total)
+  const splitCents = payments.reduce((sum, payment) => sum + cents(Math.abs(payment.amount)), 0)
+  const remainingCents = totalCents - splitCents
+  const exact = totalCents > 0 && remainingCents === 0
+  const setType = (payment: SplitPayment, paymentType: PaymentMethodType) => {
+    if (paymentType === 'cash') {
+      onChange(payment.id, { paymentType, paymentMethod: 'Cash', selectedMerchant: '', selectedGiftcardCard: 'auto' })
+      return
+    }
+    if (paymentType === 'giftcard') {
+      const merchant = findMerchantForMethod(payment.paymentMethod, allMerchants) || payment.selectedMerchant
+      const specificCard = merchant && payment.paymentMethod !== merchant ? payment.paymentMethod : ''
+      onChange(payment.id, { paymentType, paymentMethod: merchant, selectedMerchant: merchant, selectedGiftcardCard: specificCard || 'auto' })
+      return
+    }
+    onChange(payment.id, { paymentType, paymentMethod: classifyPaymentMethod(payment.paymentMethod) === 'card' ? payment.paymentMethod : '', selectedMerchant: '', selectedGiftcardCard: 'auto' })
+  }
+  const merchantOptionsFor = (selectedMerchant: string) => {
+    const selected = allMerchants.find((merchant) => merchant.merchant === selectedMerchant)
+    return selected && !merchants.some((merchant) => merchant.merchant === selected.merchant) ? [selected, ...merchants] : merchants
+  }
+
+  return <div className="space-y-3 rounded-3xl border border-border/70 bg-accent/25 p-3">
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <span className="block text-sm font-extrabold text-foreground">Split payments</span>
+        <span className={cn('mt-0.5 block text-xs font-semibold', exact ? 'text-emerald-600 dark:text-mint' : 'text-muted-foreground')}>
+          {exact ? `Matches ${currency.format(fromCents(totalCents))}` : `${remainingCents > 0 ? 'Remaining' : 'Over'} ${currency.format(Math.abs(fromCents(remainingCents)))}`}
+        </span>
+      </div>
+      <div className="flex gap-1.5">
+        <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full px-2 text-xs" onClick={onCancel}>Use one</Button>
+        <Button type="button" variant="outline" size="sm" className="h-8 rounded-full px-2 text-xs" onClick={onAdd}>+ Add</Button>
+      </div>
+    </div>
+    <div className="space-y-2">
+      {payments.map((payment, index) => {
+        const selectedCards = giftcardCards.filter((card) => card.vendor === payment.selectedMerchant).sort((a, b) => a.date.localeCompare(b.date))
+        return <div key={payment.id} className="space-y-3 rounded-3xl border border-border/70 bg-card/80 p-3 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <label className="min-w-0 flex-1 space-y-1.5">
+              <span className="block text-xs font-bold uppercase tracking-wide text-muted-foreground">Amount {index + 1}</span>
+              <Input
+                inputMode="decimal"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={formatAmountInput(payment.amount)}
+                onChange={(event) => {
+                  const amount = Number(event.target.value)
+                  onChange(payment.id, { amount: Number.isFinite(amount) ? Math.abs(amount) : 0 })
+                }}
+              />
+            </label>
+            {payments.length > 2 && <button
+              type="button"
+              aria-label="Remove split payment"
+              className="mt-6 grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg font-bold text-muted-foreground transition hover:bg-accent hover:text-coral"
+              onClick={() => onRemove(payment.id)}
+            >×</button>}
+          </div>
+          <div className="grid grid-cols-3 gap-1 rounded-full bg-accent/50 p-0.5">
+            {paymentTypes.map((item) => <button
+              key={item.type}
+              type="button"
+              aria-label={item.label}
+              className={cn('flex h-9 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-none transition md:h-8 md:px-3 md:text-xs', payment.paymentType === item.type ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')}
+              onClick={() => setType(payment, item.type)}
+              title={item.label}
+            ><span>{item.emoji}</span><span>{item.label}</span></button>)}
+          </div>
+          {payment.paymentType !== 'cash' && <div className="pt-0.5">
+            {payment.paymentType === 'giftcard'
+              ? <GiftcardPaymentPicker
+                merchants={merchantOptionsFor(payment.selectedMerchant)}
+                cards={selectedCards}
+                selectedMerchant={payment.selectedMerchant}
+                selectedCard={payment.selectedGiftcardCard}
+                onMerchantSelect={(merchant) => onChange(payment.id, { selectedMerchant: merchant, selectedGiftcardCard: 'auto', paymentMethod: merchant })}
+                onCardSelect={(card) => onChange(payment.id, { selectedGiftcardCard: card, paymentMethod: card === 'auto' ? payment.selectedMerchant : card })}
+              />
+              : <CardPaymentPicker value={payment.paymentMethod} onChange={(paymentMethod) => onChange(payment.id, { paymentMethod })} cards={cards} />}
+          </div>}
+        </div>
+      })}
+    </div>
+  </div>
 }
 
 export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { open: boolean; onOpenChange: (open: boolean) => void; original?: Expense | null; returnExpense?: Expense | null }) {
