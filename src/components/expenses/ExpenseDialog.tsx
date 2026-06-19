@@ -412,7 +412,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   }, [activeMerchants, giftcards.merchants, selectedMerchant])
   const selectedCards = React.useMemo(() => giftcards.cards.filter((card) => card.vendor === selectedMerchant).sort((a, b) => a.date.localeCompare(b.date)), [giftcards.cards, selectedMerchant])
   const giftcardPurchase = form.category === 'Giftcard'
-  const splitEnabled = !expense && !giftcardPurchase && splitPayments.length > 0
+  const splitEnabled = !giftcardPurchase && splitPayments.length > 0
 
   React.useEffect(() => {
     if (giftcardPurchase && splitPayments.length) setSplitPayments([])
@@ -500,11 +500,15 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     }
     if (!expense && payloads.some((payload) => (expensesQuery.data || []).some((item) => sameExpense(payload, item))) && !window.confirm('This looks like a duplicate expense. Add it anyway?')) return
     try {
-      if (expense) await updateExpense.mutateAsync({ ...basePayload, rowIndex: expense.rowIndex })
+      if (expense && splitEnabled) {
+        const [firstPayload, ...extraPayloads] = payloads
+        await updateExpense.mutateAsync({ ...firstPayload, rowIndex: expense.rowIndex })
+        for (const payload of extraPayloads) await addExpense.mutateAsync(payload)
+      } else if (expense) await updateExpense.mutateAsync({ ...basePayload, rowIndex: expense.rowIndex })
       else {
         for (const payload of payloads) await addExpense.mutateAsync(payload)
       }
-      toast({ title: expense ? 'Expense updated' : splitEnabled ? `Added ${payloads.length} expense rows` : 'Expense added' })
+      toast({ title: splitEnabled ? (expense ? `Expense split into ${payloads.length} rows` : `Added ${payloads.length} expense rows`) : expense ? 'Expense updated' : 'Expense added' })
       onOpenChange(false)
     } catch (error) {
       toast({ title: 'Could not save expense', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
@@ -572,7 +576,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
                 ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
                 : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} />}
             </div>}
-            {!expense && !giftcardPurchase && <button
+            {!giftcardPurchase && <button
               type="button"
               className="mt-2 w-full rounded-2xl border border-dashed border-coral/35 bg-coral/5 px-3 py-2 text-left text-xs font-bold text-coral transition hover:bg-coral/10"
               onClick={startSplitPayments}
