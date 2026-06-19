@@ -67,43 +67,80 @@ function todayIso() {
 }
 
 function firstParam(params: URLSearchParams, names: string[]) {
-  for (const name of names) {
-    const value = params.get(name)?.trim()
-    if (value) return value
+  const wanted = new Set(names.map((name) => name.toLowerCase()))
+  for (const [key, rawValue] of params.entries()) {
+    const value = rawValue.trim()
+    if (wanted.has(key.toLowerCase()) && value) return value
   }
   return ''
 }
 
-const addExpenseParamNames = ['add', 'action', 'date', 'amount', 'description', 'desc', 'category', 'paymentMethod', 'payment', 'card', 'reimbursement']
+const addExpenseParamNames = ['add', 'action', 'date', 'amount', 'description', 'desc', 'merchant', 'category', 'paymentMethod', 'payment', 'card', 'reimbursement']
+const addExpenseParamSet = new Set(addExpenseParamNames.map((name) => name.toLowerCase()))
+const looseTextParamSet = new Set(['description', 'desc', 'merchant', 'category', 'paymentmethod', 'payment', 'card', 'reimbursement'])
+
+function decodeQueryPart(value: string) {
+  try {
+    return decodeURIComponent(value.replace(/\+/g, ' '))
+  } catch {
+    return value.replace(/\+/g, ' ')
+  }
+}
+
+function parseLooseParams(query: string) {
+  const params = new URLSearchParams()
+  let lastTextKey = ''
+  query.replace(/^[?#]/, '').split('&').filter(Boolean).forEach((part) => {
+    const eqIndex = part.indexOf('=')
+    const rawKey = eqIndex >= 0 ? part.slice(0, eqIndex) : part
+    const key = decodeQueryPart(rawKey)
+    const lowerKey = key.toLowerCase()
+    const knownKey = addExpenseParamSet.has(lowerKey)
+    if (eqIndex < 0 || !knownKey) {
+      if (lastTextKey) params.set(lastTextKey, `${params.get(lastTextKey) || ''}&${decodeQueryPart(part)}`)
+      return
+    }
+    const value = decodeQueryPart(part.slice(eqIndex + 1))
+    params.set(key, value)
+    lastTextKey = looseTextParamSet.has(lowerKey) ? key : ''
+  })
+  return params
+}
 
 function paramsFromLocation(search: string, hash: string) {
-  const params = new URLSearchParams(search)
+  const params = parseLooseParams(search)
   const hashText = hash.replace(/^#/, '')
   const hashQuery = hashText.includes('?') ? hashText.slice(hashText.indexOf('?') + 1) : hashText
-  new URLSearchParams(hashQuery).forEach((value, key) => { if (!params.has(key)) params.set(key, value) })
+  parseLooseParams(hashQuery).forEach((value, key) => { if (!firstParam(params, [key])) params.set(key, value) })
   return params
 }
 
 function expenseTemplateFromUrl(search: string, hash = ''): FormState | null {
   const params = paramsFromLocation(search, hash)
-  const action = (params.get('add') || params.get('action') || '').toLowerCase()
+  const action = firstParam(params, ['add', 'action']).toLowerCase()
   if (action !== 'expense' && action !== 'add-expense') return null
   const amount = Number(firstParam(params, ['amount']))
   const date = firstParam(params, ['date'])
   return {
     date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayIso(),
     amount: Number.isFinite(amount) ? Math.abs(amount) : 0,
-    description: firstParam(params, ['description', 'desc']),
+    description: firstParam(params, ['description', 'desc', 'merchant']),
     category: firstParam(params, ['category']),
     paymentMethod: firstParam(params, ['paymentMethod', 'payment', 'card']),
     reimbursement: firstParam(params, ['reimbursement']),
   }
 }
 
+function paramsWithoutExpenseTrigger(params: URLSearchParams) {
+  const next = new URLSearchParams()
+  params.forEach((value, key) => {
+    if (!addExpenseParamSet.has(key.toLowerCase())) next.append(key, value)
+  })
+  return next.toString()
+}
+
 function searchWithoutExpenseTrigger(search: string) {
-  const params = new URLSearchParams(search)
-  addExpenseParamNames.forEach((name) => params.delete(name))
-  const next = params.toString()
+  const next = paramsWithoutExpenseTrigger(parseLooseParams(search))
   return next ? `?${next}` : ''
 }
 
@@ -112,9 +149,7 @@ function hashWithoutExpenseTrigger(hash: string) {
   const hashText = hash.replace(/^#/, '')
   const queryIndex = hashText.indexOf('?')
   const path = queryIndex >= 0 ? hashText.slice(0, queryIndex) : ''
-  const params = new URLSearchParams(queryIndex >= 0 ? hashText.slice(queryIndex + 1) : hashText)
-  addExpenseParamNames.forEach((name) => params.delete(name))
-  const next = params.toString()
+  const next = paramsWithoutExpenseTrigger(parseLooseParams(queryIndex >= 0 ? hashText.slice(queryIndex + 1) : hashText))
   if (!path) return next ? `#${next}` : ''
   return next ? `#${path}?${next}` : `#${path}`
 }
