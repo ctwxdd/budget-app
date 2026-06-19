@@ -159,11 +159,12 @@ function sameExpense(a: FormState, b: Expense) {
 }
 
 function sumAmountExpression(input: string): number | null {
-  const parts = input.split('+').filter(Boolean)
-  if (!parts.length) return null
+  const value = input.trim()
+  if (!value || /[+-]$/.test(value)) return null
+  const parts = value.match(/[+-]?(?:\d+(?:\.\d*)?|\.\d+)/g)
+  if (!parts?.length || parts.join('') !== value) return null
   let total = 0
   for (const part of parts) {
-    if (!/^\d+(\.\d*)?$|^\.\d+$/.test(part)) return null
     total += Number(part)
   }
   return Number.isFinite(total) ? total : null
@@ -182,12 +183,13 @@ function AmountInputWithCalculator({ label, value, onChange, allowZero = false }
     setExpression((current) => {
       if (/^\d+$/.test(token)) return current === '0' ? token : current + token
       if (token === '.') {
-        const segment = current.split('+').pop() || ''
+        const segment = current.split(/[+-]/).pop() || ''
         if (segment.includes('.')) return current
-        return current && !current.endsWith('+') ? `${current}.` : `${current}0.`
+        return current && !/[+-]$/.test(current) ? `${current}.` : `${current}0.`
       }
-      if (!current || current.endsWith('+')) return current
-      return `${current}+`
+      if (token === '-' && !current) return '-'
+      if (!current || /[+-]$/.test(current)) return current
+      return `${current}${token}`
     })
   }
   const backspace = () => setExpression((current) => current.slice(0, -1))
@@ -217,11 +219,11 @@ function AmountInputWithCalculator({ label, value, onChange, allowZero = false }
       {open && <div className="mt-2 space-y-3 rounded-2xl border border-border bg-card p-3 text-sm shadow-lift">
         <div className="min-h-11 rounded-2xl border border-border bg-background/70 px-3 py-2 text-right">
           <div className="truncate font-mono text-lg font-bold text-foreground">{expression || '0'}</div>
-          <div className="mt-0.5 h-4 text-xs font-semibold text-muted-foreground">{result === null ? 'Tap numbers and + to add items' : currency.format(result)}</div>
+          <div className="mt-0.5 h-4 text-xs font-semibold text-muted-foreground">{result === null ? 'Tap numbers, +, and - to calculate' : currency.format(result)}</div>
         </div>
         <div className="grid grid-cols-4 gap-2">
-          {['7', '8', '9', 'Del', '4', '5', '6', '+', '1', '2', '3', '00', '0', '.'].map((key) => {
-            const operator = key === '+'
+          {['7', '8', '9', 'Del', '4', '5', '6', '+', '1', '2', '3', '-', '00', '0', '.'].map((key) => {
+            const operator = key === '+' || key === '-'
             return <button
               key={key}
               type="button"
