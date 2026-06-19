@@ -32,8 +32,12 @@ export function appendNoteToDescription(description: string, note: string) {
   return `${base}${base ? ' ' : ''}#${cleanedNote}`
 }
 
+export function stripReturnAnnotation(description: string) {
+  return String(description || '').replace(/\s*\(Return:[^()]*(?:\([^)]*\)[^()]*)?\)\s*$/i, '').trim()
+}
+
 export function parseGiftcardDescription(description: string): GiftcardDescriptionParts | null {
-  let base = splitDescriptionNote(description).base
+  let base = stripReturnAnnotation(splitDescriptionNote(description).base)
   let source = ''
   let face = ''
   const sourceMatch = base.match(/\s+\(([^)]+)\)\s*$/)
