@@ -16,7 +16,7 @@ export type FormState = Omit<Expense, 'rowIndex'>
 const emptyForm = (): FormState => ({ date: format(new Date(), 'yyyy-MM-dd'), amount: 0, description: '', category: '', paymentMethod: '', reimbursement: '' })
 const emptyGiftcardParts = (): GiftcardDescriptionParts => ({ vendor: '', face: '', source: '' })
 const todayIso = () => format(new Date(), 'yyyy-MM-dd')
-const returnDescription = (expense: Expense) => `Return: ${expense.description || expense.category || 'Purchase'} (${expense.date})`
+const returnDescription = (expense: Expense) => `Return: ${splitDescriptionNote(expense.description).base || expense.category || 'Purchase'} (${expense.date})`
 type GiftcardReturnMode = 'original' | 'new'
 type SplitPayment = {
   id: string
