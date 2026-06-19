@@ -36,21 +36,40 @@ export function stripReturnAnnotation(description: string) {
   return String(description || '').replace(/\s*\(Return:[^()]*(?:\([^)]*\)[^()]*)?\)\s*$/i, '').trim()
 }
 
+function extractTrailingParenthetical(value: string) {
+  const text = value.trim()
+  if (!text.endsWith(')')) return null
+  let depth = 0
+  for (let index = text.length - 1; index >= 0; index -= 1) {
+    const char = text[index]
+    if (char === ')') depth += 1
+    else if (char === '(') {
+      depth -= 1
+      if (depth === 0) {
+        const before = text.slice(0, index).trimEnd()
+        if (before && !/\s$/.test(text[index - 1] || '')) return null
+        return { before, content: text.slice(index + 1, -1).trim() }
+      }
+    }
+  }
+  return null
+}
+
 export function parseGiftcardDescription(description: string): GiftcardDescriptionParts | null {
-  let base = stripReturnAnnotation(splitDescriptionNote(description).base)
+  let base = splitDescriptionNote(description).base.trim()
   let source = ''
   let face = ''
-  const sourceMatch = base.match(/\s+\(([^)]+)\)\s*$/)
+  const sourceMatch = extractTrailingParenthetical(base)
   if (sourceMatch) {
-    source = sourceMatch[1].trim()
-    base = base.slice(0, sourceMatch.index).trim()
+    source = sourceMatch.content
+    base = sourceMatch.before
   }
   const faceMatch = base.match(/\s+\$([0-9][\d,]*(?:\.\d{1,2})?)\s*$/)
   if (faceMatch) {
     face = faceMatch[1].replace(/,/g, '')
     base = base.slice(0, faceMatch.index).trim()
   }
-  const vendor = base.trim()
+  const vendor = stripReturnAnnotation(base).trim()
   if (!vendor || !classifyPaymentMethod(vendor).includes('giftcard')) return null
   return { vendor, face, source }
 }
