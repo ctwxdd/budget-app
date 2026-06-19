@@ -15,7 +15,7 @@ function extractSheetId(value: string) {
 
 function defaultNewSheetTitle() {
   const date = new Date()
-  return `Chamomile Pocket — ${date.getFullYear()}`
+  return `Pocket Ledger — ${date.getFullYear()}`
 }
 
 export function SetupPage() {
@@ -139,7 +139,7 @@ export function SetupPage() {
     } finally { setReauthing(false) }
   }
   const currentId = localStorage.getItem(SHEET_ID_KEY) || ''
-  return <div className="relative grid min-h-screen place-items-center overflow-hidden bg-gradient-to-br from-background via-orange-50 to-rose-50 p-4 dark:from-background dark:via-background dark:to-card sm:p-6"><div className="soft-blob right-4 top-12 h-48 w-48 bg-peach/25 md:right-16 md:h-72 md:w-72" /><Card className="w-full max-w-xl bg-white/92 backdrop-blur dark:bg-card/90"><CardHeader className="text-center sm:text-left"><LoveNoteIcon className="mx-auto mb-3 sm:mx-0" imageClassName="h-16 w-16 rounded-3xl shadow-lift" /><p className="text-sm font-bold uppercase tracking-[0.24em] text-coral">Chamomile Pocket</p><CardTitle className="text-3xl md:text-4xl">Connect your Google Sheet</CardTitle><CardDescription>Start fresh with a one-click template, pick a recent sheet, or paste a URL.</CardDescription></CardHeader><CardContent>
+  return <div className="relative grid min-h-screen place-items-center overflow-hidden bg-gradient-to-br from-background via-orange-50 to-rose-50 p-4 dark:from-background dark:via-background dark:to-card sm:p-6"><div className="soft-blob right-4 top-12 h-48 w-48 bg-peach/25 md:right-16 md:h-72 md:w-72" /><Card className="w-full max-w-xl bg-white/92 backdrop-blur dark:bg-card/90"><CardHeader className="text-center sm:text-left"><LoveNoteIcon className="mx-auto mb-3 sm:mx-0" imageClassName="h-16 w-16 rounded-3xl shadow-lift" /><p className="text-sm font-bold uppercase tracking-[0.24em] text-coral">Pocket Ledger</p><CardTitle className="text-3xl md:text-4xl">Connect your Google Sheet</CardTitle><CardDescription>Start fresh with a one-click template, pick a recent sheet, or paste a URL.</CardDescription></CardHeader><CardContent>
     {user?.email && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-accent/40 px-4 py-3 text-sm">
       <div className="min-w-0">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Signed in as</p>

@@ -43,10 +43,10 @@ export function LoginPage() {
     <div className="soft-blob bottom-10 right-4 h-48 w-48 bg-sky/20 md:right-10 md:h-72 md:w-72" />
     <Card className="w-full max-w-lg bg-white/92 backdrop-blur dark:bg-card/90">
       <CardHeader className="text-center">
-        <LoveNoteIcon className="mx-auto mb-4" imageClassName="h-20 w-20 rounded-[1.65rem] shadow-lift" alt="Chamomile flower in a wallet" />
-        <p className="text-sm font-bold uppercase tracking-[0.24em] text-coral">Chamomile Pocket</p>
-        <CardTitle className="text-3xl md:text-4xl">{hasRememberedAccount && firstName ? `Welcome back, ${firstName}` : 'Your cozy money garden'}</CardTitle>
-        <CardDescription>{hasRememberedAccount ? 'Your sign-in expired — tap to resume in one click.' : 'Gently tend to everyday spending while keeping Google Sheets as your database.'}</CardDescription>
+        <LoveNoteIcon className="mx-auto mb-4" imageClassName="h-20 w-20 rounded-[1.65rem] shadow-lift" alt="Pocket Ledger wallet icon" />
+        <p className="text-sm font-bold uppercase tracking-[0.24em] text-coral">Pocket Ledger</p>
+        <CardTitle className="text-3xl md:text-4xl">{hasRememberedAccount && firstName ? `Welcome back, ${firstName}` : 'Personal spending, softly organized'}</CardTitle>
+        <CardDescription>{hasRememberedAccount ? 'Your sign-in expired — tap to resume in one click.' : 'Track expenses, cards, and giftcards while keeping Google Sheets as your database.'}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {missingClientId ? (

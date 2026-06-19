@@ -7,7 +7,7 @@ import { cn } from '../lib/utils'
 const REQUIRED_TAPS = 5
 const TAP_RESET_MS = 1600
 
-export function LoveNoteIcon({ className, imageClassName, alt = 'Chamomile Pocket' }: { className?: string; imageClassName?: string; alt?: string }) {
+export function LoveNoteIcon({ className, imageClassName, alt = 'Pocket Ledger' }: { className?: string; imageClassName?: string; alt?: string }) {
   const { user } = useAuth()
   const [open, setOpen] = React.useState(false)
   const taps = React.useRef(0)

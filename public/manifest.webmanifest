@@ -1,7 +1,7 @@
 {
-  "name": "Chamomile Pocket",
-  "short_name": "Chamomile",
-  "description": "A cozy personal budget and expense tracker.",
+  "name": "Pocket Ledger",
+  "short_name": "Pocket Ledger",
+  "description": "A personal expense, card, and giftcard tracker.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#faf6f4",
