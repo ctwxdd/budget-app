@@ -614,6 +614,13 @@ function SplitPaymentEditor({
   const splitCents = payments.reduce((sum, payment) => sum + cents(Math.abs(payment.amount)), 0)
   const remainingCents = totalCents - splitCents
   const exact = totalCents > 0 && remainingCents === 0
+  React.useEffect(() => {
+    if (payments.length < 2) return
+    const lastPayment = payments[payments.length - 1]
+    const otherCents = payments.slice(0, -1).reduce((sum, payment) => sum + cents(Math.abs(payment.amount)), 0)
+    const nextAmount = fromCents(Math.max(0, totalCents - otherCents))
+    if (cents(lastPayment.amount) !== cents(nextAmount)) onChange(lastPayment.id, { amount: nextAmount })
+  }, [onChange, payments, totalCents])
   const setType = (payment: SplitPayment, paymentType: PaymentMethodType) => {
     if (paymentType === 'cash') {
       onChange(payment.id, { paymentType, paymentMethod: 'Cash', selectedMerchant: '', selectedGiftcardCard: 'auto' })
@@ -648,21 +655,25 @@ function SplitPaymentEditor({
     <div className="space-y-2">
       {payments.map((payment, index) => {
         const selectedCards = giftcardCards.filter((card) => card.vendor === payment.selectedMerchant).sort((a, b) => a.date.localeCompare(b.date))
+        const isBalancingPayment = index === payments.length - 1 && payments.length > 1
         return <div key={payment.id} className="space-y-3 rounded-3xl border border-border/70 bg-card/80 p-3 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <label className="min-w-0 flex-1 space-y-1.5">
-              <span className="block text-xs font-bold uppercase tracking-wide text-muted-foreground">Amount {index + 1}</span>
+              <span className="block text-xs font-bold uppercase tracking-wide text-muted-foreground">{isBalancingPayment ? 'Remaining amount' : `Amount ${index + 1}`}</span>
               <Input
                 inputMode="decimal"
                 type="number"
                 min="0.01"
                 step="0.01"
+                disabled={isBalancingPayment}
+                className={isBalancingPayment ? 'bg-muted text-muted-foreground' : undefined}
                 value={formatAmountInput(payment.amount)}
                 onChange={(event) => {
                   const amount = Number(event.target.value)
                   onChange(payment.id, { amount: Number.isFinite(amount) ? Math.abs(amount) : 0 })
                 }}
               />
+              {isBalancingPayment && <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Auto-filled from the total minus the other split amounts.</span>}
             </label>
             {payments.length > 2 && <button
               type="button"
