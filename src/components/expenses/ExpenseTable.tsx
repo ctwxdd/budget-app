@@ -1,12 +1,12 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { addDays, addMonths, endOfMonth, endOfWeek, format, isBefore, isSameDay, isSameMonth, isValid, parseISO, startOfMonth, startOfWeek } from 'date-fns'
-import { ArrowDownUp, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, Filter, LayoutGrid, List, MoreHorizontal, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { ArrowDownUp, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Filter, LayoutGrid, List, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import type { DatePreset, Expense } from '../../lib/types'
 import { categoryColor, categoryIcon, categoryName, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
 import { cn } from '../../lib/utils'
 import { Badge, Button, Card, Dialog, Input, Select } from '../ui'
-import { useAddExpense, useCategories, useDeleteExpense, usePaymentMethods, useSheetId } from '../../hooks/useExpenses'
+import { useAddExpense, useCategories, useDeleteExpense, usePaymentMethods, useSheetId, useSheetMeta } from '../../hooks/useExpenses'
 import { useToast } from '../ui/Toast'
 
 export type ExpenseFilters = { preset: DatePreset; start: string; end: string; categories: string[]; payments: string[]; reimbursement: string; search: string }
@@ -188,7 +188,30 @@ function SelectAllCheckbox({ checked, indeterminate, disabled, onChange }: { che
   return <input ref={ref} type="checkbox" aria-label="Select all visible expenses" className="h-4 w-4 rounded border-input accent-coral" checked={checked} disabled={disabled} onChange={onChange} onClick={(event) => event.stopPropagation()} />
 }
 
-function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, onReturn, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; onReturn: (expense: Expense) => void; selected: boolean; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onEnterSelectionMode: (expense: Expense) => void }) {
+function ExpenseActionPanel({ expense, onEdit, onRemove, onDuplicate, onReturn, onClose }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; onReturn: (expense: Expense) => void; onClose: () => void }) {
+  return <div className={cn('grid gap-2', expense.amount > 0 ? 'grid-cols-2' : 'grid-cols-3')}>
+    <Button variant="secondary" size="sm" className="w-full px-2 text-xs" onClick={() => { onClose(); onEdit(expense) }}><Pencil className="h-4 w-4" />Edit</Button>
+    {expense.amount > 0 && <Button variant="outline" size="sm" className="w-full px-2 text-xs" onClick={() => { onClose(); onReturn(expense) }}><RotateCcw className="h-4 w-4" />Return</Button>}
+    <Button variant="outline" size="sm" className="w-full px-2 text-xs" onClick={() => { onClose(); onDuplicate(expense) }}><Copy className="h-4 w-4" />Copy</Button>
+    <Button variant="outline" size="sm" className="w-full px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { onClose(); onRemove(expense) }}><Trash2 className="h-4 w-4" />Delete</Button>
+  </div>
+}
+
+type ExpenseItemProps = {
+  expense: Expense
+  onEdit: (expense: Expense) => void
+  onRemove: (expense: Expense) => void
+  onDuplicate: (expense: Expense) => void
+  onReturn: (expense: Expense) => void
+  onOpenSheet: (expense: Expense) => void
+  canOpenSheet: boolean
+  selected: boolean
+  selectionMode: boolean
+  onToggleSelected: (expense: Expense) => void
+  onEnterSelectionMode: (expense: Expense) => void
+}
+
+function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, onReturn, onOpenSheet, canOpenSheet, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: ExpenseItemProps) {
   const [open, setOpen] = React.useState(false)
   const color = categoryColor(expense.category)
   const Icon = categoryIcon(expense.category)
@@ -223,7 +246,7 @@ function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, onReturn, selecte
       return
     }
     if (selectionMode) onToggleSelected(expense)
-    else onEdit(expense)
+    else setOpen((value) => !value)
   }
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -249,17 +272,12 @@ function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, onReturn, selecte
   >
     {selected && <span className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-coral text-white shadow-soft"><Check className="h-4 w-4" /></span>}
     <div className="flex min-w-0 items-start justify-between gap-3 pr-7"><div className="flex min-w-0 flex-1 items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>{Icon ? <Icon className="h-5 w-5" strokeWidth={2.2} /> : (expense.category || '?').slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate font-bold">{expense.description || 'No description'}</p><p className="text-sm text-muted-foreground">{displayDate(expense.date)}</p></div></div><p className="shrink-0 whitespace-nowrap font-display text-lg font-extrabold text-coral">{currency.format(expense.amount)}</p></div>
-    <div className="mt-3 flex min-w-0 flex-nowrap items-center gap-2"><div className="min-w-0 max-w-[38%] shrink"><ColorBadge value={categoryName(expense.category)} /></div><div className="min-w-0 flex-1 overflow-hidden"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></div>{expense.reimbursement && <div className="shrink-0"><ReimbursementChip value={expense.reimbursement} /></div>}{!selectionMode && <div className="shrink-0"><Button variant="ghost" size="icon" aria-label={open ? 'Close expense actions' : 'Open expense actions'} aria-expanded={open} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value) }}><MoreHorizontal className="h-5 w-5" /></Button></div>}</div>
-    {open && <div className={cn('mt-3 grid gap-2 border-t border-border/70 pt-3', expense.amount > 0 ? 'grid-cols-2' : 'grid-cols-3')} onClick={(event) => event.stopPropagation()}>
-      <Button variant="secondary" size="sm" className="w-full px-2 text-xs" onClick={() => { setOpen(false); onEdit(expense) }}><Pencil className="h-4 w-4" />Edit</Button>
-      {expense.amount > 0 && <Button variant="outline" size="sm" className="w-full px-2 text-xs" onClick={() => { setOpen(false); onReturn(expense) }}><RotateCcw className="h-4 w-4" />Return</Button>}
-      <Button variant="outline" size="sm" className="w-full px-2 text-xs" onClick={() => { setOpen(false); onDuplicate(expense) }}><Copy className="h-4 w-4" />Copy</Button>
-      <Button variant="outline" size="sm" className="w-full px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { setOpen(false); onRemove(expense) }}><Trash2 className="h-4 w-4" />Delete</Button>
-    </div>}
+    <div className="mt-3 flex min-w-0 flex-nowrap items-center gap-2"><div className="min-w-0 max-w-[38%] shrink"><ColorBadge value={categoryName(expense.category)} /></div><div className="min-w-0 flex-1 overflow-hidden"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></div>{expense.reimbursement && <div className="shrink-0"><ReimbursementChip value={expense.reimbursement} /></div>}{!selectionMode && <div className="shrink-0"><Button variant="ghost" size="icon" aria-label="Open row in Google Sheets" disabled={!canOpenSheet || expense.rowIndex < 2} onClick={(event) => { event.stopPropagation(); onOpenSheet(expense) }}><ExternalLink className="h-5 w-5" /></Button></div>}</div>
+    {open && <div className="mt-3 border-t border-border/70 pt-3" onClick={(event) => event.stopPropagation()}><ExpenseActionPanel expense={expense} onEdit={onEdit} onReturn={onReturn} onDuplicate={onDuplicate} onRemove={onRemove} onClose={() => setOpen(false)} /></div>}
   </div>
 }
 
-function ExpenseListItem({ expense, onEdit, onRemove, onDuplicate, onReturn, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; onReturn: (expense: Expense) => void; selected: boolean; selectionMode: boolean; onToggleSelected: (expense: Expense) => void; onEnterSelectionMode: (expense: Expense) => void }) {
+function ExpenseListItem({ expense, onEdit, onRemove, onDuplicate, onReturn, onOpenSheet, canOpenSheet, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: ExpenseItemProps) {
   const [open, setOpen] = React.useState(false)
   const color = categoryColor(expense.category)
   const Icon = categoryIcon(expense.category)
@@ -273,7 +291,7 @@ function ExpenseListItem({ expense, onEdit, onRemove, onDuplicate, onReturn, sel
   const activate = () => {
     if (longPressFiredRef.current) { longPressFiredRef.current = false; return }
     if (selectionMode) onToggleSelected(expense)
-    else onEdit(expense)
+    else setOpen((value) => !value)
   }
   const onTouchStart = (event: React.TouchEvent) => {
     if (selectionMode) return
@@ -319,14 +337,9 @@ function ExpenseListItem({ expense, onEdit, onRemove, onDuplicate, onReturn, sel
         <p className="font-display text-sm font-extrabold tabular-nums text-coral">{currency.format(expense.amount)}</p>
         <p className="mt-0.5 text-[11px] text-muted-foreground">{displayDate(expense.date)}</p>
       </div>
-      {!selectionMode && <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={open ? 'Close expense actions' : 'Open expense actions'} aria-expanded={open} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value) }}><MoreHorizontal className="h-5 w-5" /></Button>}
+      {!selectionMode && <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Open row in Google Sheets" disabled={!canOpenSheet || expense.rowIndex < 2} onClick={(event) => { event.stopPropagation(); onOpenSheet(expense) }}><ExternalLink className="h-5 w-5" /></Button>}
     </div>
-    {open && <div className={cn('grid gap-2 border-t border-border/60 px-3 py-2.5', expense.amount > 0 ? 'grid-cols-2' : 'grid-cols-3')} onClick={(event) => event.stopPropagation()}>
-      <Button variant="secondary" size="sm" className="w-full px-2 text-xs" onClick={() => { setOpen(false); onEdit(expense) }}><Pencil className="h-4 w-4" />Edit</Button>
-      {expense.amount > 0 && <Button variant="outline" size="sm" className="w-full px-2 text-xs" onClick={() => { setOpen(false); onReturn(expense) }}><RotateCcw className="h-4 w-4" />Return</Button>}
-      <Button variant="outline" size="sm" className="w-full px-2 text-xs" onClick={() => { setOpen(false); onDuplicate(expense) }}><Copy className="h-4 w-4" />Copy</Button>
-      <Button variant="outline" size="sm" className="w-full px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { setOpen(false); onRemove(expense) }}><Trash2 className="h-4 w-4" />Delete</Button>
-    </div>}
+    {open && <div className="border-t border-border/60 px-3 py-2.5" onClick={(event) => event.stopPropagation()}><ExpenseActionPanel expense={expense} onEdit={onEdit} onReturn={onReturn} onDuplicate={onDuplicate} onRemove={onRemove} onClose={() => setOpen(false)} /></div>}
   </div>
 }
 
@@ -334,11 +347,14 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
   const [sortKey, setSortKey] = React.useState<SortKey>('date')
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc')
   const [page, setPage] = React.useState(1)
+  const [openRowIndex, setOpenRowIndex] = React.useState<number | null>(null)
   const [mobileView, setMobileView] = React.useState<'cards' | 'list'>(() => localStorage.getItem('budget.expenseMobileView') === 'cards' ? 'cards' : 'list')
   const deleteExpense = useDeleteExpense()
   const addExpense = useAddExpense()
   const queryClient = useQueryClient()
   const sheetId = useSheetId()
+  const sheetMeta = useSheetMeta()
+  const expenseSheetGid = sheetMeta.data?.sheets.find((sheet) => sheet.title === 'Expense')?.sheetId
   const { toast } = useToast()
   const sorted = React.useMemo(() => [...expenses].sort((a, b) => {
     const primary = sortKey === 'date' ? a.date.localeCompare(b.date) : a.amount - b.amount
@@ -355,6 +371,11 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
   React.useEffect(() => setPage(1), [expenses.length])
   React.useEffect(() => { localStorage.setItem('budget.expenseMobileView', mobileView) }, [mobileView])
   const toggleSort = (key: SortKey) => { setSortDir(sortKey === key && sortDir === 'desc' ? 'asc' : 'desc'); setSortKey(key) }
+  const canOpenSheet = Boolean(sheetId && expenseSheetGid !== undefined)
+  const openInSheet = (expense: Expense) => {
+    if (!sheetId || expenseSheetGid === undefined || expense.rowIndex < 2) return
+    window.open(`https://docs.google.com/spreadsheets/d/${sheetId}/edit#gid=${expenseSheetGid}&range=A${expense.rowIndex}:F${expense.rowIndex}`, '_blank', 'noopener,noreferrer')
+  }
   const remove = async (expense: Expense) => {
     const queryKey = ['expenses', sheetId]
     const previous = queryClient.getQueryData<Expense[]>(queryKey)
@@ -398,15 +419,19 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
         </tr></thead>
         <tbody>{current.map((expense) => {
           const selected = selectedIds.has(expense.rowIndex)
-          return <tr key={expense.rowIndex} className={cn('border-t transition hover:bg-coral/5', selected && 'bg-coral/10')} onClick={() => onEdit(expense)}>
-            <td className="p-4" onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={`Select ${expense.description || 'expense'}`} className="h-4 w-4 rounded border-input accent-coral" checked={selected} onChange={() => onToggleSelected(expense)} /></td>
-            <td className="whitespace-nowrap p-4">{displayDate(expense.date)}</td>
-            <td className="p-4 text-right font-display font-bold text-coral">{currency.format(expense.amount)}</td>
-            <td className="p-4">{expense.description || <span className="text-muted-foreground">No description</span>}</td>
-            <td className="p-4"><ColorBadge value={categoryName(expense.category)} /></td>
-            <td className="p-4"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></td>
-            <td className="p-4" onClick={(event) => event.stopPropagation()}><div className="flex justify-end gap-1"><Button variant="ghost" size="icon" onClick={() => onEdit(expense)} aria-label="Edit"><Pencil className="h-4 w-4" /></Button>{expense.amount > 0 && <Button variant="ghost" size="icon" onClick={() => onReturn(expense)} aria-label="Create return"><RotateCcw className="h-4 w-4" /></Button>}<Button variant="ghost" size="icon" onClick={() => onDuplicate(expense)} aria-label="Duplicate"><Copy className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => remove(expense)} aria-label="Delete"><Trash2 className="h-4 w-4" /></Button></div></td>
-          </tr>
+          const open = openRowIndex === expense.rowIndex
+          return <React.Fragment key={expense.rowIndex}>
+            <tr className={cn('cursor-pointer border-t transition hover:bg-coral/5', selected && 'bg-coral/10', open && 'bg-accent/35')} onClick={() => selectionMode ? onToggleSelected(expense) : setOpenRowIndex((currentRow) => currentRow === expense.rowIndex ? null : expense.rowIndex)}>
+              <td className="p-4" onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={`Select ${expense.description || 'expense'}`} className="h-4 w-4 rounded border-input accent-coral" checked={selected} onChange={() => onToggleSelected(expense)} /></td>
+              <td className="whitespace-nowrap p-4">{displayDate(expense.date)}</td>
+              <td className="p-4 text-right font-display font-bold text-coral">{currency.format(expense.amount)}</td>
+              <td className="p-4">{expense.description || <span className="text-muted-foreground">No description</span>}</td>
+              <td className="p-4"><ColorBadge value={categoryName(expense.category)} /></td>
+              <td className="p-4"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></td>
+              <td className="p-4" onClick={(event) => event.stopPropagation()}><div className="flex justify-end gap-1"><Button variant="ghost" size="icon" disabled={!canOpenSheet || expense.rowIndex < 2} onClick={() => openInSheet(expense)} aria-label="Open row in Google Sheets"><ExternalLink className="h-4 w-4" /></Button></div></td>
+            </tr>
+            {open && !selectionMode && <tr className="border-t bg-accent/20"><td colSpan={7} className="p-3"><ExpenseActionPanel expense={expense} onEdit={onEdit} onReturn={onReturn} onDuplicate={onDuplicate} onRemove={remove} onClose={() => setOpenRowIndex(null)} /></td></tr>}
+          </React.Fragment>
         })}</tbody>
       </table>
     </div>
@@ -426,7 +451,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
           lastDate = expense.date
           items.push(<div key={`day-${expense.date}`} className={cn('text-[11px] font-bold uppercase tracking-wider text-muted-foreground', mobileView === 'cards' ? 'mt-2 px-1 pt-1 first:mt-0' : 'border-y border-border/60 bg-muted/30 px-3 py-1.5 first:border-t-0')}>{dayLabel(expense.date)}</div>)
         }
-        const sharedProps = { expense, onEdit, onRemove: remove, onDuplicate, onReturn, selected: selectedIds.has(expense.rowIndex), selectionMode, onToggleSelected, onEnterSelectionMode }
+        const sharedProps = { expense, onEdit, onRemove: remove, onDuplicate, onReturn, onOpenSheet: openInSheet, canOpenSheet, selected: selectedIds.has(expense.rowIndex), selectionMode, onToggleSelected, onEnterSelectionMode }
         items.push(mobileView === 'cards' ? <ExpenseCard key={expense.rowIndex} {...sharedProps} /> : <ExpenseListItem key={expense.rowIndex} {...sharedProps} />)
       }
       return items
