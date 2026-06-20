@@ -189,7 +189,7 @@ function SelectAllCheckbox({ checked, indeterminate, disabled, onChange }: { che
 }
 
 function ExpenseActionPanel({ expense, onEdit, onRemove, onDuplicate, onReturn, onClose }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (expense: Expense) => void; onDuplicate: (expense: Expense) => void; onReturn: (expense: Expense) => void; onClose: () => void }) {
-  return <div className={cn('grid gap-2', expense.amount > 0 ? 'grid-cols-2' : 'grid-cols-3')}>
+  return <div className={cn('grid gap-2', expense.amount > 0 ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3')}>
     <Button variant="secondary" size="sm" className="w-full px-2 text-xs" onClick={() => { onClose(); onEdit(expense) }}><Pencil className="h-4 w-4" />Edit</Button>
     {expense.amount > 0 && <Button variant="outline" size="sm" className="w-full px-2 text-xs" onClick={() => { onClose(); onReturn(expense) }}><RotateCcw className="h-4 w-4" />Return</Button>}
     <Button variant="outline" size="sm" className="w-full px-2 text-xs" onClick={() => { onClose(); onDuplicate(expense) }}><Copy className="h-4 w-4" />Copy</Button>
