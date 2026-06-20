@@ -165,9 +165,10 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
 
   return <div className="space-y-2">
     {selected.length > 0 && <div className="flex flex-wrap gap-1.5">
-      {selected.map((tag) => <button key={tag} type="button" className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/[0.08] px-2.5 py-1 text-xs font-bold text-primary transition hover:bg-primary/15" onClick={() => removeTag(tag)}>
-        #{tag}<span className="text-primary/65">×</span>
-      </button>)}
+      {selected.map((tag) => <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/[0.08] py-1 pl-2.5 pr-1 text-xs font-bold text-primary">
+        #{tag}
+        <button type="button" aria-label={`Remove ${tag} tag`} className="grid h-5 w-5 place-items-center rounded-full text-primary/65 transition hover:bg-primary/15 hover:text-primary" onClick={() => removeTag(tag)}>×</button>
+      </span>)}
     </div>}
     <div className="relative">
       <Input
@@ -179,21 +180,19 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
         placeholder={selected.length ? 'Add another tag...' : 'Travel, House, Project...'}
         autoComplete="off"
       />
-      {open && <FadeScroll outerClassName="absolute left-0 right-0 top-full z-30 mt-1.5 rounded-2xl border border-border bg-card shadow-lift" className="max-h-56 overflow-auto p-1">
+      {open && <FadeScroll outerClassName="absolute bottom-full left-0 right-0 z-30 mb-1.5 rounded-2xl border border-border bg-card shadow-lift" className="max-h-56 overflow-auto p-1">
         {suggestions.map((tag, index) => <button
           key={tag}
           type="button"
           className={cn('flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition', index === highlight ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/70')}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => pick(tag)}
+          onPointerDown={(event) => { event.preventDefault(); pick(tag) }}
         >
           <span className="font-semibold text-primary">#</span><span className="truncate font-medium text-foreground">{tag}</span>
         </button>)}
         {canAddDraft && <button
           type="button"
           className={cn('flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition', highlight === suggestions.length ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/70')}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => addTags(draft)}
+          onPointerDown={(event) => { event.preventDefault(); addTags(draft) }}
         >
           <span className="font-semibold text-primary">+</span><span className="truncate font-medium text-foreground">Add “{draft.trim()}”</span>
         </button>}
@@ -680,10 +679,10 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
             >Split across multiple payment methods</button>}
           </>}
       </div>
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
+      <div className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="block">Tags</span>
         <TagsInput value={form.tags} onChange={(tags) => setForm({ ...form, tags })} />
-      </label>
+      </div>
     </form>
   </Dialog>
 }
@@ -1018,10 +1017,10 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
         </div>}
         {original && !returnExpense && <button type="button" onClick={() => chooseGiftcardReturnMode('new')} className="mt-2 w-full rounded-2xl border border-dashed border-coral/40 bg-coral/5 px-3 py-2 text-left text-xs font-bold text-coral transition hover:bg-coral/10">Create new giftcard / store credit instead</button>}
       </div>}
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
+      <div className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="block">Tags</span>
         <TagsInput value={form.tags} onChange={(tags) => setForm({ ...form, tags })} />
-      </label>
+      </div>
     </form>
   </Dialog>
 }
