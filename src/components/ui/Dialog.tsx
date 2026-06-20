@@ -218,7 +218,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
         data-dialog-scroll
         className={cn(
           'flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 pt-4 md:px-7 md:pt-6',
-          mobileBottomSheet ? 'pb-[calc(env(safe-area-inset-bottom)+1.5rem)] md:pb-8' : 'pb-6 md:pb-8',
+          mobileBottomSheet ? 'pb-4 md:pb-8' : 'pb-6 md:pb-8',
         )}
         onPointerDown={(event) => startSheetDrag(event, true)}
         onPointerMove={onPointerMove}
@@ -227,7 +227,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
       >
         {children}
       </div>
-      {footer && <div className="shrink-0 border-t border-border/70 bg-card/95 px-5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-14px_28px_-24px_rgba(31,41,55,0.45)] backdrop-blur-xl md:px-7 md:pb-5 md:pt-4">{footer}</div>}
+      {footer && <div className="shrink-0 border-t border-border/70 bg-card/95 px-5 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-14px_28px_-24px_rgba(31,41,55,0.45)] backdrop-blur-xl md:px-7 md:pb-5 md:pt-4">{footer}</div>}
     </div>
   </div>, document.body)
 }

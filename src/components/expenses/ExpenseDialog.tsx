@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { Calculator } from 'lucide-react'
 import type { Expense } from '../../lib/types'
 import { Button, Dialog, FadeScroll, Input, Select } from '../ui'
-import { useAddExpense, useCategories, useExpenses, useUpdateExpense } from '../../hooks/useExpenses'
+import { useAddExpense, useCategories, useExpenses, useTags, useUpdateExpense } from '../../hooks/useExpenses'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../../hooks/useGiftcards'
 import { useCards } from '../../hooks/useCards'
 import type { CardRow } from '../../hooks/useCards'
@@ -11,7 +11,7 @@ import { appendNoteToDescription, classifyPaymentMethod, composeGiftcardDescript
 import { currency } from '../../lib/format'
 import { cn } from '../../lib/utils'
 import { useToast } from '../ui/Toast'
-import { formatTags } from '../../lib/tags'
+import { formatTags, parseTags } from '../../lib/tags'
 
 export type FormState = Omit<Expense, 'rowIndex'>
 const emptyForm = (): FormState => ({ date: format(new Date(), 'yyyy-MM-dd'), amount: 0, description: '', category: '', paymentMethod: '', reimbursement: '', tags: '' })
@@ -51,10 +51,6 @@ function newSplitPayment(amount = 0, seed?: Partial<SplitPayment>): SplitPayment
     selectedMerchant: seed?.selectedMerchant || '',
     selectedGiftcardCard: seed?.selectedGiftcardCard || 'auto',
   }
-}
-
-function DatalistInput({ id, value, onChange, options, placeholder }: { id: string; value: string; onChange: (value: string) => void; options: string[]; placeholder?: string }) {
-  return <><Input list={id} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} /><datalist id={id}>{options.map((option) => <option key={option} value={option} />)}</datalist></>
 }
 
 function StringAutosuggest({ value, onChange, options, placeholder }: { value: string; onChange: (value: string) => void; options: string[]; placeholder?: string }) {
@@ -108,6 +104,102 @@ function StringAutosuggest({ value, onChange, options, placeholder }: { value: s
         <span className="truncate font-medium text-foreground">{option}</span>
       </button>)}
     </FadeScroll>}
+  </div>
+}
+
+function TagsInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const options = useTags()
+  const [draft, setDraft] = React.useState('')
+  const [focused, setFocused] = React.useState(false)
+  const [highlight, setHighlight] = React.useState(0)
+  const blurTimerRef = React.useRef<number | null>(null)
+  const selected = React.useMemo(() => parseTags(value), [value])
+  const selectedKeys = React.useMemo(() => new Set(selected.map((tag) => tag.toLocaleLowerCase())), [selected])
+  const query = draft.trim().toLocaleLowerCase()
+  const suggestions = React.useMemo(() => options
+    .filter((tag) => !selectedKeys.has(tag.toLocaleLowerCase()))
+    .filter((tag) => !query || tag.toLocaleLowerCase().includes(query))
+    .slice(0, 6), [options, query, selectedKeys])
+  const exactDraft = Boolean(draft.trim() && selectedKeys.has(draft.trim().toLocaleLowerCase()))
+  const canAddDraft = Boolean(draft.trim() && !exactDraft)
+  const open = focused && (suggestions.length > 0 || canAddDraft)
+
+  React.useEffect(() => { setHighlight(0) }, [draft, focused])
+  React.useEffect(() => () => { if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current) }, [])
+
+  const setSelected = (tags: string[]) => onChange(formatTags(tags.join(', ')))
+  const addTags = (raw: string) => {
+    const next = parseTags(raw).filter((tag) => !selectedKeys.has(tag.toLocaleLowerCase()))
+    if (!next.length) return
+    setSelected([...selected, ...next])
+    setDraft('')
+  }
+  const removeTag = (tag: string) => setSelected(selected.filter((item) => item !== tag))
+  const onDraftChange = (next: string) => {
+    if (!next.includes(',')) {
+      setDraft(next)
+      return
+    }
+    const parts = next.split(',')
+    addTags(parts.slice(0, -1).join(','))
+    setDraft(parts.at(-1) || '')
+  }
+  const pick = (tag: string) => addTags(tag)
+  const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const suggestion = suggestions[highlight]
+      if (open && suggestion) pick(suggestion)
+      else addTags(draft)
+    } else if (event.key === 'ArrowDown' && open) {
+      event.preventDefault()
+      setHighlight((current) => (current + 1) % Math.max(1, suggestions.length + (canAddDraft ? 1 : 0)))
+    } else if (event.key === 'ArrowUp' && open) {
+      event.preventDefault()
+      const count = Math.max(1, suggestions.length + (canAddDraft ? 1 : 0))
+      setHighlight((current) => (current <= 0 ? count - 1 : current - 1))
+    } else if (event.key === 'Backspace' && !draft && selected.length) {
+      removeTag(selected[selected.length - 1])
+    }
+  }
+
+  return <div className="space-y-2">
+    {selected.length > 0 && <div className="flex flex-wrap gap-1.5">
+      {selected.map((tag) => <button key={tag} type="button" className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/[0.08] px-2.5 py-1 text-xs font-bold text-primary transition hover:bg-primary/15" onClick={() => removeTag(tag)}>
+        #{tag}<span className="text-primary/65">×</span>
+      </button>)}
+    </div>}
+    <div className="relative">
+      <Input
+        value={draft}
+        onChange={(event) => onDraftChange(event.target.value)}
+        onFocus={() => { if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current); setFocused(true) }}
+        onBlur={() => { blurTimerRef.current = window.setTimeout(() => setFocused(false), 150) }}
+        onKeyDown={onKeyDown}
+        placeholder={selected.length ? 'Add another tag...' : 'Travel, House, Project...'}
+        autoComplete="off"
+      />
+      {open && <FadeScroll outerClassName="absolute left-0 right-0 top-full z-30 mt-1.5 rounded-2xl border border-border bg-card shadow-lift" className="max-h-56 overflow-auto p-1">
+        {suggestions.map((tag, index) => <button
+          key={tag}
+          type="button"
+          className={cn('flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition', index === highlight ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/70')}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => pick(tag)}
+        >
+          <span className="font-semibold text-primary">#</span><span className="truncate font-medium text-foreground">{tag}</span>
+        </button>)}
+        {canAddDraft && <button
+          type="button"
+          className={cn('flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition', highlight === suggestions.length ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/70')}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => addTags(draft)}
+        >
+          <span className="font-semibold text-primary">+</span><span className="truncate font-medium text-foreground">Add “{draft.trim()}”</span>
+        </button>}
+      </FadeScroll>}
+    </div>
+    <p className="px-1 text-[11px] font-medium text-muted-foreground/80">Pick an existing tag or type a new one. Commas add multiple tags.</p>
   </div>
 }
 
@@ -543,11 +635,6 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
       <div className="min-h-6 sm:col-span-2">
         {noteOpen ? <label className="block space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Note</span><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label> : <Button type="button" variant="ghost" size="sm" className="h-6 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
       </div>
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
-        <span className="block">Tags</span>
-        <Input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="Japan 2026, House, Work..." />
-        <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Separate multiple tags with commas.</span>
-      </label>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Category</span><CategoryCombobox value={form.category} onChange={setCategory} options={categories} isOpen={activeMenu === 'category'} onOpenChange={setMenu('category')} /></label>
       <div className={cn('min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground', splitEnabled && 'sm:col-span-2')}>
         {splitEnabled
@@ -593,6 +680,10 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
             >Split across multiple payment methods</button>}
           </>}
       </div>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
+        <span className="block">Tags</span>
+        <TagsInput value={form.tags} onChange={(tags) => setForm({ ...form, tags })} />
+      </label>
     </form>
   </Dialog>
 }
@@ -874,10 +965,6 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Return date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Return amount</span><Input className={cn('min-w-0 max-w-full', fullRefund && 'bg-muted text-muted-foreground')} inputMode="decimal" type="number" min="0.01" max={originalAmount || undefined} step="0.01" required disabled={fullRefund} value={(fullRefund && originalAmount > 0 ? originalAmount : form.amount) || ''} onChange={(event) => setAmount(event.target.value)} />{fullRefund ? <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Amount is locked for a full refund.</span> : <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Enter a positive partial refund amount.</span>}</label>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2"><span className="block">Description</span><Input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Return: purchase description (date)" /></label>
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
-        <span className="block">Tags</span>
-        <Input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="Japan 2026, House, Work..." />
-      </label>
       <div className="rounded-3xl border border-border/70 bg-accent/35 p-3 text-sm sm:col-span-2"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Category</p><p className="mt-1 font-semibold text-foreground">{form.category || 'Uncategorized'}</p></div>
       {original && !returnExpense && (originalIsGiftcard || giftcardReturnMode === 'new') && <div className="space-y-3 rounded-3xl border border-border/70 bg-accent/25 p-3 sm:col-span-2">
         {giftcardReturnMode === 'new'
@@ -931,6 +1018,10 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
         </div>}
         {original && !returnExpense && <button type="button" onClick={() => chooseGiftcardReturnMode('new')} className="mt-2 w-full rounded-2xl border border-dashed border-coral/40 bg-coral/5 px-3 py-2 text-left text-xs font-bold text-coral transition hover:bg-coral/10">Create new giftcard / store credit instead</button>}
       </div>}
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
+        <span className="block">Tags</span>
+        <TagsInput value={form.tags} onChange={(tags) => setForm({ ...form, tags })} />
+      </label>
     </form>
   </Dialog>
 }
