@@ -113,6 +113,7 @@ function CardsContent() {
       category: '',
       paymentMethod: card.name,
       reimbursement: '',
+      tags: '',
     })
   }, [])
   const handleViewExpenses = React.useCallback((card: CardRow) => {

@@ -1,9 +1,10 @@
 import * as React from 'react'
 import { format } from 'date-fns'
 import { Button, Dialog, FadeScroll, Input } from '../ui'
-import { useBatchUpdateExpenses, useCategories, usePaymentMethods } from '../../hooks/useExpenses'
+import { useBatchUpdateExpenses, useCategories, usePaymentMethods, useTags } from '../../hooks/useExpenses'
 import type { Expense } from '../../lib/types'
 import { useToast } from '../ui/Toast'
+import { formatTags } from '../../lib/tags'
 
 type BatchEditDialogProps = {
   open: boolean
@@ -19,6 +20,7 @@ function DatalistInput({ id, value, onChange, options, placeholder }: { id: stri
 export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: BatchEditDialogProps) {
   const categories = useCategories()
   const paymentMethods = usePaymentMethods()
+  const tags = useTags()
   const batchUpdate = useBatchUpdateExpenses()
   const { toast } = useToast()
   const [category, setCategory] = React.useState('')
@@ -26,6 +28,8 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
   const [paymentMethod, setPaymentMethod] = React.useState('')
   const [applyDate, setApplyDate] = React.useState(false)
   const [date, setDate] = React.useState(format(new Date(), 'yyyy-MM-dd'))
+  const [applyTags, setApplyTags] = React.useState(false)
+  const [tagText, setTagText] = React.useState('')
   const formId = React.useId()
 
   React.useEffect(() => {
@@ -35,14 +39,17 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
     setPaymentMethod('')
     setApplyDate(false)
     setDate(format(new Date(), 'yyyy-MM-dd'))
+    setApplyTags(false)
+    setTagText('')
   }, [open])
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    const fieldUpdates: Partial<Pick<Expense, 'date' | 'category' | 'paymentMethod'>> = {}
+    const fieldUpdates: Partial<Pick<Expense, 'date' | 'category' | 'paymentMethod' | 'tags'>> = {}
     if (category) fieldUpdates.category = category
     if (applyPaymentMethod) fieldUpdates.paymentMethod = paymentMethod
     if (applyDate) fieldUpdates.date = date
+    if (applyTags) fieldUpdates.tags = formatTags(tagText)
     if (!Object.keys(fieldUpdates).length) return toast({ title: 'Choose at least one field to update.', variant: 'destructive' })
     if (!expenses.length) {
       toast({ title: 'Updated 0 expenses' })
@@ -89,6 +96,15 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
           Apply date
         </label>
         <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} disabled={!applyDate} />
+      </div>
+
+      <div className="space-y-2 text-sm font-semibold text-muted-foreground">
+        <label className="flex items-center gap-2 text-foreground">
+          <input type="checkbox" className="h-4 w-4 rounded border-input accent-coral" checked={applyTags} onChange={(event) => setApplyTags(event.target.checked)} />
+          Apply tags
+        </label>
+        <DatalistInput id="batch-tag-options" value={tagText} onChange={setTagText} options={tags} placeholder="Trip, Project, Family..." />
+        <p className="px-1 text-[11px] font-medium text-muted-foreground/80">This replaces the selected expenses' tags. Separate multiple tags with commas.</p>
       </div>
 
     </form>

@@ -11,9 +11,10 @@ import { appendNoteToDescription, classifyPaymentMethod, composeGiftcardDescript
 import { currency } from '../../lib/format'
 import { cn } from '../../lib/utils'
 import { useToast } from '../ui/Toast'
+import { formatTags } from '../../lib/tags'
 
 export type FormState = Omit<Expense, 'rowIndex'>
-const emptyForm = (): FormState => ({ date: format(new Date(), 'yyyy-MM-dd'), amount: 0, description: '', category: '', paymentMethod: '', reimbursement: '' })
+const emptyForm = (): FormState => ({ date: format(new Date(), 'yyyy-MM-dd'), amount: 0, description: '', category: '', paymentMethod: '', reimbursement: '', tags: '' })
 const emptyGiftcardParts = (): GiftcardDescriptionParts => ({ vendor: '', face: '', source: '' })
 const todayIso = () => format(new Date(), 'yyyy-MM-dd')
 const returnDescription = (expense: Expense) => `Return: ${splitDescriptionNote(expense.description).base || expense.category || 'Purchase'} (${expense.date})`
@@ -155,7 +156,8 @@ function sameExpense(a: FormState, b: Expense) {
     a.description.trim() === splitDescriptionNote(b.description).base.trim() &&
     a.category.trim() === b.category.trim() &&
     a.paymentMethod.trim() === b.paymentMethod.trim() &&
-    a.reimbursement.trim() === b.reimbursement.trim()
+    a.reimbursement.trim() === b.reimbursement.trim() &&
+    formatTags(a.tags) === formatTags(b.tags)
 }
 
 function sumAmountExpression(input: string): number | null {
@@ -365,7 +367,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   React.useEffect(() => {
     if (!open) return
     const next = expense
-      ? { date: expense.date, amount: expense.amount, description: expense.description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: expense.reimbursement }
+      ? { date: expense.date, amount: expense.amount, description: expense.description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: expense.reimbursement, tags: expense.tags }
       : template
         ? { ...template }
         : emptyForm()
@@ -477,7 +479,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     const description = giftcardPurchase && giftcardStructured
       ? composeGiftcardDescription(giftcardParts, note)
       : appendNoteToDescription(form.description, note)
-    const basePayload = { date: form.date, amount, description, category: form.category, paymentMethod: form.paymentMethod, reimbursement: form.reimbursement }
+    const basePayload = { date: form.date, amount, description, category: form.category, paymentMethod: form.paymentMethod, reimbursement: form.reimbursement, tags: formatTags(form.tags) }
     let payloads = [basePayload]
     if (splitEnabled) {
       if (splitPayments.length < 2) return toast({ title: 'Add at least two payment methods.', variant: 'destructive' })
@@ -541,6 +543,11 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
       <div className="min-h-6 sm:col-span-2">
         {noteOpen ? <label className="block space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Note</span><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label> : <Button type="button" variant="ghost" size="sm" className="h-6 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
       </div>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
+        <span className="block">Tags</span>
+        <Input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="Japan 2026, House, Work..." />
+        <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Separate multiple tags with commas.</span>
+      </label>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Category</span><CategoryCombobox value={form.category} onChange={setCategory} options={categories} isOpen={activeMenu === 'category'} onOpenChange={setMenu('category')} /></label>
       <div className={cn('min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground', splitEnabled && 'sm:col-span-2')}>
         {splitEnabled
@@ -757,6 +764,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
       category: source.category,
       paymentMethod,
       reimbursement: '',
+      tags: returnExpense?.tags || original?.tags || '',
     })
     setFullRefund(Boolean(original && !returnExpense))
     setGiftcardReturnMode('original')
@@ -824,7 +832,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     if (originalAmount > 0 && amount - originalAmount > 0.005) return toast({ title: 'Return amount is more than the purchase.', description: `The original purchase was ${currency.format(originalAmount)}.`, variant: 'destructive' })
     const creatingNewGiftcard = giftcardReturnMode === 'new' && !returnExpense
     const refundPaymentMethod = creatingNewGiftcard ? (original?.paymentMethod || form.paymentMethod) : form.paymentMethod
-    const payload = { date: form.date, amount: -amount, description: form.description, category: form.category, paymentMethod: refundPaymentMethod, reimbursement: '' }
+    const payload = { date: form.date, amount: -amount, description: form.description, category: form.category, paymentMethod: refundPaymentMethod, reimbursement: '', tags: formatTags(form.tags) }
     const giftcardVendorInput = newGiftcardVendor.trim()
     const giftcardVendor = ensureGiftcardVendor(giftcardVendorInput)
     try {
@@ -838,6 +846,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
           category: 'Giftcard',
           paymentMethod: refundPaymentMethod,
           reimbursement: '',
+          tags: formatTags(form.tags),
         })
       } else await addExpense.mutateAsync(payload)
       toast({ title: returnExpense ? 'Return updated' : creatingNewGiftcard ? 'Giftcard added' : 'Return added' })
@@ -865,6 +874,10 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Return date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Return amount</span><Input className={cn('min-w-0 max-w-full', fullRefund && 'bg-muted text-muted-foreground')} inputMode="decimal" type="number" min="0.01" max={originalAmount || undefined} step="0.01" required disabled={fullRefund} value={(fullRefund && originalAmount > 0 ? originalAmount : form.amount) || ''} onChange={(event) => setAmount(event.target.value)} />{fullRefund ? <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Amount is locked for a full refund.</span> : <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Enter a positive partial refund amount.</span>}</label>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2"><span className="block">Description</span><Input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Return: purchase description (date)" /></label>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
+        <span className="block">Tags</span>
+        <Input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="Japan 2026, House, Work..." />
+      </label>
       <div className="rounded-3xl border border-border/70 bg-accent/35 p-3 text-sm sm:col-span-2"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Category</p><p className="mt-1 font-semibold text-foreground">{form.category || 'Uncategorized'}</p></div>
       {original && !returnExpense && (originalIsGiftcard || giftcardReturnMode === 'new') && <div className="space-y-3 rounded-3xl border border-border/70 bg-accent/25 p-3 sm:col-span-2">
         {giftcardReturnMode === 'new'

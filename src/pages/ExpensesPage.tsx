@@ -27,13 +27,14 @@ export function ExpensesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const drilldownCategory = searchParams.get('category') || ''
   const drilldownPayment = searchParams.get('payment') || ''
+  const drilldownTag = searchParams.get('tag') || ''
   const fromAnalytics = searchParams.get('from') === 'analytics'
   const fromOverview = searchParams.get('from') === 'overview'
   const fromCards = searchParams.get('from') === 'cards'
   const initialFilters = React.useMemo<ExpenseFilters>(() => {
     const preset = searchParams.get('preset') as ExpenseFilters['preset'] | null
     const hasValidPreset = preset && ['thisMonth', 'lastMonth', 'thisYear', 'all', 'custom'].includes(preset)
-    if (!drilldownCategory && !drilldownPayment && !hasValidPreset) return defaultFilters
+    if (!drilldownCategory && !drilldownPayment && !drilldownTag && !hasValidPreset) return defaultFilters
     return {
       ...defaultFilters,
       preset: hasValidPreset ? preset : 'all',
@@ -41,8 +42,9 @@ export function ExpensesPage() {
       end: searchParams.get('end') || '',
       categories: drilldownCategory ? [drilldownCategory] : [],
       payments: drilldownPayment ? [drilldownPayment] : [],
+      tags: drilldownTag ? [drilldownTag] : [],
     }
-  }, [drilldownCategory, drilldownPayment, searchParams])
+  }, [drilldownCategory, drilldownPayment, drilldownTag, searchParams])
   const { data = [], isLoading, error, refetch } = useExpenses()
   const [filters, setFilters] = React.useState(initialFilters)
   const [editing, setEditing] = React.useState<Expense | null>(null)
@@ -61,7 +63,7 @@ export function ExpensesPage() {
   const activePaymentFilter = filters.payments.length === 1 ? filters.payments[0].trim() : ''
   React.useEffect(() => {
     outlet.setExpenseDialogTemplate?.(activePaymentFilter
-      ? () => ({ date: todayIso(), amount: 0, description: '', category: '', paymentMethod: activePaymentFilter, reimbursement: '' })
+      ? () => ({ date: todayIso(), amount: 0, description: '', category: '', paymentMethod: activePaymentFilter, reimbursement: '', tags: '' })
       : null)
     return () => outlet.setExpenseDialogTemplate?.(null)
   }, [activePaymentFilter, outlet])
@@ -109,7 +111,7 @@ export function ExpensesPage() {
   if (isLoading) return <SkeletonCards />
   if (error) return <QueryError error={error} onRetry={() => { void refetch() }} />
   const duplicate = (expense: Expense) => {
-    setTemplate({ date: todayIso(), amount: expense.amount, description: expense.description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: expense.reimbursement })
+    setTemplate({ date: todayIso(), amount: expense.amount, description: expense.description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: expense.reimbursement, tags: expense.tags })
     setTemplateOpen(true)
   }
   const editExpense = (expense: Expense) => expense.amount < 0 ? setEditingReturn(expense) : setEditing(expense)
@@ -123,6 +125,11 @@ export function ExpensesPage() {
     {fromAnalytics && drilldownCategory && <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-primary/20 bg-primary/[0.07] p-3 shadow-soft">
       <div className="mr-auto min-w-0 px-1"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Analytics drill-down</p><p className="truncate text-sm font-bold">{drilldownCategory} · {filters.preset === 'custom' ? `${filters.start || 'Start'} – ${filters.end || 'End'}` : filters.preset.replace(/([A-Z])/g, ' $1').toLowerCase()}</p></div>
       <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/analytics')}><ArrowLeft className="h-4 w-4" />Analytics</Button>
+      <Button type="button" variant="outline" size="sm" onClick={clearDrilldown}><X className="h-4 w-4" />Clear filters</Button>
+    </div>}
+    {fromAnalytics && drilldownTag && <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-primary/20 bg-primary/[0.07] p-3 shadow-soft">
+      <div className="mr-auto min-w-0 px-1"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Analytics drill-down</p><p className="truncate text-sm font-bold">#{drilldownTag} · {filters.preset === 'custom' ? `${filters.start || 'Start'} – ${filters.end || 'End'}` : filters.preset.replace(/([A-Z])/g, ' $1').toLowerCase()}</p></div>
+      <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/analytics?tab=tag')}><ArrowLeft className="h-4 w-4" />Analytics</Button>
       <Button type="button" variant="outline" size="sm" onClick={clearDrilldown}><X className="h-4 w-4" />Clear filters</Button>
     </div>}
     {fromCards && drilldownPayment && <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-primary/20 bg-primary/[0.07] p-3 shadow-soft">

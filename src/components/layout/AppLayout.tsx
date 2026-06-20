@@ -58,7 +58,8 @@ function isFormStateTemplate(value: unknown): value is FormState {
     typeof candidate.description === 'string' &&
     typeof candidate.category === 'string' &&
     typeof candidate.paymentMethod === 'string' &&
-    typeof candidate.reimbursement === 'string'
+    typeof candidate.reimbursement === 'string' &&
+    typeof candidate.tags === 'string'
 }
 
 function todayIso() {
@@ -75,9 +76,9 @@ function firstParam(params: URLSearchParams, names: string[]) {
   return ''
 }
 
-const addExpenseParamNames = ['add', 'action', 'date', 'amount', 'description', 'desc', 'merchant', 'category', 'paymentMethod', 'payment', 'card', 'reimbursement']
+const addExpenseParamNames = ['add', 'action', 'date', 'amount', 'description', 'desc', 'merchant', 'category', 'paymentMethod', 'payment', 'card', 'reimbursement', 'tags', 'tag']
 const addExpenseParamSet = new Set(addExpenseParamNames.map((name) => name.toLowerCase()))
-const looseTextParamSet = new Set(['description', 'desc', 'merchant', 'category', 'paymentmethod', 'payment', 'card', 'reimbursement'])
+const looseTextParamSet = new Set(['description', 'desc', 'merchant', 'category', 'paymentmethod', 'payment', 'card', 'reimbursement', 'tags', 'tag'])
 
 function decodeQueryPart(value: string) {
   try {
@@ -128,6 +129,7 @@ function expenseTemplateFromUrl(search: string, hash = ''): FormState | null {
     category: firstParam(params, ['category']),
     paymentMethod: firstParam(params, ['paymentMethod', 'payment', 'card']),
     reimbursement: firstParam(params, ['reimbursement']),
+    tags: firstParam(params, ['tags', 'tag']),
   }
 }
 

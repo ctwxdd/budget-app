@@ -1,5 +1,6 @@
 import { format, isValid, parse, parseISO } from 'date-fns'
 import type { Expense } from './types'
+import { formatTags } from './tags'
 
 function parseDateCell(value: string, rowIndex?: number): string {
   const raw = String(value || '').trim()
@@ -20,7 +21,7 @@ function parseDateCell(value: string, rowIndex?: number): string {
 export function parseExpenseRows(values: string[][] = []): Expense[] {
   return values
     .map((row, index) => {
-      const [date = '', amount = '', description = '', category = '', paymentMethod = '', reimbursement = ''] = row
+      const [date = '', amount = '', description = '', category = '', paymentMethod = '', reimbursement = '', tags = ''] = row
       return {
         rowIndex: index + 2,
         date: parseDateCell(date, index + 2),
@@ -29,11 +30,12 @@ export function parseExpenseRows(values: string[][] = []): Expense[] {
         category: String(category || ''),
         paymentMethod: String(paymentMethod || ''),
         reimbursement: String(reimbursement || ''),
+        tags: formatTags(String(tags || '')),
       }
     })
     .filter((expense) => expense.date || expense.amount || expense.description)
 }
 
 export function expenseToRow(expense: Expense | Omit<Expense, 'rowIndex'>): (string | number)[] {
-  return [expense.date, expense.amount, expense.description, expense.category, expense.paymentMethod, expense.reimbursement]
+  return [expense.date, expense.amount, expense.description, expense.category, expense.paymentMethod, expense.reimbursement, formatTags(expense.tags)]
 }

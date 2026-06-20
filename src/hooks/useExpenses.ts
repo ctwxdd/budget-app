@@ -7,6 +7,7 @@ import { clearLocalCache, readLocalCache, writeLocalCache } from '../lib/localCa
 import { rememberSheet } from '../lib/recentSheets'
 import type { Expense } from '../lib/types'
 import { categoryName } from '../lib/format'
+import { parseTags } from '../lib/tags'
 
 const LOCAL_CACHE_AGE = 5 * 60 * 1000
 const expensesCacheKey = (sheetId: string) => `expenses.${sheetId}`
@@ -35,7 +36,7 @@ export function useExpenses() {
   return useQuery({
     queryKey: ['expenses', sheetId],
     queryFn: async () => {
-      const expenses = parseExpenseRows((await getSheet(sheetId, 'Expense!A2:F')).values || [])
+      const expenses = parseExpenseRows((await getSheet(sheetId, 'Expense!A2:G')).values || [])
       writeLocalCache(expensesCacheKey(sheetId), expenses)
       return expenses
     },
@@ -54,13 +55,13 @@ export function useAddExpense() {
   const sheetId = useSheetId()
   return useMutation({
     mutationFn: async (expense: Omit<Expense, 'rowIndex'>) => {
-      const current = parseExpenseRows((await getSheet(sheetId, 'Expense!A2:F')).values || [])
+      const current = parseExpenseRows((await getSheet(sheetId, 'Expense!A2:G')).values || [])
       const insertBefore = current.find((item) => item.date > expense.date)
-      if (!insertBefore) return appendRow(sheetId, 'Expense!A:F', expenseToRow(expense))
+      if (!insertBefore) return appendRow(sheetId, 'Expense!A:G', expenseToRow(expense))
       const sheetGid = (await getSheetMeta(sheetId)).sheets.find((sheet) => sheet.title === 'Expense')?.sheetId
       if (sheetGid === undefined) throw new Error('Could not find an Expense tab in this spreadsheet.')
       await insertRow(sheetId, sheetGid, insertBefore.rowIndex - 1)
-      return updateRow(sheetId, `Expense!A${insertBefore.rowIndex}:F${insertBefore.rowIndex}`, expenseToRow(expense))
+      return updateRow(sheetId, `Expense!A${insertBefore.rowIndex}:G${insertBefore.rowIndex}`, expenseToRow(expense))
     },
     onMutate: async (expense) => {
       const queryKey = ['expenses', sheetId]
@@ -92,7 +93,7 @@ export function useUpdateExpense() {
   const queryClient = useQueryClient()
   const sheetId = useSheetId()
   return useMutation({
-    mutationFn: (expense: Expense) => updateRow(sheetId, `Expense!A${expense.rowIndex}:F${expense.rowIndex}`, expenseToRow(expense)),
+    mutationFn: (expense: Expense) => updateRow(sheetId, `Expense!A${expense.rowIndex}:G${expense.rowIndex}`, expenseToRow(expense)),
     onMutate: async (expense) => {
       const queryKey = ['expenses', sheetId]
       await queryClient.cancelQueries({ queryKey })
@@ -151,7 +152,7 @@ export function useBatchUpdateExpenses() {
   const queryClient = useQueryClient()
   const sheetId = useSheetId()
   return useMutation({
-    mutationFn: (updates: Array<{ rowIndex: number; updates: Partial<Pick<Expense, 'date' | 'amount' | 'description' | 'category' | 'paymentMethod' | 'reimbursement'>> }>) =>
+    mutationFn: (updates: Array<{ rowIndex: number; updates: Partial<Pick<Expense, 'date' | 'amount' | 'description' | 'category' | 'paymentMethod' | 'reimbursement' | 'tags'>> }>) =>
       batchUpdateExpenseFields(sheetId, 'Expense', updates),
     onSuccess: () => {
       clearLocalCache(expensesCacheKey(sheetId), giftcardsCacheKey(sheetId))
@@ -173,4 +174,9 @@ export function useCategories() {
 export function usePaymentMethods() {
   const expenses = useExpenses()
   return React.useMemo(() => mergeUnique(DEFAULT_PAYMENT_METHODS, expenses.data?.map((expense) => expense.paymentMethod) || []), [expenses.data])
+}
+
+export function useTags() {
+  const expenses = useExpenses()
+  return React.useMemo(() => mergeUnique([], expenses.data?.flatMap((expense) => parseTags(expense.tags)) || []), [expenses.data])
 }

@@ -10,6 +10,7 @@ import { SkeletonCards } from '../components/layout/Skeletons'
 import { QueryError } from '../components/layout/QueryError'
 import { useExpenses } from '../hooks/useExpenses'
 import { chartPalette, categoryColor, categoryIcon, currency, groupTotals, monthlyTotals, monthsForYear } from '../lib/format'
+import { groupTagTotals } from '../lib/tags'
 
 const moneyTick = (value: number) => `$${Math.round(value).toLocaleString()}`
 const validYear = (year: number, fallback: number) => (Number.isFinite(year) && year > 0 ? year : fallback)
@@ -22,7 +23,7 @@ export function AnalyticsPage() {
   const requestedPreset = searchParams.get('preset') as ExpenseFilters['preset'] | null
   const initialPreset = requestedPreset && ['thisMonth', 'lastMonth', 'thisYear', 'all', 'custom'].includes(requestedPreset) ? requestedPreset : 'thisYear'
   const requestedTab = searchParams.get('tab')
-  const initialTab = requestedTab && ['category', 'payment', 'trend', 'year'].includes(requestedTab) ? requestedTab : 'category'
+  const initialTab = requestedTab && ['category', 'tag', 'payment', 'trend', 'year'].includes(requestedTab) ? requestedTab : 'category'
   const [filters, setFilters] = React.useState<ExpenseFilters>({ ...defaultFilters, preset: initialPreset })
   const [tab, setTab] = React.useState(initialTab)
   const currentYear = new Date().getFullYear()
@@ -35,6 +36,7 @@ export function AnalyticsPage() {
   if (isLoading) return <SkeletonCards />
   if (error) return <QueryError error={error} onRetry={() => { void refetch() }} />
   const category = groupTotals(filtered, 'category').filter((row) => row.total > 0)
+  const tagTotals = groupTagTotals(filtered).filter((row) => row.total > 0)
   const payment = groupTotals(filtered, 'paymentMethod')
   const trend = monthlyTotals(filtered)
   const compareA = monthsForYear(safeYearA, data)
@@ -45,6 +47,12 @@ export function AnalyticsPage() {
   return <div className="space-y-5 md:space-y-6"><ExpenseFilterBar filters={filters} onChange={setFilters} mobileSticky={false} desktopSticky={false} /><Tabs value={tab} onChange={setTab} tabs={[
     { value: 'category', label: 'By Category', content: tab === 'category' ? <Card className="overflow-visible"><CardHeader><CardTitle>Spending by category</CardTitle><CardDescription>Tap a category to focus, then view its matching expenses.</CardDescription></CardHeader><CardContent>{category.length ? <CategoryBreakdown rows={category} onOpenExpenses={(categoryName) => {
       const params = new URLSearchParams({ category: categoryName, preset: filters.preset, from: 'analytics' })
+      if (filters.start) params.set('start', filters.start)
+      if (filters.end) params.set('end', filters.end)
+      navigate(`/expenses?${params.toString()}`)
+    }} /> : <EmptyChart />}</CardContent></Card> : null },
+    { value: 'tag', label: 'By Tag', content: tab === 'tag' ? <Card className="overflow-visible"><CardHeader><CardTitle>Spending by tag</CardTitle><CardDescription>Use tags for trips, projects, people, or anything flexible.</CardDescription></CardHeader><CardContent>{tagTotals.length ? <CategoryBreakdown rows={tagTotals} onOpenExpenses={(tagName) => {
+      const params = new URLSearchParams({ tag: tagName, preset: filters.preset, from: 'analytics' })
       if (filters.start) params.set('start', filters.start)
       if (filters.end) params.set('end', filters.end)
       navigate(`/expenses?${params.toString()}`)

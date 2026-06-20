@@ -6,11 +6,12 @@ import type { DatePreset, Expense } from '../../lib/types'
 import { categoryColor, categoryIcon, categoryName, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
 import { cn } from '../../lib/utils'
 import { Badge, Button, Card, Dialog, Input, Select } from '../ui'
-import { useAddExpense, useCategories, useDeleteExpense, usePaymentMethods, useSheetId, useSheetMeta } from '../../hooks/useExpenses'
+import { useAddExpense, useCategories, useDeleteExpense, usePaymentMethods, useSheetId, useSheetMeta, useTags } from '../../hooks/useExpenses'
 import { useToast } from '../ui/Toast'
+import { hasAnyTag, parseTags } from '../../lib/tags'
 
-export type ExpenseFilters = { preset: DatePreset; start: string; end: string; categories: string[]; payments: string[]; reimbursement: string; search: string }
-export const defaultFilters: ExpenseFilters = { preset: 'all', start: '', end: '', categories: [], payments: [], reimbursement: 'All', search: '' }
+export type ExpenseFilters = { preset: DatePreset; start: string; end: string; categories: string[]; payments: string[]; tags: string[]; reimbursement: string; search: string }
+export const defaultFilters: ExpenseFilters = { preset: 'all', start: '', end: '', categories: [], payments: [], tags: [], reimbursement: 'All', search: '' }
 
 type SortKey = 'date' | 'amount'
 type FilterKey = keyof ExpenseFilters
@@ -25,6 +26,14 @@ function ReimbursementChip({ value }: { value: string }) {
     ? 'border-mint/40 bg-mint/15 text-emerald-700 dark:text-mint'
     : 'border-butter/50 bg-butter/25 text-amber-700 dark:text-butter'
   return <span className={cn('inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold', tone)} title={`Reimbursement: ${value}`}>{value === 'Reimbursed' ? '✓' : '⌛'} {value}</span>
+}
+
+function TagChips({ value, compact = false }: { value: string; compact?: boolean }) {
+  const tags = parseTags(value)
+  if (!tags.length) return null
+  return <div className={cn('flex min-w-0 flex-wrap gap-1.5', compact && 'gap-1')}>
+    {tags.map((tag) => <span key={tag} className={cn('inline-flex max-w-full items-center truncate rounded-full border border-primary/20 bg-primary/[0.08] font-semibold text-primary', compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-0.5 text-[11px]')} title={tag}>#{tag}</span>)}
+  </div>
 }
 
 function MultiSelect({ label, values, options, onChange }: { label: string; values: string[]; options: string[]; onChange: (values: string[]) => void }) {
@@ -49,6 +58,7 @@ export function applyExpenseFilters(expenses: Expense[], filters: ExpenseFilters
   return filterByDateRange(expenses, range.start, range.end).filter((expense) => {
     if (filters.categories.length && !filters.categories.includes(categoryName(expense.category))) return false
     if (filters.payments.length && !filters.payments.includes(expense.paymentMethod)) return false
+    if (!hasAnyTag(expense.tags, filters.tags)) return false
     if (filters.reimbursement === 'Reimbursed' && expense.reimbursement !== 'Reimbursed') return false
     if (filters.reimbursement === 'Pending' && expense.reimbursement !== 'Pending') return false
     if (filters.reimbursement === 'None' && expense.reimbursement) return false
@@ -132,13 +142,15 @@ function DateRangePicker({ start, end, onChange }: { start: string; end: string;
 function FilterFields({ filters, onChange, showSearch = true }: { filters: ExpenseFilters; onChange: (filters: ExpenseFilters) => void; showSearch?: boolean }) {
   const categories = useCategories()
   const payments = usePaymentMethods()
+  const tags = useTags()
   const customWithSearch = filters.preset === 'custom' && showSearch
-  return <div className={cn('grid min-w-0 gap-3', customWithSearch ? 'lg:grid-cols-[minmax(8rem,0.75fr)_minmax(12rem,1.2fr)_minmax(12rem,1.1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)]' : 'lg:grid-cols-[minmax(8rem,0.75fr)_minmax(14rem,1.35fr)_minmax(12rem,1fr)_minmax(12rem,1fr)]')}>
+  return <div className={cn('grid min-w-0 gap-3', customWithSearch ? 'lg:grid-cols-2 xl:grid-cols-6' : 'lg:grid-cols-2 xl:grid-cols-5')}>
     <Select value={filters.preset} onChange={(event) => onChange({ ...filters, preset: event.target.value as DatePreset })}><option value="thisMonth">This month</option><option value="lastMonth">Last month</option><option value="thisYear">This year</option><option value="all">All</option><option value="custom">Custom</option></Select>
     {filters.preset === 'custom' ? <DateRangePicker start={filters.start} end={filters.end} onChange={(start, end) => onChange({ ...filters, start, end })} /> : showSearch ? <Input className="min-w-0" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} /> : <div className="hidden lg:block" />}
     {filters.preset === 'custom' && showSearch && <Input className="min-w-0" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} />}
     <MultiSelect label="Categories" values={filters.categories} options={categories} onChange={(categories) => onChange({ ...filters, categories })} />
     <MultiSelect label="Payment methods" values={filters.payments} options={payments} onChange={(payments) => onChange({ ...filters, payments })} />
+    <MultiSelect label="Tags" values={filters.tags} options={tags} onChange={(tags) => onChange({ ...filters, tags })} />
   </div>
 }
 
@@ -147,6 +159,7 @@ function filterChips(filters: ExpenseFilters) {
   if (filters.preset === 'custom') chips.push({ key: 'preset', label: `Custom: ${filters.start || '…'}–${filters.end || '…'}` })
   filters.categories.forEach((value) => chips.push({ key: 'categories', label: value, value }))
   filters.payments.forEach((value) => chips.push({ key: 'payments', label: value, value }))
+  filters.tags.forEach((value) => chips.push({ key: 'tags', label: `#${value}`, value }))
   return chips
 }
 
@@ -156,6 +169,7 @@ export function ExpenseFilterBar({ filters, onChange, selectionMode = false, sel
   const clearChip = (chip: { key: FilterKey; value?: string }) => {
     if (chip.key === 'categories') onChange({ ...filters, categories: filters.categories.filter((item) => item !== chip.value) })
     else if (chip.key === 'payments') onChange({ ...filters, payments: filters.payments.filter((item) => item !== chip.value) })
+    else if (chip.key === 'tags') onChange({ ...filters, tags: filters.tags.filter((item) => item !== chip.value) })
     else if (chip.key === 'preset') onChange({ ...filters, preset: 'all', start: '', end: '' })
     else onChange({ ...filters, search: '' })
   }
@@ -298,6 +312,7 @@ function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, onReturn, onOpenS
     {selected && <span className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-coral text-white shadow-soft"><Check className="h-4 w-4" /></span>}
     <div className="flex min-w-0 items-start justify-between gap-3 pr-7"><div className="flex min-w-0 flex-1 items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>{Icon ? <Icon className="h-5 w-5" strokeWidth={2.2} /> : (expense.category || '?').slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate font-bold">{expense.description || 'No description'}</p><p className="text-sm text-muted-foreground">{displayDate(expense.date)}</p></div></div><p className="shrink-0 whitespace-nowrap font-display text-lg font-extrabold text-coral">{currency.format(expense.amount)}</p></div>
     <div className="mt-3 flex min-w-0 flex-nowrap items-center gap-2"><div className="min-w-0 max-w-[38%] shrink"><ColorBadge value={categoryName(expense.category)} /></div><div className="min-w-0 flex-1 overflow-hidden"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></div>{expense.reimbursement && <div className="shrink-0"><ReimbursementChip value={expense.reimbursement} /></div>}{!selectionMode && <div className="shrink-0"><ExpenseMoreMenu expense={expense} canOpenSheet={canOpenSheet} onOpenSheet={onOpenSheet} /></div>}</div>
+    {expense.tags && <div className="mt-2"><TagChips value={expense.tags} compact /></div>}
     {open && <div className="mt-3 border-t border-border/70 pt-3" onClick={(event) => event.stopPropagation()}><ExpenseActionPanel expense={expense} onEdit={onEdit} onReturn={onReturn} onDuplicate={onDuplicate} onRemove={onRemove} onClose={() => setOpen(false)} /></div>}
   </div>
 }
@@ -356,7 +371,7 @@ function ExpenseListItem({ expense, onEdit, onRemove, onDuplicate, onReturn, onO
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold">{expense.description || 'No description'}</p>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">{categoryName(expense.category)} · {expense.paymentMethod || 'Unknown'}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">{categoryName(expense.category)} · {expense.paymentMethod || 'Unknown'}{parseTags(expense.tags).length ? ` · #${parseTags(expense.tags).join(' #')}` : ''}</p>
       </div>
       <div className="shrink-0 text-right">
         <p className="font-display text-sm font-extrabold tabular-nums text-coral">{currency.format(expense.amount)}</p>
@@ -399,7 +414,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
   const canOpenSheet = Boolean(sheetId && expenseSheetGid !== undefined)
   const openInSheet = (expense: Expense) => {
     if (!sheetId || expenseSheetGid === undefined || expense.rowIndex < 2) return
-    const rowRange = `A${expense.rowIndex}:F${expense.rowIndex}`
+    const rowRange = `A${expense.rowIndex}:G${expense.rowIndex}`
     window.open(`https://docs.google.com/spreadsheets/d/${sheetId}/edit#gid=${expenseSheetGid}&range=${rowRange}&rangeid=${rowRange}`, '_blank', 'noopener,noreferrer')
   }
   const remove = async (expense: Expense) => {
@@ -421,6 +436,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
               category: expense.category,
               paymentMethod: expense.paymentMethod,
               reimbursement: expense.reimbursement,
+              tags: expense.tags,
             }).catch((error) => {
               toast({ title: 'Could not restore expense', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
             })
@@ -436,12 +452,12 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
 
   return <Card className="overflow-hidden">
     <div className="hidden overflow-x-auto md:block">
-      <table className="w-full min-w-[740px] text-sm">
+      <table className="w-full min-w-[860px] text-sm">
         <thead className="bg-gradient-to-r from-coral/10 to-peach/10 text-left"><tr>
           <th className="w-12 p-4"><SelectAllCheckbox checked={allVisibleSelected} indeterminate={partiallyVisibleSelected} disabled={!sorted.length} onChange={() => onSelectMany(sorted, !allVisibleSelected)} /></th>
           <th className="p-4"><button className="flex items-center gap-1" onClick={() => toggleSort('date')}>Date <ArrowDownUp className="h-3 w-3" /></button></th>
           <th className="p-4 text-right"><button className="ml-auto flex items-center gap-1" onClick={() => toggleSort('amount')}>Amount <ArrowDownUp className="h-3 w-3" /></button></th>
-          <th className="p-4">Description</th><th className="p-4">Category</th><th className="p-4">Payment</th><th className="p-4 text-right">Actions</th>
+          <th className="p-4">Description</th><th className="p-4">Category</th><th className="p-4">Payment</th><th className="p-4">Tags</th><th className="p-4 text-right">Actions</th>
         </tr></thead>
         <tbody>{current.map((expense) => {
           const selected = selectedIds.has(expense.rowIndex)
@@ -454,9 +470,10 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
               <td className="p-4">{expense.description || <span className="text-muted-foreground">No description</span>}</td>
               <td className="p-4"><ColorBadge value={categoryName(expense.category)} /></td>
               <td className="p-4"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></td>
+              <td className="max-w-[14rem] p-4"><TagChips value={expense.tags} compact /></td>
               <td className="p-4" onClick={(event) => event.stopPropagation()}><div className="flex justify-end"><ExpenseMoreMenu expense={expense} canOpenSheet={canOpenSheet} onOpenSheet={openInSheet} /></div></td>
             </tr>
-            {open && !selectionMode && <tr className="border-t bg-accent/20"><td colSpan={7} className="p-3"><ExpenseActionPanel expense={expense} onEdit={onEdit} onReturn={onReturn} onDuplicate={onDuplicate} onRemove={remove} onClose={() => setOpenRowIndex(null)} /></td></tr>}
+            {open && !selectionMode && <tr className="border-t bg-accent/20"><td colSpan={8} className="p-3"><ExpenseActionPanel expense={expense} onEdit={onEdit} onReturn={onReturn} onDuplicate={onDuplicate} onRemove={remove} onClose={() => setOpenRowIndex(null)} /></td></tr>}
           </React.Fragment>
         })}</tbody>
       </table>

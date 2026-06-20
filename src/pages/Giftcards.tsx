@@ -73,6 +73,7 @@ function GiftcardsContent() {
       category: '',
       paymentMethod: card.vendor,
       reimbursement: '',
+      tags: '',
     })
   }, [])
 

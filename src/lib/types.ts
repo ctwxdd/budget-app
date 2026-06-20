@@ -6,6 +6,7 @@ export type Expense = {
   category: string
   paymentMethod: string
   reimbursement: string
+  tags: string
 }
 
 export type SheetMeta = {
