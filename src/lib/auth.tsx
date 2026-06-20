@@ -50,10 +50,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (JSON.parse(localStorage.getItem('budget.user') || 'null') as UserInfo | null)
     && hasSheets(localStorage.getItem(SCOPE_KEY) || '')
   )
-  // Silent refresh should improve startup, not block it. Start false so routes
-  // can redirect to /login immediately; the refresh runs in the background and
-  // navigates away if it succeeds.
-  const [isAuthenticating, setIsAuthenticating] = useState(false)
+  // If we remember the account, give silent refresh a short chance before
+  // redirecting to /login. This avoids showing the login page for normal
+  // one-hour access-token expiry.
+  const [isAuthenticating, setIsAuthenticating] = useState(!initialFresh && initialRemembered)
 
   const persistToken = useCallback((accessToken: string, expiresIn = 3600, scope = '') => {
     const safeExpiresAt = Date.now() + expiresIn * 1000 - 60000
@@ -143,6 +143,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     onError: handleSilentError,
   })
 
+  const requestSilentToken = useCallback(async () => {
+    if (!user?.email) throw new Error('No remembered Google account.')
+    setIsAuthenticating(true)
+    const timeoutId = setTimeout(() => {
+      silentReject.current?.(new Error('Silent refresh timed out'))
+    }, 2500)
+    try {
+      await new Promise<void>((resolve, reject) => {
+        silentResolve.current = resolve
+        silentReject.current = reject
+        googleSilent({ prompt: 'none', hint: user.email })
+      })
+    } finally {
+      clearTimeout(timeoutId)
+      setIsAuthenticating(false)
+    }
+  }, [googleSilent, user?.email])
+
   const login = useCallback(() => new Promise<void>((resolve, reject) => {
     pendingLogin.current = resolve
     pendingError.current = reject
@@ -187,24 +205,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setExpiresAt(0)
   }, [])
 
+  const rememberedAuthorization = Boolean(user && hasSheets(grantedScope))
+
   const withFreshToken = useCallback(async () => {
     const latest = readToken()
     if (latest.token && latest.expiresAt > Date.now()) return latest.token
-    // Token is missing or expired. We intentionally do NOT auto-open a Google
-    // OAuth popup here — popups not triggered by a user gesture get blocked by
-    // browsers and show the "site attempted to open a popup" warning. Instead
-    // we clear the cached access token so `isAuthenticated` flips to false,
-    // ProtectedRoute redirects to /login, and the user re-authenticates by
-    // clicking the "Continue as …" button (a real user gesture).
+    if (rememberedAuthorization) {
+      try {
+        await requestSilentToken()
+        const refreshed = readToken()
+        if (refreshed.token && refreshed.expiresAt > Date.now()) return refreshed.token
+      } catch {
+        // Fall through to the user-gesture login path below.
+      }
+    }
     if (latest.token || latest.expiresAt) clearAccessToken()
     throw new Error('Google sign-in expired. Please sign in again.')
-  }, [clearAccessToken])
+  }, [clearAccessToken, rememberedAuthorization, requestSilentToken])
 
   useEffect(() => {
     setSheetsAuth({ getToken: withFreshToken, onUnauthorized: clearAccessToken })
   }, [withFreshToken, clearAccessToken])
-
-  const rememberedAuthorization = Boolean(user && hasSheets(grantedScope))
 
   // Attempt a background silent token refresh once on app load when we have a
   // remembered account but no fresh access token. With prompt: 'none', Google
@@ -219,27 +240,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     silentAttempted.current = true
-    setIsAuthenticating(true)
-    const timeoutId = setTimeout(() => {
-      silentReject.current?.(new Error('Silent refresh timed out'))
-    }, 2000)
-    new Promise<void>((resolve, reject) => {
-      silentResolve.current = resolve
-      silentReject.current = reject
-      try {
-        googleSilent({ prompt: 'none', hint: user.email })
-      } catch (error) {
-        reject(error)
-      }
-    })
+    requestSilentToken()
       .catch(() => {
         // Expected fallback — user will see /login with "Continue as" button.
       })
-      .finally(() => {
-        clearTimeout(timeoutId)
-        setIsAuthenticating(false)
-      })
-  }, [googleSilent, user?.email, initialFresh, initialRemembered, rememberedAuthorization])
+  }, [requestSilentToken, user?.email, initialFresh, initialRemembered, rememberedAuthorization])
 
   const value = useMemo(() => ({
     token,
