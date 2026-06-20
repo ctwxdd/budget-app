@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { addDays, addMonths, endOfMonth, endOfWeek, format, isBefore, isSameDay, isSameMonth, isValid, parseISO, startOfMonth, startOfWeek } from 'date-fns'
-import { ArrowDownUp, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Filter, LayoutGrid, List, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { ArrowDownUp, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Filter, LayoutGrid, List, MoreHorizontal, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import type { DatePreset, Expense } from '../../lib/types'
 import { categoryColor, categoryIcon, categoryName, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
 import { cn } from '../../lib/utils'
@@ -197,6 +197,30 @@ function ExpenseActionPanel({ expense, onEdit, onRemove, onDuplicate, onReturn, 
   </div>
 }
 
+function ExpenseMoreMenu({ expense, onOpenSheet, canOpenSheet }: { expense: Expense; onOpenSheet: (expense: Expense) => void; canOpenSheet: boolean }) {
+  const [open, setOpen] = React.useState(false)
+  React.useEffect(() => {
+    if (!open) return
+    const close = () => setOpen(false)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [open])
+  const sheetDisabled = !canOpenSheet || expense.rowIndex < 2
+  return <div className="relative" onClick={(event) => event.stopPropagation()}>
+    <Button variant="ghost" size="icon" aria-label="Open expense menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal className="h-5 w-5" /></Button>
+    {open && <div className="absolute right-0 z-30 mt-1.5 min-w-48 rounded-2xl border border-border bg-card p-1.5 shadow-lift">
+      <button
+        type="button"
+        disabled={sheetDisabled}
+        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-45"
+        onClick={() => { setOpen(false); onOpenSheet(expense) }}
+      >
+        <ExternalLink className="h-4 w-4" />Open in Google Sheets
+      </button>
+    </div>}
+  </div>
+}
+
 type ExpenseItemProps = {
   expense: Expense
   onEdit: (expense: Expense) => void
@@ -272,7 +296,7 @@ function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, onReturn, onOpenS
   >
     {selected && <span className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-coral text-white shadow-soft"><Check className="h-4 w-4" /></span>}
     <div className="flex min-w-0 items-start justify-between gap-3 pr-7"><div className="flex min-w-0 flex-1 items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>{Icon ? <Icon className="h-5 w-5" strokeWidth={2.2} /> : (expense.category || '?').slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate font-bold">{expense.description || 'No description'}</p><p className="text-sm text-muted-foreground">{displayDate(expense.date)}</p></div></div><p className="shrink-0 whitespace-nowrap font-display text-lg font-extrabold text-coral">{currency.format(expense.amount)}</p></div>
-    <div className="mt-3 flex min-w-0 flex-nowrap items-center gap-2"><div className="min-w-0 max-w-[38%] shrink"><ColorBadge value={categoryName(expense.category)} /></div><div className="min-w-0 flex-1 overflow-hidden"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></div>{expense.reimbursement && <div className="shrink-0"><ReimbursementChip value={expense.reimbursement} /></div>}{!selectionMode && <div className="shrink-0"><Button variant="ghost" size="icon" aria-label="Open row in Google Sheets" disabled={!canOpenSheet || expense.rowIndex < 2} onClick={(event) => { event.stopPropagation(); onOpenSheet(expense) }}><ExternalLink className="h-5 w-5" /></Button></div>}</div>
+    <div className="mt-3 flex min-w-0 flex-nowrap items-center gap-2"><div className="min-w-0 max-w-[38%] shrink"><ColorBadge value={categoryName(expense.category)} /></div><div className="min-w-0 flex-1 overflow-hidden"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></div>{expense.reimbursement && <div className="shrink-0"><ReimbursementChip value={expense.reimbursement} /></div>}{!selectionMode && <div className="shrink-0"><ExpenseMoreMenu expense={expense} canOpenSheet={canOpenSheet} onOpenSheet={onOpenSheet} /></div>}</div>
     {open && <div className="mt-3 border-t border-border/70 pt-3" onClick={(event) => event.stopPropagation()}><ExpenseActionPanel expense={expense} onEdit={onEdit} onReturn={onReturn} onDuplicate={onDuplicate} onRemove={onRemove} onClose={() => setOpen(false)} /></div>}
   </div>
 }
@@ -337,7 +361,7 @@ function ExpenseListItem({ expense, onEdit, onRemove, onDuplicate, onReturn, onO
         <p className="font-display text-sm font-extrabold tabular-nums text-coral">{currency.format(expense.amount)}</p>
         <p className="mt-0.5 text-[11px] text-muted-foreground">{displayDate(expense.date)}</p>
       </div>
-      {!selectionMode && <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Open row in Google Sheets" disabled={!canOpenSheet || expense.rowIndex < 2} onClick={(event) => { event.stopPropagation(); onOpenSheet(expense) }}><ExternalLink className="h-5 w-5" /></Button>}
+      {!selectionMode && <div className="shrink-0"><ExpenseMoreMenu expense={expense} canOpenSheet={canOpenSheet} onOpenSheet={onOpenSheet} /></div>}
     </div>
     {open && <div className="border-t border-border/60 px-3 py-2.5" onClick={(event) => event.stopPropagation()}><ExpenseActionPanel expense={expense} onEdit={onEdit} onReturn={onReturn} onDuplicate={onDuplicate} onRemove={onRemove} onClose={() => setOpen(false)} /></div>}
   </div>
@@ -428,7 +452,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
               <td className="p-4">{expense.description || <span className="text-muted-foreground">No description</span>}</td>
               <td className="p-4"><ColorBadge value={categoryName(expense.category)} /></td>
               <td className="p-4"><ColorBadge value={expense.paymentMethod || 'Unknown'} variant="payment" /></td>
-              <td className="p-4" onClick={(event) => event.stopPropagation()}><div className="flex justify-end gap-1"><Button variant="ghost" size="icon" disabled={!canOpenSheet || expense.rowIndex < 2} onClick={() => openInSheet(expense)} aria-label="Open row in Google Sheets"><ExternalLink className="h-4 w-4" /></Button></div></td>
+              <td className="p-4" onClick={(event) => event.stopPropagation()}><div className="flex justify-end"><ExpenseMoreMenu expense={expense} canOpenSheet={canOpenSheet} onOpenSheet={openInSheet} /></div></td>
             </tr>
             {open && !selectionMode && <tr className="border-t bg-accent/20"><td colSpan={7} className="p-3"><ExpenseActionPanel expense={expense} onEdit={onEdit} onReturn={onReturn} onDuplicate={onDuplicate} onRemove={remove} onClose={() => setOpenRowIndex(null)} /></td></tr>}
           </React.Fragment>
