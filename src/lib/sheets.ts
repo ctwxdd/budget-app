@@ -134,7 +134,7 @@ const expenseColumns: Record<keyof ExpenseFieldUpdates, string> = {
   category: 'D',
   paymentMethod: 'E',
   reimbursement: 'F',
-  tags: 'G',
+  tags: 'H',
 }
 
 export async function batchUpdateExpenseFields(
@@ -245,7 +245,7 @@ const EXPENSE_GID = 1
 const CARDS_GID = 2
 const GIFTCARD_GID = 3
 
-const EXPENSE_HEADERS = ['Date', 'Expense', 'Description', 'Category', 'Payment Method', 'Reimbursement', 'Tags']
+const EXPENSE_HEADERS = ['Date', 'Expense', 'Description', 'Category', 'Payment Method', 'Reimbursement', '', 'Tags']
 const GIFTCARD_HEADERS_LEFT = ['Card', 'Date', 'Paid', 'Face', 'Vendor', 'Direct', 'Pool', 'Cum Before', 'FIFO', 'Balance']
 const GIFTCARD_HEADERS_RIGHT = ['Merchant', 'Cards', 'Purchased', 'Spent', 'Balance', 'Active']
 

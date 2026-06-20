@@ -414,7 +414,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
   const canOpenSheet = Boolean(sheetId && expenseSheetGid !== undefined)
   const openInSheet = (expense: Expense) => {
     if (!sheetId || expenseSheetGid === undefined || expense.rowIndex < 2) return
-    const rowRange = `A${expense.rowIndex}:G${expense.rowIndex}`
+    const rowRange = `A${expense.rowIndex}:H${expense.rowIndex}`
     window.open(`https://docs.google.com/spreadsheets/d/${sheetId}/edit#gid=${expenseSheetGid}&range=${rowRange}&rangeid=${rowRange}`, '_blank', 'noopener,noreferrer')
   }
   const remove = async (expense: Expense) => {

@@ -21,7 +21,7 @@ function parseDateCell(value: string, rowIndex?: number): string {
 export function parseExpenseRows(values: string[][] = []): Expense[] {
   return values
     .map((row, index) => {
-      const [date = '', amount = '', description = '', category = '', paymentMethod = '', reimbursement = '', tags = ''] = row
+      const [date = '', amount = '', description = '', category = '', paymentMethod = '', reimbursement = '', _reserved = '', tags = ''] = row
       return {
         rowIndex: index + 2,
         date: parseDateCell(date, index + 2),
@@ -37,5 +37,9 @@ export function parseExpenseRows(values: string[][] = []): Expense[] {
 }
 
 export function expenseToRow(expense: Expense | Omit<Expense, 'rowIndex'>): (string | number)[] {
-  return [expense.date, expense.amount, expense.description, expense.category, expense.paymentMethod, expense.reimbursement, formatTags(expense.tags)]
+  return [expense.date, expense.amount, expense.description, expense.category, expense.paymentMethod, expense.reimbursement]
+}
+
+export function expenseTagsCell(expense: Expense | Omit<Expense, 'rowIndex'>): string {
+  return formatTags(expense.tags)
 }

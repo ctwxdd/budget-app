@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as React from 'react'
 import { DEFAULT_CATEGORIES, DEFAULT_PAYMENT_METHODS, SHEET_ID_KEY } from '../lib/defaults'
-import { expenseToRow, parseExpenseRows } from '../lib/parse'
+import { expenseTagsCell, expenseToRow, parseExpenseRows } from '../lib/parse'
 import { appendRow, batchUpdateExpenseFields, deleteRow, deleteRows, getSheet, getSheetMeta, insertRow, isRateLimitError, updateRow } from '../lib/sheets'
 import { clearLocalCache, readLocalCache, writeLocalCache } from '../lib/localCache'
 import { rememberSheet } from '../lib/recentSheets'
@@ -12,6 +12,17 @@ import { parseTags } from '../lib/tags'
 const LOCAL_CACHE_AGE = 5 * 60 * 1000
 const expensesCacheKey = (sheetId: string) => `expenses.${sheetId}`
 const giftcardsCacheKey = (sheetId: string) => `giftcards.${sheetId}`
+
+function rowIndexFromUpdatedRange(range?: string) {
+  const match = range?.match(/![A-Z]+(\d+):/)
+  const rowIndex = match ? Number(match[1]) : 0
+  return Number.isFinite(rowIndex) && rowIndex > 0 ? rowIndex : 0
+}
+
+async function writeExpenseRow(sheetId: string, rowIndex: number, expense: Omit<Expense, 'rowIndex'>) {
+  await updateRow(sheetId, `Expense!A${rowIndex}:F${rowIndex}`, expenseToRow(expense))
+  await updateRow(sheetId, `Expense!H${rowIndex}:H${rowIndex}`, [expenseTagsCell(expense)])
+}
 
 export function getStoredSheetId() {
   return localStorage.getItem(SHEET_ID_KEY) || ''
@@ -36,7 +47,7 @@ export function useExpenses() {
   return useQuery({
     queryKey: ['expenses', sheetId],
     queryFn: async () => {
-      const expenses = parseExpenseRows((await getSheet(sheetId, 'Expense!A2:G')).values || [])
+      const expenses = parseExpenseRows((await getSheet(sheetId, 'Expense!A2:H')).values || [])
       writeLocalCache(expensesCacheKey(sheetId), expenses)
       return expenses
     },
@@ -55,13 +66,18 @@ export function useAddExpense() {
   const sheetId = useSheetId()
   return useMutation({
     mutationFn: async (expense: Omit<Expense, 'rowIndex'>) => {
-      const current = parseExpenseRows((await getSheet(sheetId, 'Expense!A2:G')).values || [])
+      const current = parseExpenseRows((await getSheet(sheetId, 'Expense!A2:H')).values || [])
       const insertBefore = current.find((item) => item.date > expense.date)
-      if (!insertBefore) return appendRow(sheetId, 'Expense!A:G', expenseToRow(expense))
+      if (!insertBefore) {
+        const result = await appendRow(sheetId, 'Expense!A:F', expenseToRow(expense))
+        const rowIndex = rowIndexFromUpdatedRange(result.updates?.updatedRange)
+        if (rowIndex) await updateRow(sheetId, `Expense!H${rowIndex}:H${rowIndex}`, [expenseTagsCell(expense)])
+        return result
+      }
       const sheetGid = (await getSheetMeta(sheetId)).sheets.find((sheet) => sheet.title === 'Expense')?.sheetId
       if (sheetGid === undefined) throw new Error('Could not find an Expense tab in this spreadsheet.')
       await insertRow(sheetId, sheetGid, insertBefore.rowIndex - 1)
-      return updateRow(sheetId, `Expense!A${insertBefore.rowIndex}:G${insertBefore.rowIndex}`, expenseToRow(expense))
+      return writeExpenseRow(sheetId, insertBefore.rowIndex, expense)
     },
     onMutate: async (expense) => {
       const queryKey = ['expenses', sheetId]
@@ -93,7 +109,7 @@ export function useUpdateExpense() {
   const queryClient = useQueryClient()
   const sheetId = useSheetId()
   return useMutation({
-    mutationFn: (expense: Expense) => updateRow(sheetId, `Expense!A${expense.rowIndex}:G${expense.rowIndex}`, expenseToRow(expense)),
+    mutationFn: (expense: Expense) => writeExpenseRow(sheetId, expense.rowIndex, expense),
     onMutate: async (expense) => {
       const queryKey = ['expenses', sheetId]
       await queryClient.cancelQueries({ queryKey })
