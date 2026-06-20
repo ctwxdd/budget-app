@@ -15,6 +15,8 @@ export const defaultFilters: ExpenseFilters = { preset: 'all', start: '', end: '
 
 type SortKey = 'date' | 'amount'
 type FilterKey = keyof ExpenseFilters
+const NO_PAYMENT_FILTER = '__NO_PAYMENT__'
+const NO_PAYMENT_LABEL = 'No payment method'
 
 function ColorBadge({ value, variant = 'category', className = '' }: { value: string; variant?: 'category' | 'payment'; className?: string }) {
   const color = categoryColor(`${variant}:${value}`)
@@ -36,9 +38,13 @@ function TagChips({ value, compact = false }: { value: string; compact?: boolean
   </div>
 }
 
+function displayFilterValue(value: string) {
+  return value === NO_PAYMENT_FILTER ? NO_PAYMENT_LABEL : value
+}
+
 function MultiSelect({ label, values, options, onChange }: { label: string; values: string[]; options: string[]; onChange: (values: string[]) => void }) {
   const [choice, setChoice] = React.useState('')
-  return <div className="min-w-0 space-y-2"><div className="flex min-w-0 gap-2"><Select className="min-w-0 flex-1" aria-label={label} value={choice} onChange={(event) => { const value = event.target.value; setChoice(''); if (value && !values.includes(value)) onChange([...values, value]) }}><option value="">{label}</option>{options.map((option) => <option key={option}>{option}</option>)}</Select>{values.length > 0 && <Button type="button" variant="ghost" className="shrink-0 px-3" onClick={() => onChange([])}>Clear</Button>}</div>{values.length > 0 && <div className="flex gap-1.5 overflow-x-auto pb-1">{values.map((value) => <button key={value} className="shrink-0" onClick={() => onChange(values.filter((item) => item !== value))}><Badge variant="secondary">{value} ×</Badge></button>)}</div>}</div>
+  return <div className="min-w-0 space-y-2"><div className="flex min-w-0 gap-2"><Select className="min-w-0 flex-1" aria-label={label} value={choice} onChange={(event) => { const value = event.target.value; setChoice(''); if (value && !values.includes(value)) onChange([...values, value]) }}><option value="">{label}</option>{options.map((option) => <option key={option} value={option}>{displayFilterValue(option)}</option>)}</Select>{values.length > 0 && <Button type="button" variant="ghost" className="shrink-0 px-3" onClick={() => onChange([])}>Clear</Button>}</div>{values.length > 0 && <div className="flex gap-1.5 overflow-x-auto pb-1">{values.map((value) => <button key={value} className="shrink-0" onClick={() => onChange(values.filter((item) => item !== value))}><Badge variant="secondary">{displayFilterValue(value)} ×</Badge></button>)}</div>}</div>
 }
 
 function dayLabel(iso: string) {
@@ -57,7 +63,7 @@ export function applyExpenseFilters(expenses: Expense[], filters: ExpenseFilters
   const range = getPresetRange(filters.preset, filters.start, filters.end)
   return filterByDateRange(expenses, range.start, range.end).filter((expense) => {
     if (filters.categories.length && !filters.categories.includes(categoryName(expense.category))) return false
-    if (filters.payments.length && !filters.payments.includes(expense.paymentMethod)) return false
+    if (filters.payments.length && !filters.payments.some((payment) => payment === NO_PAYMENT_FILTER ? !expense.paymentMethod.trim() : payment === expense.paymentMethod)) return false
     if (!hasAnyTag(expense.tags, filters.tags)) return false
     if (filters.reimbursement === 'Reimbursed' && expense.reimbursement !== 'Reimbursed') return false
     if (filters.reimbursement === 'Pending' && expense.reimbursement !== 'Pending') return false
@@ -142,6 +148,7 @@ function DateRangePicker({ start, end, onChange }: { start: string; end: string;
 function FilterFields({ filters, onChange, showSearch = true }: { filters: ExpenseFilters; onChange: (filters: ExpenseFilters) => void; showSearch?: boolean }) {
   const categories = useCategories()
   const payments = usePaymentMethods()
+  const paymentOptions = React.useMemo(() => [NO_PAYMENT_FILTER, ...payments], [payments])
   const tags = useTags()
   const customWithSearch = filters.preset === 'custom' && showSearch
   return <div className={cn('grid min-w-0 gap-3', customWithSearch ? 'lg:grid-cols-2 xl:grid-cols-6' : 'lg:grid-cols-2 xl:grid-cols-5')}>
@@ -149,7 +156,7 @@ function FilterFields({ filters, onChange, showSearch = true }: { filters: Expen
     {filters.preset === 'custom' ? <DateRangePicker start={filters.start} end={filters.end} onChange={(start, end) => onChange({ ...filters, start, end })} /> : showSearch ? <Input className="min-w-0" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} /> : <div className="hidden lg:block" />}
     {filters.preset === 'custom' && showSearch && <Input className="min-w-0" placeholder="Search description..." value={filters.search} onChange={(event) => onChange({ ...filters, search: event.target.value })} />}
     <MultiSelect label="Categories" values={filters.categories} options={categories} onChange={(categories) => onChange({ ...filters, categories })} />
-    <MultiSelect label="Payment methods" values={filters.payments} options={payments} onChange={(payments) => onChange({ ...filters, payments })} />
+    <MultiSelect label="Payment methods" values={filters.payments} options={paymentOptions} onChange={(payments) => onChange({ ...filters, payments })} />
     <MultiSelect label="Tags" values={filters.tags} options={tags} onChange={(tags) => onChange({ ...filters, tags })} />
   </div>
 }
@@ -158,7 +165,7 @@ function filterChips(filters: ExpenseFilters) {
   const chips: { key: FilterKey; label: string; value?: string }[] = []
   if (filters.preset === 'custom') chips.push({ key: 'preset', label: `Custom: ${filters.start || '…'}–${filters.end || '…'}` })
   filters.categories.forEach((value) => chips.push({ key: 'categories', label: value, value }))
-  filters.payments.forEach((value) => chips.push({ key: 'payments', label: value, value }))
+  filters.payments.forEach((value) => chips.push({ key: 'payments', label: displayFilterValue(value), value }))
   filters.tags.forEach((value) => chips.push({ key: 'tags', label: `#${value}`, value }))
   return chips
 }
