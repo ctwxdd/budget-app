@@ -180,7 +180,7 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
         placeholder={selected.length ? 'Add another tag...' : 'Travel, House, Project...'}
         autoComplete="off"
       />
-      {open && <FadeScroll outerClassName="absolute bottom-full left-0 right-0 z-30 mb-1.5 rounded-2xl border border-border bg-card shadow-lift" className="max-h-56 overflow-auto p-1">
+      {open && <FadeScroll outerClassName="absolute left-0 right-0 top-full z-[60] mt-1.5 rounded-2xl border border-border bg-card shadow-lift" className="max-h-56 overflow-auto p-1">
         {suggestions.map((tag, index) => <button
           key={tag}
           type="button"
