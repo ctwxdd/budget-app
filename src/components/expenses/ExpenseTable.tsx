@@ -206,13 +206,14 @@ function ExpenseMoreMenu({ expense, onOpenSheet, canOpenSheet }: { expense: Expe
     return () => window.removeEventListener('click', close)
   }, [open])
   const sheetDisabled = !canOpenSheet || expense.rowIndex < 2
-  return <div className="relative" onClick={(event) => event.stopPropagation()}>
-    <Button variant="ghost" size="icon" aria-label="Open expense menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal className="h-5 w-5" /></Button>
-    {open && <div className="absolute right-0 z-30 mt-1.5 min-w-48 rounded-2xl border border-border bg-card p-1.5 shadow-lift">
+  const stop = (event: React.SyntheticEvent) => event.stopPropagation()
+  return <div className="relative -m-1.5 p-1.5" onPointerDown={stop} onMouseDown={stop} onTouchStart={stop} onClick={stop}>
+    <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Open expense menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal className="h-5 w-5" /></Button>
+    {open && <div className="absolute right-0 z-30 mt-1.5 min-w-56 rounded-2xl border border-border bg-card p-1.5 shadow-lift">
       <button
         type="button"
         disabled={sheetDisabled}
-        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-45"
+        className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-45"
         onClick={() => { setOpen(false); onOpenSheet(expense) }}
       >
         <ExternalLink className="h-4 w-4" />Open in Google Sheets
@@ -398,7 +399,8 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
   const canOpenSheet = Boolean(sheetId && expenseSheetGid !== undefined)
   const openInSheet = (expense: Expense) => {
     if (!sheetId || expenseSheetGid === undefined || expense.rowIndex < 2) return
-    window.open(`https://docs.google.com/spreadsheets/d/${sheetId}/edit#gid=${expenseSheetGid}&range=A${expense.rowIndex}:F${expense.rowIndex}`, '_blank', 'noopener,noreferrer')
+    const rowRange = `A${expense.rowIndex}:F${expense.rowIndex}`
+    window.open(`https://docs.google.com/spreadsheets/d/${sheetId}/edit#gid=${expenseSheetGid}&range=${rowRange}&rangeid=${rowRange}`, '_blank', 'noopener,noreferrer')
   }
   const remove = async (expense: Expense) => {
     const queryKey = ['expenses', sheetId]
