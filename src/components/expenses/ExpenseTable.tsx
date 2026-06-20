@@ -340,7 +340,12 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
   const queryClient = useQueryClient()
   const sheetId = useSheetId()
   const { toast } = useToast()
-  const sorted = React.useMemo(() => [...expenses].sort((a, b) => { const result = sortKey === 'date' ? a.date.localeCompare(b.date) : a.amount - b.amount; return sortDir === 'asc' ? result : -result }), [expenses, sortKey, sortDir])
+  const sorted = React.useMemo(() => [...expenses].sort((a, b) => {
+    const primary = sortKey === 'date' ? a.date.localeCompare(b.date) : a.amount - b.amount
+    const tieBreaker = a.rowIndex - b.rowIndex
+    const result = primary || tieBreaker
+    return sortDir === 'asc' ? result : -result
+  }), [expenses, sortKey, sortDir])
   const pageSize = 50
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const current = sorted.slice((page - 1) * pageSize, page * pageSize)
