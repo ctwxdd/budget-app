@@ -5,6 +5,7 @@ import { useBatchUpdateExpenses, useCategories, usePaymentMethods, useTags } fro
 import type { Expense } from '../../lib/types'
 import { useToast } from '../ui/Toast'
 import { formatTags } from '../../lib/tags'
+import { useLanguage } from '../../hooks/useLanguage'
 
 type BatchEditDialogProps = {
   open: boolean
@@ -23,6 +24,7 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
   const tags = useTags()
   const batchUpdate = useBatchUpdateExpenses()
   const { toast } = useToast()
+  const { t, language } = useLanguage()
   const [category, setCategory] = React.useState('')
   const [applyPaymentMethod, setApplyPaymentMethod] = React.useState(false)
   const [paymentMethod, setPaymentMethod] = React.useState('')
@@ -50,9 +52,9 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
     if (applyPaymentMethod) fieldUpdates.paymentMethod = paymentMethod
     if (applyDate) fieldUpdates.date = date
     if (applyTags) fieldUpdates.tags = formatTags(tagText)
-    if (!Object.keys(fieldUpdates).length) return toast({ title: 'Choose at least one field to update.', variant: 'destructive' })
+    if (!Object.keys(fieldUpdates).length) return toast({ title: t('batch.chooseField', 'Choose at least one field to update.'), variant: 'destructive' })
     if (!expenses.length) {
-      toast({ title: 'Updated 0 expenses' })
+      toast({ title: t('batch.updatedZero', 'Updated 0 expenses') })
       onSaved?.()
       onOpenChange(false)
       return
@@ -60,40 +62,40 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
 
     try {
       await batchUpdate.mutateAsync(expenses.map((expense) => ({ rowIndex: expense.rowIndex, updates: fieldUpdates })))
-      toast({ title: `Updated ${expenses.length} expense${expenses.length === 1 ? '' : 's'}` })
+      toast({ title: language === 'zh' ? `已更新 ${expenses.length} 筆支出` : `Updated ${expenses.length} expense${expenses.length === 1 ? '' : 's'}` })
       onSaved?.()
       onOpenChange(false)
     } catch (error) {
-      toast({ title: 'Could not update expenses', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+      toast({ title: t('batch.updateError', 'Could not update expenses'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
     }
   }
 
   return <Dialog
     open={open}
     onOpenChange={onOpenChange}
-    title="Batch edit expenses"
-    description={`Apply changes to ${expenses.length} selected expense${expenses.length === 1 ? '' : 's'}.`}
+    title={t('batch.title', 'Batch edit expenses')}
+    description={language === 'zh' ? `套用變更到 ${expenses.length} 筆選取的支出。` : `Apply changes to ${expenses.length} selected expense${expenses.length === 1 ? '' : 's'}.`}
     mobileBottomSheet
-    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} disabled={batchUpdate.isPending}>{batchUpdate.isPending ? 'Saving...' : 'Save changes'}</Button></div>}
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('expense.cancel', 'Cancel')}</Button><Button type="submit" form={formId} disabled={batchUpdate.isPending}>{batchUpdate.isPending ? t('expense.saving', 'Saving...') : t('expense.saveChanges', 'Save changes')}</Button></div>}
   >
     <form id={formId} onSubmit={submit} className="grid gap-4 pb-2">
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">
-        Category
-        <CategoryCombobox value={category} onChange={setCategory} options={categories} emptyLabel="— Keep current —" />
+        {t('expense.category', 'Category')}
+        <CategoryCombobox value={category} onChange={setCategory} options={categories} emptyLabel={t('batch.keepCurrent', '— Keep current —')} />
       </label>
 
       <div className="space-y-2 text-sm font-semibold text-muted-foreground">
         <label className="flex items-center gap-2 text-foreground">
           <input type="checkbox" className="h-4 w-4 rounded border-input accent-coral" checked={applyPaymentMethod} onChange={(event) => setApplyPaymentMethod(event.target.checked)} />
-          Apply payment method
+          {t('batch.applyPayment', 'Apply payment method')}
         </label>
-        <DatalistInput id="batch-payment-method-options" value={paymentMethod} onChange={setPaymentMethod} options={paymentMethods} placeholder="— Keep current —" />
+        <DatalistInput id="batch-payment-method-options" value={paymentMethod} onChange={setPaymentMethod} options={paymentMethods} placeholder={t('batch.keepCurrent', '— Keep current —')} />
       </div>
 
       <div className="space-y-2 text-sm font-semibold text-muted-foreground">
         <label className="flex items-center gap-2 text-foreground">
           <input type="checkbox" className="h-4 w-4 rounded border-input accent-coral" checked={applyDate} onChange={(event) => setApplyDate(event.target.checked)} />
-          Apply date
+          {t('batch.applyDate', 'Apply date')}
         </label>
         <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} disabled={!applyDate} />
       </div>
@@ -101,10 +103,10 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
       <div className="space-y-2 text-sm font-semibold text-muted-foreground">
         <label className="flex items-center gap-2 text-foreground">
           <input type="checkbox" className="h-4 w-4 rounded border-input accent-coral" checked={applyTags} onChange={(event) => setApplyTags(event.target.checked)} />
-          Apply tags
+          {t('batch.applyTags', 'Apply tags')}
         </label>
-        <DatalistInput id="batch-tag-options" value={tagText} onChange={setTagText} options={tags} placeholder="Trip, Project, Family..." />
-        <p className="px-1 text-[11px] font-medium text-muted-foreground/80">This replaces the selected expenses' tags. Separate multiple tags with commas.</p>
+        <DatalistInput id="batch-tag-options" value={tagText} onChange={setTagText} options={tags} placeholder={t('batch.tagPlaceholder', 'Trip, Project, Family...')} />
+        <p className="px-1 text-[11px] font-medium text-muted-foreground/80">{t('batch.tagHelp', "This replaces the selected expenses' tags. Separate multiple tags with commas.")}</p>
       </div>
 
     </form>
@@ -114,6 +116,7 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
 function CategoryCombobox({ value, onChange, options, emptyLabel }: { value: string; onChange: (value: string) => void; options: string[]; emptyLabel: string }) {
   const [open, setOpen] = React.useState(false)
   const [showAll, setShowAll] = React.useState(false)
+  const { t } = useLanguage()
   const id = React.useId()
   const normalizedOptions = React.useMemo(() => Array.from(new Set(options.filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })), [options])
   const query = value.trim().toLocaleLowerCase()
@@ -128,7 +131,7 @@ function CategoryCombobox({ value, onChange, options, emptyLabel }: { value: str
 
   return <div className="relative">
     <Input role="combobox" aria-expanded={open} aria-controls={id} value={value} placeholder={emptyLabel} className="pr-12" onFocus={() => setOpen(true)} onChange={(event) => { onChange(event.target.value); setOpen(true); setShowAll(false) }} />
-    <button type="button" aria-label="Show category options" className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition hover:bg-accent hover:text-foreground" onMouseDown={(event) => event.preventDefault()} onClick={() => { setOpen((current) => !current); setShowAll(true) }}>▾</button>
+    <button type="button" aria-label={t('expense.categoryPlaceholder', 'Show category options')} className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition hover:bg-accent hover:text-foreground" onMouseDown={(event) => event.preventDefault()} onClick={() => { setOpen((current) => !current); setShowAll(true) }}>▾</button>
     {open && <FadeScroll
       id={id}
       role="listbox"
@@ -136,7 +139,7 @@ function CategoryCombobox({ value, onChange, options, emptyLabel }: { value: str
       className="max-h-56 overflow-y-auto p-1.5"
     >
       {visibleOptions.map((option) => <button key={option.value || '__empty'} type="button" role="option" aria-selected={option.value === value} className={`w-full rounded-2xl px-3 py-2 text-left text-sm font-medium transition hover:bg-coral/5 ${option.value === value ? 'bg-coral/10 text-coral' : 'text-foreground'}`} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(option.value)}>{option.label}</button>)}
-      {categoryOptions.length === 0 && value && <p className="px-3 py-2 text-xs font-medium text-muted-foreground">No matches. Keep typing to add a new category.</p>}
+      {categoryOptions.length === 0 && value && <p className="px-3 py-2 text-xs font-medium text-muted-foreground">{t('batch.noCategoryMatches', 'No matches. Keep typing to add a new category.')}</p>}
     </FadeScroll>}
   </div>
 }

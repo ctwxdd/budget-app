@@ -11,6 +11,7 @@ import { useExpenses } from '../hooks/useExpenses'
 import { currency, filterByDateRange, getPresetRange } from '../lib/format'
 import { cn } from '../lib/utils'
 import { ExpenseDialog, type FormState } from '../components/expenses/ExpenseDialog'
+import { useLanguage } from '../hooks/useLanguage'
 
 type CardForm = Pick<CardRow, 'name' | 'issuer' | 'last4' | 'active' | 'note' | 'annualFee' | 'subBonus'> & {
   subRequired: number
@@ -87,6 +88,7 @@ export function CardsPage() {
 function CardsContent() {
   const navigate = useNavigate()
   const { cards, tabMissing, isLoading, error } = useCards()
+  const { t } = useLanguage()
   const expensesQuery = useExpenses()
   const createTab = useCreateCardsTab()
   const [dialogOpen, setDialogOpen] = React.useState(false)
@@ -218,8 +220,8 @@ function CardsContent() {
   }, [cards, search, showInactive, subStatusByRow])
 
   if (isLoading) return <SkeletonCards />
-  if (error) return <EmptyState title="Could not load cards" text={error.message} />
-  if (tabMissing) return <EmptyState title="Set up Cards tab in your sheet" text="Create a Cards tab with Name, Issuer, Last4, Active, Note, Annual Fee, SUB Required, SUB Start, SUB Deadline, and SUB Bonus columns." action={<Button onClick={() => createTab.mutate()} disabled={createTab.isPending}>{createTab.isPending ? 'Creating...' : 'Create Cards tab'}</Button>} />
+  if (error) return <EmptyState title={t('card.loadError', 'Could not load cards')} text={error.message} />
+  if (tabMissing) return <EmptyState title={t('card.setupTitle', 'Set up Cards tab in your sheet')} text={t('card.setupDescription', 'Create a Cards tab with Name, Issuer, Last4, Active, Note, Annual Fee, SUB Required, SUB Start, SUB Deadline, and SUB Bonus columns.')} action={<Button onClick={() => createTab.mutate()} disabled={createTab.isPending}>{createTab.isPending ? t('card.creating', 'Creating...') : t('card.createTab', 'Create Cards tab')}</Button>} />
 
   const monthTotal = cards.reduce((sum, card) => sum + (card.active ? getSpend(card.name).month : 0), 0)
   const annualFeeTotal = cards.reduce((sum, card) => sum + (card.active ? card.annualFee || 0 : 0), 0)
@@ -231,40 +233,40 @@ function CardsContent() {
   return <div className="relative space-y-5 md:space-y-7">
     <div className="soft-blob right-10 top-0 hidden h-64 w-64 bg-peach/25 md:block" />
     <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
-      <Kpi label="Cards on list" emoji="💳" value={String(cards.length)} tint="from-sky/15 to-lavender/10" />
-      <Kpi label="SUB open" emoji="🎁" value={String(subActiveCount)} tint="from-coral/15 to-peach/20" />
-      <Kpi label="This month" emoji="💸" value={currency.format(monthTotal)} tint="from-mint/15 to-sage/15" />
-      <Kpi label="Annual fees" emoji="🧾" value={currency.format(annualFeeTotal)} tint="from-amber-200/30 to-peach/20" />
+      <Kpi label={t('card.cardsOnList', 'Cards on list')} emoji="💳" value={String(cards.length)} tint="from-sky/15 to-lavender/10" />
+      <Kpi label={t('card.subOpen', 'SUB open')} emoji="🎁" value={String(subActiveCount)} tint="from-coral/15 to-peach/20" />
+      <Kpi label={t('expenses.thisMonth', 'This month')} emoji="💸" value={currency.format(monthTotal)} tint="from-mint/15 to-sage/15" />
+      <Kpi label={t('card.annualFees', 'Annual fees')} emoji="🧾" value={currency.format(annualFeeTotal)} tint="from-amber-200/30 to-peach/20" />
     </div>
 
     <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-white/60 p-2 shadow-sm backdrop-blur dark:bg-card/60 sm:flex-row sm:items-center">
       <div className="relative flex-1">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name, issuer, last4, note…" className="pl-9 pr-9" />
-        {search && <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-accent" aria-label="Clear search"><X className="h-4 w-4" /></button>}
+        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('card.searchPlaceholder', 'Search by name, issuer, last4, note…')} className="pl-9 pr-9" />
+        {search && <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-accent" aria-label={t('common.clear', 'Clear search')}><X className="h-4 w-4" /></button>}
       </div>
       <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:overflow-visible sm:pb-0">
         <button type="button" role="switch" aria-checked={showInactive} onClick={() => setShowInactive((v) => !v)} className="flex h-10 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold text-muted-foreground transition hover:bg-accent/50 hover:text-foreground">
           <span className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition', showInactive ? 'bg-coral' : 'bg-border')}>
             <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white shadow transition', showInactive ? 'translate-x-[1.125rem]' : 'translate-x-0.5')} />
           </span>
-          <span className="sm:hidden">Inactive</span>
-          <span className="hidden sm:inline">Show inactive</span>
+          <span className="sm:hidden">{t('card.inactive', 'Inactive')}</span>
+          <span className="hidden sm:inline">{t('card.showInactive', 'Show inactive')}</span>
         </button>
-        <span className="hidden whitespace-nowrap text-xs font-medium text-muted-foreground sm:inline">{visibleCards.length} of {cards.length}</span>
+        <span className="hidden whitespace-nowrap text-xs font-medium text-muted-foreground sm:inline">{visibleCards.length} {t('expenses.of', 'of')} {cards.length}</span>
         <div className="grid h-10 shrink-0 grid-cols-2 gap-1 rounded-full bg-accent/60 p-0.5">
-          {(['cards', 'list'] as const).map((mode) => <button key={mode} type="button" className={cn('rounded-full px-3 text-xs font-semibold capitalize transition', view === mode ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => setView(mode)}>{mode === 'cards' ? '▦ Cards' : '≣ List'}</button>)}
+          {(['cards', 'list'] as const).map((mode) => <button key={mode} type="button" className={cn('rounded-full px-3 text-xs font-semibold capitalize transition', view === mode ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => setView(mode)}>{mode === 'cards' ? `▦ ${t('card.cardsView', 'Cards')}` : `≣ ${t('expenses.listView', 'List')}`}</button>)}
         </div>
-        <Button onClick={openAdd} variant="gradient" className="h-10 w-10 shrink-0 justify-center whitespace-nowrap rounded-full p-0 shadow-soft sm:w-auto sm:px-4" aria-label="Add card"><Plus className="h-4 w-4" /><span className="hidden sm:inline">New card</span></Button>
+        <Button onClick={openAdd} variant="gradient" className="h-10 w-10 shrink-0 justify-center whitespace-nowrap rounded-full p-0 shadow-soft sm:w-auto sm:px-4" aria-label={t('card.addCard', 'Add card')}><Plus className="h-4 w-4" /><span className="hidden sm:inline">{t('card.newCard', 'New card')}</span></Button>
       </div>
     </div>
 
-    {!visibleCards.length ? <EmptyState title={search ? 'No matches' : (!showInactive && cards.some((c) => !c.active) ? 'No active cards' : 'No cards yet')} text={search ? `Nothing matches "${search}".` : (!showInactive && cards.some((c) => !c.active) ? 'All your cards are marked inactive — enable "Show inactive" to see them.' : 'Add credit cards here so they show up first in the Expense payment method picker.')} action={!cards.length ? <Button onClick={openAdd}><Plus className="h-4 w-4" />Add card</Button> : undefined} /> : view === 'cards' ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    {!visibleCards.length ? <EmptyState title={search ? t('common.noMatches', 'No matches') : (!showInactive && cards.some((c) => !c.active) ? t('card.noActive', 'No active cards') : t('card.noCards', 'No cards yet'))} text={search ? (t('card.noSearchMatches', 'Nothing matches') + ` "${search}".`) : (!showInactive && cards.some((c) => !c.active) ? t('card.noActiveHelp', 'All your cards are marked inactive — enable "Show inactive" to see them.') : t('card.noCardsHelp', 'Add credit cards here so they show up first in the Expense payment method picker.'))} action={!cards.length ? <Button onClick={openAdd}><Plus className="h-4 w-4" />{t('card.addCard', 'Add card')}</Button> : undefined} /> : view === 'cards' ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
     </div> : <Card className="overflow-hidden rounded-2xl">
       <div className="hidden md:block">
         <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] gap-3 border-b border-border/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-          <span /><span>Name</span><span>Issuer</span><span className="text-right">AF</span><span className="text-right">This month</span><span className="text-right">All time</span><span>SUB</span><span>Status</span><span>Actions</span>
+          <span /><span>{t('card.name', 'Name')}</span><span>{t('card.issuer', 'Issuer')}</span><span className="text-right">AF</span><span className="text-right">{t('expenses.thisMonth', 'This month')}</span><span className="text-right">{t('card.allTime', 'All time')}</span><span>SUB</span><span>{t('card.status', 'Status')}</span><span>{t('expenses.actions', 'Actions')}</span>
         </div>
         {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
       </div>
@@ -401,6 +403,7 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
   const addCard = useAddCard()
   const updateCard = useUpdateCard()
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [form, setForm] = React.useState<CardForm>(emptyCard)
   const [showSub, setShowSub] = React.useState(false)
   const isExisting = !!card
@@ -445,30 +448,30 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
       subDeadline,
       subBonus: hasWindow ? trimmedBonus : '',
     }
-    if (!payload.name) return toast({ title: 'Card name is required.', variant: 'destructive' })
+    if (!payload.name) return toast({ title: t('card.nameRequired', 'Card name is required.'), variant: 'destructive' })
     try {
       if (isExisting && card) await updateCard.mutateAsync({ ...payload, rowIndex: card.rowIndex })
       else await addCard.mutateAsync(payload)
-      toast({ title: isExisting ? 'Card updated' : 'Card added' })
+      toast({ title: isExisting ? t('card.cardUpdated', 'Card updated') : t('card.cardAdded', 'Card added') })
       onOpenChange(false)
     } catch (error) {
-      toast({ title: 'Could not save card', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+      toast({ title: t('card.saveCardError', 'Could not save card'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
     }
   }
 
   const saving = addCard.isPending || updateCard.isPending
   const formId = 'card-form'
-  return <Dialog open={open} onOpenChange={onOpenChange} title={isExisting ? 'Edit card' : 'Add card'} description="Save card options to the Cards tab in Google Sheets." mobileBottomSheet
-    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} disabled={saving}>{saving ? 'Saving...' : (isExisting ? 'Save changes' : 'Add card')}</Button></div>}
+  return <Dialog open={open} onOpenChange={onOpenChange} title={isExisting ? t('card.editTitle', 'Edit card') : t('card.addTitle', 'Add card')} description={t('card.description', 'Save card options to the Cards tab in Google Sheets.')} mobileBottomSheet
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('expense.cancel', 'Cancel')}</Button><Button type="submit" form={formId} disabled={saving}>{saving ? t('expense.saving', 'Saving...') : (isExisting ? t('expense.saveChanges', 'Save changes') : t('card.addCard', 'Add card'))}</Button></div>}
   >
     <form id={formId} onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Name<Input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Chase Sapphire" /></label>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Issuer<Input value={form.issuer} onChange={(event) => setForm({ ...form, issuer: event.target.value })} placeholder="Chase" /></label>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Last4<Input inputMode="numeric" maxLength={4} value={form.last4} onChange={(event) => setForm({ ...form, last4: event.target.value.replace(/\D/g, '').slice(0, 4) })} placeholder="1234" /></label>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Annual fee<Input inputMode="decimal" type="number" min="0" step="0.01" value={form.annualFee || ''} onChange={(event) => setForm({ ...form, annualFee: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="0" /></label>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Open date<Input className="min-w-0 max-w-full appearance-none" type="date" value={form.subStart} onChange={(event) => setForm({ ...form, subStart: event.target.value })} /></label>
-      <label className="flex items-center gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 text-sm font-semibold text-muted-foreground dark:bg-card/70 sm:col-span-2"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4 accent-coral" />Active</label>
-      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Note<Textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="Benefits, reminders..." /></label>
+      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">{t('card.name', 'Name')}<Input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Chase Sapphire" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('card.issuer', 'Issuer')}<Input value={form.issuer} onChange={(event) => setForm({ ...form, issuer: event.target.value })} placeholder="Chase" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('card.last4', 'Last4')}<Input inputMode="numeric" maxLength={4} value={form.last4} onChange={(event) => setForm({ ...form, last4: event.target.value.replace(/\D/g, '').slice(0, 4) })} placeholder="1234" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('card.annualFee', 'Annual fee')}<Input inputMode="decimal" type="number" min="0" step="0.01" value={form.annualFee || ''} onChange={(event) => setForm({ ...form, annualFee: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="0" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('card.openDate', 'Open date')}<Input className="min-w-0 max-w-full appearance-none" type="date" value={form.subStart} onChange={(event) => setForm({ ...form, subStart: event.target.value })} /></label>
+      <label className="flex items-center gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 text-sm font-semibold text-muted-foreground dark:bg-card/70 sm:col-span-2"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4 accent-coral" />{t('card.active', 'Active')}</label>
+      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">{t('card.note', 'Note')}<Textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder={t('card.notePlaceholder', 'Benefits, reminders...')} /></label>
 
       <div className="rounded-3xl border border-border/70 bg-accent/15 sm:col-span-2">
         <button type="button" onClick={() => setShowSub((v) => !v)} className="flex w-full items-center justify-between gap-2 rounded-3xl px-4 py-3 text-left text-sm font-semibold text-foreground transition hover:bg-accent/30" aria-expanded={showSub}>
