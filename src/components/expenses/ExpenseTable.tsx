@@ -18,6 +18,13 @@ type FilterKey = keyof ExpenseFilters
 const NO_PAYMENT_FILTER = '__NO_PAYMENT__'
 const NO_PAYMENT_LABEL = 'No payment method'
 
+function expenseSheetRowUrl(sheetId: string, sheetGid: number, rowIndex: number) {
+  const rowCell = `A${rowIndex}`
+  const rowRange = `A${rowIndex}:H${rowIndex}`
+  const params = new URLSearchParams({ gid: String(sheetGid), range: rowCell })
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/edit?${params.toString()}#gid=${sheetGid}&range=${encodeURIComponent(rowRange)}`
+}
+
 function ColorBadge({ value, variant = 'category', className = '' }: { value: string; variant?: 'category' | 'payment'; className?: string }) {
   const color = categoryColor(`${variant}:${value}`)
   return <span className={`inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-full border px-3 py-1 align-middle text-xs font-semibold ${className}`} style={{ backgroundColor: color.bg, color: color.text, borderColor: color.border }} title={value}>{value}</span>
@@ -421,8 +428,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
   const canOpenSheet = Boolean(sheetId && expenseSheetGid !== undefined)
   const openInSheet = (expense: Expense) => {
     if (!sheetId || expenseSheetGid === undefined || expense.rowIndex < 2) return
-    const rowRange = `A${expense.rowIndex}:H${expense.rowIndex}`
-    window.open(`https://docs.google.com/spreadsheets/d/${sheetId}/edit#gid=${expenseSheetGid}&range=${rowRange}&rangeid=${rowRange}`, '_blank', 'noopener,noreferrer')
+    window.open(expenseSheetRowUrl(sheetId, expenseSheetGid, expense.rowIndex), '_blank', 'noopener,noreferrer')
   }
   const remove = async (expense: Expense) => {
     const queryKey = ['expenses', sheetId]
