@@ -179,6 +179,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
       ref={sheetRef}
       className={cn(
         'relative z-10 flex w-full flex-col border border-border/60 bg-card text-card-foreground shadow-2xl',
+        mobileBottomSheet && 'mobile-bottom-sheet',
         mobileBottomSheet
           ? 'max-h-[96dvh] rounded-t-[28px] md:max-h-[90vh] md:max-w-2xl md:rounded-3xl'
           : 'max-h-[90vh] max-w-2xl rounded-3xl',

@@ -332,6 +332,7 @@
 @media (display-mode: standalone) and (max-width: 767px) {
   .mobile-bottom-items { transform: translateY(6px); }
   .mobile-bottom-add { margin-top: 6px; }
+  .mobile-bottom-sheet { max-height: 92dvh !important; }
   html[data-pull-active='true'] .pull-refresh-content {
     transform: translateY(var(--pull-distance, 0px));
     transition: transform 480ms cubic-bezier(0.22, 1.2, 0.36, 1);
