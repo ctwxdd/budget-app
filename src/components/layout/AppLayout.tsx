@@ -233,7 +233,7 @@ function Sidebar() {
 
 function BottomNav({ onAdd }: { onAdd: () => void }) {
   const { t } = useLanguage()
-  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} onPointerDown={() => preloadRoute(item.to)} onFocus={() => preloadRoute(item.to)} onClick={item.to === '/' ? resetHomeScroll : undefined} className={({ isActive }) => `bottom-nav-link flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 pb-1 pt-2 text-[10px] font-bold sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="max-w-full truncate leading-none">{t(item.labelKey, item.label)}</span></NavLink>
+  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} onPointerDown={() => preloadRoute(item.to)} onFocus={() => preloadRoute(item.to)} onClick={item.to === '/' ? resetHomeScroll : undefined} className={({ isActive }) => `bottom-nav-link flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-1 pb-1 pt-2 text-[10px] font-bold sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="block max-w-full whitespace-nowrap leading-tight tracking-normal">{t(item.labelKey, item.label)}</span></NavLink>
   return <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden" data-no-pull>
     <div className="bottom-nav-shell relative mx-auto h-[calc(68px+env(safe-area-inset-bottom))] w-full border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))]">
       <div className="mobile-bottom-items grid h-[68px] grid-cols-5 items-stretch px-1">

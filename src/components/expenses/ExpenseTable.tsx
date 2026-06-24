@@ -174,10 +174,10 @@ export function ExpenseFilterBar({ filters, onChange, selectionMode = false, sel
   return <>
     <Card className={`${desktopSticky ? 'sticky top-20 z-20' : ''} hidden p-4 backdrop-blur md:block`}><FilterFields filters={filters} onChange={onChange} /></Card>
     <div className={`${mobileSticky ? 'sticky top-16 z-20' : ''} space-y-3 rounded-3xl border bg-card/95 p-3 shadow-soft backdrop-blur md:hidden`}>
-      <div className="flex gap-2">
-        <Select value={filters.preset} onChange={(event) => onChange({ ...filters, preset: event.target.value as DatePreset })} aria-label={t('expenses.datePreset', 'Date preset')}><option value="thisMonth">{t('expenses.thisMonth', 'This month')}</option><option value="lastMonth">{t('expenses.lastMonth', 'Last month')}</option><option value="thisYear">{t('expenses.thisYear', 'This year')}</option><option value="all">{t('expenses.all', 'All')}</option><option value="custom">{t('expenses.custom', 'Custom')}</option></Select>
-        <Button type="button" variant="outline" onClick={() => setOpen(true)}><Filter className="h-4 w-4" />{t('common.filters', 'Filters')}</Button>
-        {onEnterSelectionMode && <Button type="button" variant={selectionMode ? 'secondary' : 'outline'} onClick={selectionMode ? onCancelSelection : onEnterSelectionMode}>{selectionMode ? t('expense.cancel', 'Cancel') : t('common.select', 'Select')}{selectedCount > 0 && selectionMode ? ` (${selectedCount})` : ''}</Button>}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
+        <Select className="min-w-0" value={filters.preset} onChange={(event) => onChange({ ...filters, preset: event.target.value as DatePreset })} aria-label={t('expenses.datePreset', 'Date preset')}><option value="thisMonth">{t('expenses.thisMonth', 'This month')}</option><option value="lastMonth">{t('expenses.lastMonth', 'Last month')}</option><option value="thisYear">{t('expenses.thisYear', 'This year')}</option><option value="all">{t('expenses.all', 'All')}</option><option value="custom">{t('expenses.custom', 'Custom')}</option></Select>
+        <Button type="button" variant="outline" className="min-w-[4.35rem] whitespace-nowrap px-3 text-xs leading-none" onClick={() => setOpen(true)}><Filter className="h-4 w-4 shrink-0" /><span>{t('common.filters', 'Filters')}</span></Button>
+        {onEnterSelectionMode && <Button type="button" variant={selectionMode ? 'secondary' : 'outline'} className="min-w-[3.85rem] whitespace-nowrap px-3 text-xs leading-none" onClick={selectionMode ? onCancelSelection : onEnterSelectionMode}>{selectionMode ? t('expense.cancel', 'Cancel') : t('common.select', 'Select')}{selectedCount > 0 && selectionMode ? ` (${selectedCount})` : ''}</Button>}
       </div>
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
