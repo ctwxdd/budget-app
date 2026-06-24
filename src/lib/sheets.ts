@@ -206,6 +206,15 @@ export type CardSheetInput = Omit<CardSheetRow, 'rowIndex'>
 
 export const cardsHeaders = ['Name', 'Issuer', 'Last4', 'Active', 'Note', 'Annual Fee', 'SUB Required', 'SUB Start', 'SUB Deadline', 'SUB Bonus']
 
+function moneyCell(value: number): string {
+  const amount = Number(value) || 0
+  if (!amount) return ''
+  return `$${amount.toLocaleString(undefined, {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
 // Writes touch A:J — the in-app dialog now edits the SUB fields too.
 // Columns K+ (the user's progress formulas, if any) are left untouched.
 export function cardToRow(card: CardSheetInput | CardSheetRow): (string | number | boolean)[] {
@@ -215,7 +224,7 @@ export function cardToRow(card: CardSheetInput | CardSheetRow): (string | number
     card.last4,
     card.active,
     card.note,
-    card.annualFee || '',
+    moneyCell(card.annualFee),
     card.subRequired || '',
     card.subStart || '',
     card.subDeadline || '',

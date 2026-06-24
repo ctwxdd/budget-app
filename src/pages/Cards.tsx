@@ -418,7 +418,7 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
       subPeriodMonths: monthsBetweenISO(card.subStart, card.subDeadline),
       subBonus: card.subBonus,
     } : emptyCard())
-    if (open) setShowSub(card ? Boolean(card.subRequired || card.subStart) : false)
+    if (open) setShowSub(card ? Boolean(card.subRequired || card.subDeadline || card.subBonus) : false)
   }, [open, card])
 
   const subDeadlinePreview = form.subStart && form.subPeriodMonths > 0 ? addMonthsISO(form.subStart, form.subPeriodMonths) : ''
@@ -429,9 +429,8 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
     const subRequired = Number(form.subRequired) || 0
     const subStart = form.subStart || ''
     const subPeriodMonths = Number(form.subPeriodMonths) || 0
-    // Only persist a SUB window when we have all three: required, start
-    // and period. Otherwise clear all four columns so the row no longer
-    // shows up as a SUB.
+    // Open date is useful even without SUB tracking; only the bonus-specific
+    // fields are cleared when the SUB window is incomplete.
     const hasWindow = subRequired > 0 && subStart && subPeriodMonths > 0
     const subDeadline = hasWindow ? addMonthsISO(subStart, subPeriodMonths) : ''
     const payload = {
@@ -442,7 +441,7 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
       note: form.note.trim(),
       annualFee: Number(form.annualFee) || 0,
       subRequired: hasWindow ? subRequired : 0,
-      subStart: hasWindow ? subStart : '',
+      subStart,
       subDeadline,
       subBonus: hasWindow ? trimmedBonus : '',
     }
@@ -466,7 +465,8 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Name<Input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Chase Sapphire" /></label>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Issuer<Input value={form.issuer} onChange={(event) => setForm({ ...form, issuer: event.target.value })} placeholder="Chase" /></label>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Last4<Input inputMode="numeric" maxLength={4} value={form.last4} onChange={(event) => setForm({ ...form, last4: event.target.value.replace(/\D/g, '').slice(0, 4) })} placeholder="1234" /></label>
-      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Annual fee<Input inputMode="decimal" type="number" min="0" step="0.01" value={form.annualFee || ''} onChange={(event) => setForm({ ...form, annualFee: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="0" /></label>
+      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Annual fee<Input inputMode="decimal" type="number" min="0" step="0.01" value={form.annualFee || ''} onChange={(event) => setForm({ ...form, annualFee: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="0" /></label>
+      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Open date<Input type="date" value={form.subStart} onChange={(event) => setForm({ ...form, subStart: event.target.value })} /></label>
       <label className="flex items-center gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 text-sm font-semibold text-muted-foreground dark:bg-card/70 sm:col-span-2"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4 accent-coral" />Active</label>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Note<Textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="Benefits, reminders..." /></label>
 
@@ -476,14 +476,13 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
           <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', showSub && 'rotate-180')} />
         </button>
         {showSub && <div className="border-t border-border/60 p-3">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Open date<Input type="date" value={form.subStart} onChange={(event) => setForm({ ...form, subStart: event.target.value })} /></label>
+          <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Target spend<Input inputMode="decimal" type="number" min="0" step="100" value={form.subRequired || ''} onChange={(event) => setForm({ ...form, subRequired: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="4000" /></label>
             <label className="space-y-1.5 text-sm font-semibold text-muted-foreground">Period (mo)<Input inputMode="numeric" type="number" min="0" max="36" step="1" value={form.subPeriodMonths || ''} onChange={(event) => setForm({ ...form, subPeriodMonths: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="3" /></label>
-            <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-3">Bonus<Input value={form.subBonus} onChange={(event) => setForm({ ...form, subBonus: event.target.value })} placeholder="60,000 points" /></label>
+            <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Bonus<Input value={form.subBonus} onChange={(event) => setForm({ ...form, subBonus: event.target.value })} placeholder="60,000 points" /></label>
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            {subDeadlinePreview ? <>Deadline: <span className="font-semibold text-foreground">{subDeadlinePreview}</span></> : 'Fill open date, target spend and period to enable SUB tracking.'}
+            {subDeadlinePreview ? <>Deadline: <span className="font-semibold text-foreground">{subDeadlinePreview}</span></> : 'Fill open date above, target spend and period to enable SUB tracking.'}
           </p>
         </div>}
       </div>
