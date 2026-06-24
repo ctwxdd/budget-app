@@ -5,6 +5,7 @@ import { BarChart3, CreditCard, ExternalLink, Gift, Home, List, LogOut, Menu, Mo
 import { SHEET_ID_KEY } from '../../lib/defaults'
 import { useAuth } from '../../lib/auth'
 import { useTheme } from '../../hooks/useTheme'
+import { useLanguage } from '../../hooks/useLanguage'
 import { Button } from '../ui'
 import { ExpenseDialog, type FormState } from '../expenses/ExpenseDialog'
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -12,12 +13,12 @@ import { LoveNoteIcon } from '../LoveNoteIcon'
 import { useSheetId } from '../../hooks/useExpenses'
 
 const nav = [
-  { to: '/', label: 'Home', pageLabel: 'Overview', emoji: '🏠', icon: Home },
-  { to: '/expenses', label: 'Expenses', pageLabel: 'Expenses', emoji: '🧾', icon: List },
-  { to: '/giftcards', label: 'Giftcards', pageLabel: 'Giftcards', emoji: '🎁', icon: Gift },
-  { to: '/cards', label: 'Cards', pageLabel: 'Credit Cards', emoji: '💳', icon: CreditCard },
-  { to: '/analytics', label: 'Analytics', pageLabel: 'Analytics', emoji: '📊', icon: BarChart3 },
-  { to: '/settings', label: 'Settings', pageLabel: 'Settings', emoji: '⚙️', icon: Settings },
+  { to: '/', label: 'Home', labelKey: 'nav.home', pageLabel: 'Overview', pageKey: 'nav.overview', emoji: '🏠', icon: Home },
+  { to: '/expenses', label: 'Expenses', labelKey: 'nav.expenses', pageLabel: 'Expenses', pageKey: 'nav.expenses', emoji: '🧾', icon: List },
+  { to: '/giftcards', label: 'Giftcards', labelKey: 'nav.giftcards', pageLabel: 'Giftcards', pageKey: 'nav.giftcards', emoji: '🎁', icon: Gift },
+  { to: '/cards', label: 'Cards', labelKey: 'nav.cards', pageLabel: 'Credit Cards', pageKey: 'nav.cards', emoji: '💳', icon: CreditCard },
+  { to: '/analytics', label: 'Analytics', labelKey: 'nav.analytics', pageLabel: 'Analytics', pageKey: 'nav.analytics', emoji: '📊', icon: BarChart3 },
+  { to: '/settings', label: 'Settings', labelKey: 'nav.settings', pageLabel: 'Settings', pageKey: 'nav.settings', emoji: '⚙️', icon: Settings },
 ]
 const mobileNav = nav.filter((item) => ['/', '/expenses', '/analytics', '/cards'].includes(item.to))
 const routePreloaders: Record<string, () => Promise<unknown>> = {
@@ -219,18 +220,20 @@ function resetHomeScroll() {
 
 function Sidebar() {
   const { user } = useAuth()
+  const { t } = useLanguage()
   return <aside className="flex h-full w-72 flex-col border-r border-border/70 bg-white/85 p-5 backdrop-blur-xl dark:bg-card/85">
     <div className="mb-8 flex items-center gap-3 rounded-3xl px-2 py-1">
       <LoveNoteIcon imageClassName="h-12 w-12 rounded-2xl shadow-lift" />
-      <Link to="/" onClick={resetHomeScroll}><span className="block font-display text-lg font-bold">{user?.name ? `Hi, ${user.name.split(' ')[0]} 👋` : 'Pocket Ledger'}</span><span className="text-xs text-muted-foreground">A personal spending tracker</span></Link>
+      <Link to="/" onClick={resetHomeScroll}><span className="block font-display text-lg font-bold">{user?.name ? `Hi, ${user.name.split(' ')[0]} 👋` : 'Pocket Ledger'}</span><span className="text-xs text-muted-foreground">{t('app.subtitle', 'A personal spending tracker')}</span></Link>
     </div>
-    <nav className="space-y-1.5">{nav.map((item) => <NavLink key={item.to} to={item.to} onClick={item.to === '/' ? resetHomeScroll : undefined} className={({ isActive }) => `relative flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${isActive ? 'bg-coral/10 text-coral before:absolute before:left-0 before:top-3 before:h-6 before:w-1 before:rounded-full before:bg-coral' : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground'}`}><item.icon className="h-4 w-4" />{item.pageLabel}</NavLink>)}</nav>
-    <div className="mt-auto rounded-3xl border border-coral/15 bg-gradient-to-br from-coral/10 to-peach/20 p-4 text-sm text-muted-foreground shadow-soft"><p className="font-semibold text-foreground">💡 Tip</p><p>Tap + to log a new expense.</p></div>
+    <nav className="space-y-1.5">{nav.map((item) => <NavLink key={item.to} to={item.to} onClick={item.to === '/' ? resetHomeScroll : undefined} className={({ isActive }) => `relative flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${isActive ? 'bg-coral/10 text-coral before:absolute before:left-0 before:top-3 before:h-6 before:w-1 before:rounded-full before:bg-coral' : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground'}`}><item.icon className="h-4 w-4" />{t(item.pageKey, item.pageLabel)}</NavLink>)}</nav>
+    <div className="mt-auto rounded-3xl border border-coral/15 bg-gradient-to-br from-coral/10 to-peach/20 p-4 text-sm text-muted-foreground shadow-soft"><p className="font-semibold text-foreground">💡 {t('app.tipTitle', 'Tip')}</p><p>{t('app.tipText', 'Tap + to log a new expense.')}</p></div>
   </aside>
 }
 
 function BottomNav({ onAdd }: { onAdd: () => void }) {
-  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} onPointerDown={() => preloadRoute(item.to)} onFocus={() => preloadRoute(item.to)} onClick={item.to === '/' ? resetHomeScroll : undefined} className={({ isActive }) => `bottom-nav-link flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 pb-1 pt-2 text-[10px] font-bold sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="max-w-full truncate leading-none">{item.label}</span></NavLink>
+  const { t } = useLanguage()
+  const renderItem = (item: typeof nav[number]) => <NavLink key={item.to} to={item.to} onPointerDown={() => preloadRoute(item.to)} onFocus={() => preloadRoute(item.to)} onClick={item.to === '/' ? resetHomeScroll : undefined} className={({ isActive }) => `bottom-nav-link flex h-[68px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 pb-1 pt-2 text-[10px] font-bold sm:text-[11px] ${isActive ? 'text-coral' : 'text-muted-foreground'}`}><item.icon className="h-5 w-5 shrink-0" /><span className="max-w-full truncate leading-none">{t(item.labelKey, item.label)}</span></NavLink>
   return <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden" data-no-pull>
     <div className="bottom-nav-shell relative mx-auto h-[calc(68px+env(safe-area-inset-bottom))] w-full border-t border-border/80 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_hsl(var(--foreground))]">
       <div className="mobile-bottom-items grid h-[68px] grid-cols-5 items-stretch px-1">
@@ -238,7 +241,7 @@ function BottomNav({ onAdd }: { onAdd: () => void }) {
         <div className="h-full" aria-hidden />
         {mobileNav.slice(2).map(renderItem)}
       </div>
-      <Button aria-label="Add expense" variant="gradient" onPointerDown={() => preloadRoute('/expenses')} onClick={onAdd} className="mobile-bottom-add bottom-nav-add absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full p-0 shadow-lift ring-4 ring-background"><Plus className="h-7 w-7" /></Button>
+      <Button aria-label={t('app.addExpense', 'Add expense')} variant="gradient" onPointerDown={() => preloadRoute('/expenses')} onClick={onAdd} className="mobile-bottom-add bottom-nav-add absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full p-0 shadow-lift ring-4 ring-background"><Plus className="h-7 w-7" /></Button>
     </div>
   </nav>
 }
@@ -501,6 +504,7 @@ function useBundleUpdateOnFocus() {
 
 function MobileMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { user } = useAuth()
+  const { t } = useLanguage()
   const firstName = user?.name?.trim().split(/\s+/)[0]
   React.useEffect(() => {
     if (!open) return
@@ -517,11 +521,11 @@ function MobileMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open
       <div className="mb-6 flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <LoveNoteIcon imageClassName="h-12 w-12 rounded-2xl shadow-lift" />
-          <Link to="/" onClick={() => { resetHomeScroll(); onOpenChange(false) }} className="min-w-0"><span className="block truncate font-display text-lg font-bold">{firstName ? `Hi, ${firstName} 👋` : 'Welcome 👋'}</span><span className="block truncate text-xs text-muted-foreground">Pocket Ledger · Personal spending tracker</span></Link>
+          <Link to="/" onClick={() => { resetHomeScroll(); onOpenChange(false) }} className="min-w-0"><span className="block truncate font-display text-lg font-bold">{firstName ? `Hi, ${firstName} 👋` : 'Welcome 👋'}</span><span className="block truncate text-xs text-muted-foreground">Pocket Ledger · {t('app.subtitle', 'Personal spending tracker')}</span></Link>
         </div>
         <Button variant="ghost" size="icon" aria-label="Close navigation menu" onClick={() => onOpenChange(false)}><X className="h-5 w-5" /></Button>
       </div>
-      <nav className="space-y-1.5">{nav.map((item) => <NavLink key={item.to} to={item.to} onClick={() => { if (item.to === '/') resetHomeScroll(); onOpenChange(false) }} className={({ isActive }) => `flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition ${isActive ? 'bg-coral/10 text-coral' : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground'}`}><item.icon className="h-5 w-5" />{item.pageLabel}</NavLink>)}</nav>
+      <nav className="space-y-1.5">{nav.map((item) => <NavLink key={item.to} to={item.to} onClick={() => { if (item.to === '/') resetHomeScroll(); onOpenChange(false) }} className={({ isActive }) => `flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition ${isActive ? 'bg-coral/10 text-coral' : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground'}`}><item.icon className="h-5 w-5" />{t(item.pageKey, item.pageLabel)}</NavLink>)}</nav>
     </aside>
   </div>
 }
@@ -529,6 +533,7 @@ function MobileMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open
 function AccountMenu({ onLogout }: { onLogout: () => void }) {
   const [open, setOpen] = React.useState(false)
   const { user } = useAuth()
+  const { t } = useLanguage()
   const sheetId = useSheetId()
   const sheetUrl = sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit` : ''
   const firstName = user?.name?.trim().split(/\s+/)[0]
@@ -546,9 +551,9 @@ function AccountMenu({ onLogout }: { onLogout: () => void }) {
     <button title={user?.email} aria-label="Open account menu" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="grid h-10 w-10 place-items-center rounded-full bg-coral text-sm font-bold text-foreground ring-1 ring-coral/20 shadow-lift dark:text-white">{initial}</button>
     {open && <div className="absolute right-0 z-40 mt-2 w-64 overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-2xl">
       <div className="border-b border-border px-3 py-2.5"><p className="truncate text-sm font-bold">{displayName}</p>{user?.email && user.email !== displayName && <p className="truncate text-xs text-muted-foreground">{user.email}</p>}</div>
-      {sheetUrl && <a href={sheetUrl} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold hover:bg-accent"><ExternalLink className="h-4 w-4" />Open in Google Sheets</a>}
-      <Link to="/settings" onClick={() => setOpen(false)} className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold hover:bg-accent"><Settings className="h-4 w-4" />Settings</Link>
-      <button onClick={onLogout} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-destructive hover:bg-destructive/10"><LogOut className="h-4 w-4" />Sign out</button>
+      {sheetUrl && <a href={sheetUrl} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold hover:bg-accent"><ExternalLink className="h-4 w-4" />{t('settings.openSheets', 'Open in Google Sheets')}</a>}
+      <Link to="/settings" onClick={() => setOpen(false)} className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold hover:bg-accent"><Settings className="h-4 w-4" />{t('nav.settings', 'Settings')}</Link>
+      <button onClick={onLogout} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-destructive hover:bg-destructive/10"><LogOut className="h-4 w-4" />{t('settings.signOut', 'Sign out')}</button>
     </div>}
   </div>
 }
@@ -562,7 +567,9 @@ export function AppLayout() {
   const navigate = useNavigate()
   const { signOut } = useAuth()
   const { theme, setTheme } = useTheme()
+  const { t } = useLanguage()
   const page = nav.find((item) => item.to === location.pathname) ?? nav[0]
+  const pageLabel = t(page.pageKey, page.pageLabel)
   const cycleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
   const logout = () => { signOut(); localStorage.removeItem(SHEET_ID_KEY); navigate('/login') }
   const setExpenseDialogTemplate = React.useCallback((factory: (() => FormState | null) | null) => {
@@ -595,8 +602,8 @@ export function AppLayout() {
       <div className="fixed inset-y-0 left-0 hidden md:block"><Sidebar /></div>
       <div className="md:pl-72">
         <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between relative bg-gradient-to-b from-background via-background/95 to-background/85 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:h-20 md:border-b md:border-border/70 md:bg-background/85 md:bg-none md:px-8 md:pt-0">
-          <div className="flex min-w-0 items-center gap-2 md:gap-3"><Button variant="ghost" size="icon" className="md:hidden" aria-label="Open navigation menu" onClick={() => setMobileMenuOpen(true)}><Menu className="h-5 w-5" /></Button><div className="hidden min-w-0 md:block"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">{page.emoji} {page.pageLabel}</p><h1 className="truncate font-display text-2xl font-extrabold">{page.pageLabel}</h1></div></div><h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 font-display text-lg font-extrabold md:hidden">{page.pageLabel}</h1>
-          <div className="flex items-center gap-1.5 md:gap-2"><Button size="sm" className="hidden md:inline-flex" onClick={() => openExpenseDialog()}><Plus className="h-4 w-4" />Add expense</Button><Button variant="ghost" size="icon" onClick={cycleTheme} aria-label="Toggle theme">{theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}</Button><AccountMenu onLogout={logout} /></div>
+          <div className="flex min-w-0 items-center gap-2 md:gap-3"><Button variant="ghost" size="icon" className="md:hidden" aria-label={t('app.openNavigation', 'Open navigation menu')} onClick={() => setMobileMenuOpen(true)}><Menu className="h-5 w-5" /></Button><div className="hidden min-w-0 md:block"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">{page.emoji} {pageLabel}</p><h1 className="truncate font-display text-2xl font-extrabold">{pageLabel}</h1></div></div><h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 font-display text-lg font-extrabold md:hidden">{pageLabel}</h1>
+          <div className="flex items-center gap-1.5 md:gap-2"><Button size="sm" className="hidden md:inline-flex" onClick={() => openExpenseDialog()}><Plus className="h-4 w-4" />{t('app.addExpense', 'Add expense')}</Button><Button variant="ghost" size="icon" onClick={cycleTheme} aria-label={t('app.toggleTheme', 'Toggle theme')}>{theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}</Button><AccountMenu onLogout={logout} /></div>
         </header>
         <main className="relative p-4 pb-[calc(8rem+env(safe-area-inset-bottom))] md:p-8"><div className="soft-blob right-10 top-10 hidden h-56 w-56 bg-coral/20 md:block" /><ErrorBoundary resetKey={location.pathname}><Outlet context={outletContext} /></ErrorBoundary></main>
       </div>

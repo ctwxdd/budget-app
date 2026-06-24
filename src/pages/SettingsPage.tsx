@@ -2,18 +2,19 @@ import { useNavigate } from 'react-router-dom'
 import { SHEET_ID_KEY } from '../lib/defaults'
 import { useAuth } from '../lib/auth'
 import { useTheme } from '../hooks/useTheme'
+import { useLanguage } from '../hooks/useLanguage'
 import { useExpenses, useSheetId, useSheetMeta } from '../hooks/useExpenses'
 import { displayDate } from '../lib/format'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Select } from '../components/ui'
-import type { ColorTheme, Theme } from '../lib/types'
+import type { ColorTheme, Language, Theme } from '../lib/types'
 
-const colorThemes: { id: ColorTheme; name: string; description: string; colors: string[] }[] = [
-  { id: 'coral', name: 'Coral', description: 'The original warm and cheerful look', colors: ['#f15b52', '#ff9a73', '#f7b4a7'] },
-  { id: 'chamomile', name: 'Chamomile', description: 'Creamy petals, butter, and soft apricot', colors: ['#f2bb82', '#f6d77a', '#f7c9a5'] },
-  { id: 'sea', name: 'Sea Glass', description: 'Calm teal and ocean blue', colors: ['#168c91', '#55b9bd', '#8bd4e5'] },
-  { id: 'milk-tea', name: 'Milk Tea', description: 'Cozy caramel and creamy beige', colors: ['#a96f45', '#d3a477', '#ead5b8'] },
-  { id: 'lavender', name: 'Lavender', description: 'Soft violet and berry blossom', colors: ['#8267b8', '#ad8ed8', '#e4b4d2'] },
-  { id: 'matcha', name: 'Matcha', description: 'Fresh leaf green and sage', colors: ['#3c8a4a', '#7ec07a', '#c8e4b8'] },
+const colorThemes: { id: ColorTheme; name: string; descriptionKey: string; description: string; colors: string[] }[] = [
+  { id: 'coral', name: 'Coral', descriptionKey: 'theme.coral.description', description: 'The original warm and cheerful look', colors: ['#f15b52', '#ff9a73', '#f7b4a7'] },
+  { id: 'chamomile', name: 'Chamomile', descriptionKey: 'theme.chamomile.description', description: 'Creamy petals, butter, and soft apricot', colors: ['#f2bb82', '#f6d77a', '#f7c9a5'] },
+  { id: 'sea', name: 'Sea Glass', descriptionKey: 'theme.sea.description', description: 'Calm teal and ocean blue', colors: ['#168c91', '#55b9bd', '#8bd4e5'] },
+  { id: 'milk-tea', name: 'Milk Tea', descriptionKey: 'theme.milk-tea.description', description: 'Cozy caramel and creamy beige', colors: ['#a96f45', '#d3a477', '#ead5b8'] },
+  { id: 'lavender', name: 'Lavender', descriptionKey: 'theme.lavender.description', description: 'Soft violet and berry blossom', colors: ['#8267b8', '#ad8ed8', '#e4b4d2'] },
+  { id: 'matcha', name: 'Matcha', descriptionKey: 'theme.matcha.description', description: 'Fresh leaf green and sage', colors: ['#3c8a4a', '#7ec07a', '#c8e4b8'] },
 ]
 
 export function SettingsPage() {
@@ -21,18 +22,30 @@ export function SettingsPage() {
   const { data: meta } = useSheetMeta()
   const { user, signOut } = useAuth()
   const { theme, setTheme, colorTheme, setColorTheme } = useTheme()
+  const { language, setLanguage, t } = useLanguage()
   const { data = [] } = useExpenses()
   const navigate = useNavigate()
   const dates = data.map((expense) => expense.date).sort()
   const logout = () => { signOut(); localStorage.removeItem(SHEET_ID_KEY); navigate('/login') }
   const title = meta?.title || 'Loading…'
   const sheetUrl = sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit` : ''
-  return <div className="grid gap-5 md:gap-6"><Card><CardHeader><CardTitle>Spreadsheet</CardTitle><CardDescription>Google Sheets database connection.</CardDescription></CardHeader><CardContent className="space-y-4">
-    <div className="rounded-3xl bg-accent/60 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Connected sheet</p>
-      <p className="mt-1 break-words text-lg font-semibold">{title}</p>
-      {sheetUrl && <a href={sheetUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block break-all text-xs font-medium text-coral underline-offset-2 hover:underline">Open in Google Sheets ↗</a>}
-    </div>
-    <Button variant="outline" className="w-full sm:w-auto" onClick={() => navigate('/setup')}>Change spreadsheet</Button>
-  </CardContent></Card><Card><CardHeader><CardTitle>Account</CardTitle><CardDescription>Signed in with Google.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-full bg-coral font-bold text-foreground ring-1 ring-coral/20 shadow-lift dark:text-white">{(user?.email || user?.name || 'U').slice(0, 1).toUpperCase()}</span><p className="min-w-0 break-all text-sm font-semibold">{user?.email || 'Profile email unavailable'}</p></div><Button variant="destructive" className="w-full sm:w-auto" onClick={logout}>Sign out</Button></CardContent></Card><Card><CardHeader><CardTitle>Appearance</CardTitle><CardDescription>Choose a color palette and brightness. Saved on this device.</CardDescription></CardHeader><CardContent className="space-y-5"><div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">{colorThemes.map((option) => <button key={option.id} type="button" aria-pressed={colorTheme === option.id} onClick={() => setColorTheme(option.id)} className={`rounded-3xl border p-3 text-left transition active:scale-[0.98] ${colorTheme === option.id ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'bg-card hover:bg-accent/40'}`}><span className="mb-3 flex gap-1.5">{option.colors.map((color) => <span key={color} className="h-7 flex-1 rounded-full" style={{ backgroundColor: color }} />)}</span><span className="block text-sm font-bold">{option.name}</span><span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{option.description}</span></button>)}</div><div><p className="mb-2 text-sm font-semibold">Brightness</p><Select value={theme} onChange={(event) => setTheme(event.target.value as Theme)}><option value="light">Light</option><option value="dark">Dark</option><option value="system">System</option></Select></div></CardContent></Card><Card><CardHeader><CardTitle>Data counts</CardTitle></CardHeader><CardContent className="grid gap-3 text-sm sm:grid-cols-3"><div className="rounded-3xl bg-coral/10 p-4"><p className="text-muted-foreground">Total</p><p className="font-display text-2xl font-extrabold">{data.length}</p></div><div className="rounded-3xl bg-sky/15 p-4"><p className="text-muted-foreground">Oldest</p><p className="font-medium">{dates[0] ? displayDate(dates[0]) : '—'}</p></div><div className="rounded-3xl bg-mint/15 p-4"><p className="text-muted-foreground">Newest</p><p className="font-medium">{dates.at(-1) ? displayDate(dates.at(-1)!) : '—'}</p></div></CardContent></Card></div>
+  return <div className="grid gap-5 md:gap-6">
+    <Card><CardHeader><CardTitle>{t('settings.spreadsheet', 'Spreadsheet')}</CardTitle><CardDescription>{t('settings.spreadsheetDescription', 'Google Sheets database connection.')}</CardDescription></CardHeader><CardContent className="space-y-4">
+      <div className="rounded-3xl bg-accent/60 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('settings.connectedSheet', 'Connected sheet')}</p>
+        <p className="mt-1 break-words text-lg font-semibold">{title}</p>
+        {sheetUrl && <a href={sheetUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block break-all text-xs font-medium text-coral underline-offset-2 hover:underline">{t('settings.openSheets', 'Open in Google Sheets ↗')}</a>}
+      </div>
+      <Button variant="outline" className="w-full sm:w-auto" onClick={() => navigate('/setup')}>{t('settings.changeSpreadsheet', 'Change spreadsheet')}</Button>
+    </CardContent></Card>
+    <Card><CardHeader><CardTitle>{t('settings.account', 'Account')}</CardTitle><CardDescription>{t('settings.accountDescription', 'Signed in with Google.')}</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-full bg-coral font-bold text-foreground ring-1 ring-coral/20 shadow-lift dark:text-white">{(user?.email || user?.name || 'U').slice(0, 1).toUpperCase()}</span><p className="min-w-0 break-all text-sm font-semibold">{user?.email || t('settings.profileUnavailable', 'Profile email unavailable')}</p></div><Button variant="destructive" className="w-full sm:w-auto" onClick={logout}>{t('settings.signOut', 'Sign out')}</Button></CardContent></Card>
+    <Card><CardHeader><CardTitle>{t('settings.appearance', 'Appearance')}</CardTitle><CardDescription>{t('settings.appearanceDescription', 'Choose a color palette, brightness, and language. Saved on this device.')}</CardDescription></CardHeader><CardContent className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">{colorThemes.map((option) => <button key={option.id} type="button" aria-pressed={colorTheme === option.id} onClick={() => setColorTheme(option.id)} className={`rounded-3xl border p-3 text-left transition active:scale-[0.98] ${colorTheme === option.id ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'bg-card hover:bg-accent/40'}`}><span className="mb-3 flex gap-1.5">{option.colors.map((color) => <span key={color} className="h-7 flex-1 rounded-full" style={{ backgroundColor: color }} />)}</span><span className="block text-sm font-bold">{option.name}</span><span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{t(option.descriptionKey, option.description)}</span></button>)}</div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div><p className="mb-2 text-sm font-semibold">{t('settings.brightness', 'Brightness')}</p><Select value={theme} onChange={(event) => setTheme(event.target.value as Theme)}><option value="light">{t('settings.light', 'Light')}</option><option value="dark">{t('settings.dark', 'Dark')}</option><option value="system">{t('settings.system', 'System')}</option></Select></div>
+        <div><p className="mb-2 text-sm font-semibold">{t('settings.language', 'Language')}</p><Select value={language} onChange={(event) => setLanguage(event.target.value as Language)}><option value="en">{t('settings.english', 'English')}</option><option value="zh">{t('settings.chinese', '中文')}</option></Select></div>
+      </div>
+    </CardContent></Card>
+    <Card><CardHeader><CardTitle>{t('settings.dataCounts', 'Data counts')}</CardTitle></CardHeader><CardContent className="grid gap-3 text-sm sm:grid-cols-3"><div className="rounded-3xl bg-coral/10 p-4"><p className="text-muted-foreground">{t('settings.total', 'Total')}</p><p className="font-display text-2xl font-extrabold">{data.length}</p></div><div className="rounded-3xl bg-sky/15 p-4"><p className="text-muted-foreground">{t('settings.oldest', 'Oldest')}</p><p className="font-medium">{dates[0] ? displayDate(dates[0]) : '—'}</p></div><div className="rounded-3xl bg-mint/15 p-4"><p className="text-muted-foreground">{t('settings.newest', 'Newest')}</p><p className="font-medium">{dates.at(-1) ? displayDate(dates.at(-1)!) : '—'}</p></div></CardContent></Card>
+  </div>
 }

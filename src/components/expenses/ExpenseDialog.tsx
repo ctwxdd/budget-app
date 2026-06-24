@@ -12,6 +12,7 @@ import { currency } from '../../lib/format'
 import { cn } from '../../lib/utils'
 import { useToast } from '../ui/Toast'
 import { formatTags, parseTags } from '../../lib/tags'
+import { useLanguage } from '../../hooks/useLanguage'
 
 export type FormState = Omit<Expense, 'rowIndex'>
 const emptyForm = (): FormState => ({ date: format(new Date(), 'yyyy-MM-dd'), amount: 0, description: '', category: '', paymentMethod: '', reimbursement: '', tags: '' })
@@ -32,6 +33,11 @@ const paymentTypes: { type: PaymentMethodType; label: string; emoji: string }[] 
   { type: 'giftcard', label: 'Giftcard', emoji: '🎁' },
   { type: 'cash', label: 'Cash', emoji: '💵' },
 ]
+const paymentTypeKey: Record<PaymentMethodType, string> = {
+  card: 'expense.card',
+  giftcard: 'expense.giftcard',
+  cash: 'expense.cash',
+}
 
 function cents(value: number) {
   return Math.round((Number(value) || 0) * 100)
@@ -213,11 +219,12 @@ function isoDaysAgo(days: number) {
 }
 
 function DateQuickChips({ selected, onPick, className }: { selected: string; onPick: (value: string) => void; className?: string }) {
+  const { t } = useLanguage()
   const chips = React.useMemo(() => [
-    { label: 'Today', value: isoDaysAgo(0) },
-    { label: 'Yesterday', value: isoDaysAgo(1) },
-    { label: '2d ago', value: isoDaysAgo(2) },
-  ], [])
+    { label: t('expense.today', 'Today'), value: isoDaysAgo(0) },
+    { label: t('expense.yesterday', 'Yesterday'), value: isoDaysAgo(1) },
+    { label: t('expense.twoDaysAgo', '2d ago'), value: isoDaysAgo(2) },
+  ], [t])
   return <div className={cn('flex flex-wrap gap-1', className)}>{chips.map((chip) => {
     const active = selected === chip.value
     return <button
@@ -427,6 +434,7 @@ function DescriptionAutosuggest({ value, onChange, suggestions, placeholder, cur
 }
 
 export function ExpenseDialog({ open, onOpenChange, expense, template }: { open: boolean; onOpenChange: (open: boolean) => void; expense?: Expense | null; template?: FormState | null }) {
+  const { t } = useLanguage()
   const categories = useCategories()
   const expensesQuery = useExpenses()
   const giftcards = useGiftcards()
@@ -562,11 +570,11 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     const amount = Math.abs(Number(form.amount))
-    if (!Number.isFinite(amount) || (amount === 0 && !zeroCostGiftcardEntry)) return toast({ title: 'Amount is required.', variant: 'destructive' })
-    if (!splitEnabled && !form.paymentMethod.trim()) return toast({ title: 'Payment method is required.', variant: 'destructive' })
+    if (!Number.isFinite(amount) || (amount === 0 && !zeroCostGiftcardEntry)) return toast({ title: t('expense.amountRequired', 'Amount is required.'), variant: 'destructive' })
+    if (!splitEnabled && !form.paymentMethod.trim()) return toast({ title: t('expense.paymentRequired', 'Payment method is required.'), variant: 'destructive' })
     if (giftcardPurchase && amount <= 0 && !zeroCostGiftcardEntry) return toast({ title: 'Giftcard purchase cost must be greater than zero.', variant: 'destructive' })
     if (giftcardPurchase && giftcardStructured && !giftcardParts.vendor.trim()) return toast({ title: 'Vendor is required for giftcard purchases.', variant: 'destructive' })
-    if (!(giftcardPurchase && giftcardStructured) && !form.description.trim()) return toast({ title: 'Description is required.', variant: 'destructive' })
+    if (!(giftcardPurchase && giftcardStructured) && !form.description.trim()) return toast({ title: t('expense.descriptionRequired', 'Description is required.'), variant: 'destructive' })
     const description = giftcardPurchase && giftcardStructured
       ? composeGiftcardDescription(giftcardParts, note)
       : appendNoteToDescription(form.description, note)
@@ -604,7 +612,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
       else {
         for (const payload of payloads) await addExpense.mutateAsync(payload)
       }
-      toast({ title: splitEnabled ? (expense ? `Expense split into ${payloads.length} rows` : `Added ${payloads.length} expense rows`) : expense ? 'Expense updated' : 'Expense added' })
+      toast({ title: splitEnabled ? (expense ? `Expense split into ${payloads.length} rows` : `Added ${payloads.length} expense rows`) : expense ? t('expense.updated', 'Expense updated') : t('expense.added', 'Expense added') })
       onOpenChange(false)
     } catch (error) {
       toast({ title: 'Could not save expense', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
@@ -616,28 +624,28 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   return <Dialog
     open={open}
     onOpenChange={onOpenChange}
-    title={expense ? 'Edit expense' : 'Add expense'}
-    description="Saved directly to your Google Sheet"
+    title={expense ? t('expense.editTitle', 'Edit expense') : t('expense.addTitle', 'Add expense')}
+    description={t('expense.savedToSheet', 'Saved directly to your Google Sheet')}
     className="overflow-x-hidden"
     mobileBottomSheet
-    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={saving}>{saving ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>}
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('expense.cancel', 'Cancel')}</Button><Button type="submit" form={formId} variant="gradient" disabled={saving}>{saving ? t('expense.saving', 'Saving...') : (expense ? t('expense.saveChanges', 'Save changes') : t('expense.addExpense', 'Add expense'))}</Button></div>}
   >
     <form id={formId} onSubmit={submit} className="grid w-full min-w-0 max-w-full gap-x-5 gap-y-3 px-0.5 pb-0.5 sm:grid-cols-2 sm:gap-y-4">
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="flex min-w-0 items-center justify-between gap-2"><span>Date</span><DateQuickChips className="justify-end" selected={form.date} onPick={(date) => setForm({ ...form, date })} /></span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="flex min-w-0 items-center justify-between gap-2"><span>{t('expense.date', 'Date')}</span><DateQuickChips className="justify-end" selected={form.date} onPick={(date) => setForm({ ...form, date })} /></span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="flex min-w-0 items-center justify-between gap-2">
-          <span>Description</span>
+          <span>{t('expense.description', 'Description')}</span>
           {noteOpen
-            ? <Button type="button" variant="ghost" size="sm" className="h-6 shrink-0 px-0 py-0 text-muted-foreground hover:bg-transparent hover:text-coral" onClick={() => { setNote(''); setNoteOpen(false) }}>Remove note</Button>
-            : <Button type="button" variant="ghost" size="sm" className="h-6 shrink-0 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
+            ? <Button type="button" variant="ghost" size="sm" className="h-6 shrink-0 px-0 py-0 text-muted-foreground hover:bg-transparent hover:text-coral" onClick={() => { setNote(''); setNoteOpen(false) }}>{t('expense.removeNote', 'Remove note')}</Button>
+            : <Button type="button" variant="ghost" size="sm" className="h-6 shrink-0 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>{t('expense.addNote', '+ Add note')}</Button>}
         </span>
         {giftcardPurchase
           ? <GiftcardComposer parts={giftcardParts} structured={giftcardStructured} vendors={vendors} sources={giftcardSources} rawDescription={form.description} paidAmount={Number(form.amount) || 0} onRawChange={(description) => setForm({ ...form, description })} onStructuredChange={setGiftcardStructured} onChange={setGiftcardParts} />
-          : <DescriptionAutosuggest value={form.description} onChange={(description) => setForm({ ...form, description })} suggestions={descriptionSuggestions} currentCategory={form.category} placeholder="Groceries, rent, coffee..." isOpen={activeMenu === 'description'} onOpenChange={setMenu('description')} />}
-        {noteOpen && <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note: chase 10%, shared dinner..." />}
+          : <DescriptionAutosuggest value={form.description} onChange={(description) => setForm({ ...form, description })} suggestions={descriptionSuggestions} currentCategory={form.category} placeholder={t('expense.descriptionPlaceholder', 'Groceries, rent, coffee...')} isOpen={activeMenu === 'description'} onOpenChange={setMenu('description')} />}
+        {noteOpen && <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder={t('expense.notePlaceholder', 'Note: chase 10%, shared dinner...')} />}
       </div>
-      <AmountInputWithCalculator label={giftcardPurchase ? 'Cost paid' : 'Amount'} value={form.amount} onChange={setAmount} allowZero={zeroCostGiftcardEntry} />
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Category</span><CategoryCombobox value={form.category} onChange={setCategory} options={categories} isOpen={activeMenu === 'category'} onOpenChange={setMenu('category')} /></label>
+      <AmountInputWithCalculator label={giftcardPurchase ? t('expense.costPaid', 'Cost paid') : t('expense.amount', 'Amount')} value={form.amount} onChange={setAmount} allowZero={zeroCostGiftcardEntry} />
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">{t('expense.category', 'Category')}</span><CategoryCombobox value={form.category} onChange={setCategory} options={categories} placeholder={t('expense.categoryPlaceholder', 'Choose or type a category')} isOpen={activeMenu === 'category'} onOpenChange={setMenu('category')} /></label>
       <div className={cn('min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground', splitEnabled && 'sm:col-span-2')}>
         {splitEnabled
           ? <SplitPaymentEditor
@@ -653,9 +661,9 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
             onChange={updateSplitPayment}
           />
           : <>
-            <span className="block">Payment method</span>
+            <span className="block">{t('expense.paymentMethod', 'Payment method')}</span>
             <div className="grid grid-cols-3 gap-1 rounded-full bg-accent/50 p-0.5">
-              {paymentTypes.map((item) => <button key={item.type} type="button" aria-label={item.label} className={cn('flex h-9 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-none transition md:h-8 md:px-3 md:text-xs', paymentType === item.type ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => {
+              {paymentTypes.map((item) => <button key={item.type} type="button" aria-label={t(paymentTypeKey[item.type], item.label)} className={cn('flex h-9 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-none transition md:h-8 md:px-3 md:text-xs', paymentType === item.type ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => {
                 const previousType = paymentType
                 setPaymentType(item.type)
                 if (item.type === 'giftcard') {
@@ -668,7 +676,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
                 } else if (previousType !== item.type && classifyPaymentMethod(form.paymentMethod) !== item.type) {
                   setForm({ ...form, paymentMethod: '' })
                 }
-              }} title={item.label}><span>{item.emoji}</span><span>{item.label}</span></button>)}
+              }} title={t(paymentTypeKey[item.type], item.label)}><span>{item.emoji}</span><span>{t(paymentTypeKey[item.type], item.label)}</span></button>)}
             </div>
             {paymentType !== 'cash' && <div className="pt-1.5">
               {paymentType === 'giftcard'
@@ -679,11 +687,11 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
               type="button"
               className="mt-2 w-full rounded-2xl border border-dashed border-coral/35 bg-coral/5 px-3 py-2 text-left text-xs font-bold text-coral transition hover:bg-coral/10"
               onClick={startSplitPayments}
-            >Split across multiple payment methods</button>}
+            >{t('expense.splitPayments', 'Split across multiple payment methods')}</button>}
           </>}
       </div>
       <div className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
-        <span className="block">Tags</span>
+        <span className="block">{t('expense.tags', 'Tags')}</span>
         <TagsInput value={form.tags} onChange={(tags) => setForm({ ...form, tags })} />
       </div>
     </form>
