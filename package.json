@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:unit": "node scripts/run-unit-tests.mjs"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

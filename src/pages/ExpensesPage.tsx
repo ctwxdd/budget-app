@@ -3,13 +3,14 @@ import { ArrowLeft, Pencil, Trash2, X } from 'lucide-react'
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom'
 import { BatchEditDialog } from '../components/expenses/BatchEditDialog'
 import { ExpenseDialog, ReturnDialog, type FormState } from '../components/expenses/ExpenseDialog'
-import { ExpenseFilterBar, ExpenseTable, applyExpenseFilters, defaultFilters, type ExpenseFilters } from '../components/expenses/ExpenseTable'
+import { ExpenseFilterBar, ExpenseTable } from '../components/expenses/ExpenseTable'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { QueryError } from '../components/layout/QueryError'
 import { Button, ConfirmDialog } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { useBatchDeleteExpenses, useExpenses } from '../hooks/useExpenses'
 import type { Expense } from '../lib/types'
+import { applyExpenseFilters, defaultFilters, type ExpenseFilters } from '../lib/expenseFilters'
 
 type AppOutletContext = {
   openExpenseDialog: (template?: FormState | null) => void

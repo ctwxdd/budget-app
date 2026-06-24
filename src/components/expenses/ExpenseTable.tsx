@@ -3,21 +3,17 @@ import { useQueryClient } from '@tanstack/react-query'
 import { addDays, addMonths, endOfMonth, endOfWeek, format, isBefore, isSameDay, isSameMonth, isValid, parseISO, startOfMonth, startOfWeek } from 'date-fns'
 import { ArrowDownUp, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Filter, LayoutGrid, List, MoreHorizontal, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import type { DatePreset, Expense } from '../../lib/types'
-import { categoryColor, categoryIcon, categoryName, currency, displayDate, filterByDateRange, getPresetRange, sumExpenses } from '../../lib/format'
+import { categoryColor, categoryIcon, categoryName, currency, displayDate, sumExpenses } from '../../lib/format'
 import { cn } from '../../lib/utils'
 import { Badge, Button, Card, Dialog, Input, Select } from '../ui'
 import { useAddExpense, useCategories, useDeleteExpense, usePaymentMethods, useSheetId, useSheetMeta, useTags } from '../../hooks/useExpenses'
 import { useToast } from '../ui/Toast'
-import { hasAnyTag, parseTags } from '../../lib/tags'
+import { parseTags } from '../../lib/tags'
 import { useLanguage } from '../../hooks/useLanguage'
-
-export type ExpenseFilters = { preset: DatePreset; start: string; end: string; categories: string[]; payments: string[]; tags: string[]; reimbursement: string; search: string }
-export const defaultFilters: ExpenseFilters = { preset: 'all', start: '', end: '', categories: [], payments: [], tags: [], reimbursement: 'All', search: '' }
+import { NO_PAYMENT_FILTER, NO_PAYMENT_LABEL, displayFilterValue, type ExpenseFilters } from '../../lib/expenseFilters'
 
 type SortKey = 'date' | 'amount'
 type FilterKey = keyof ExpenseFilters
-const NO_PAYMENT_FILTER = '__NO_PAYMENT__'
-const NO_PAYMENT_LABEL = 'No payment method'
 
 function expenseSheetRowUrl(sheetId: string, sheetGid: number, rowIndex: number) {
   const rowCell = `A${rowIndex}`
@@ -46,10 +42,6 @@ function TagChips({ value, compact = false }: { value: string; compact?: boolean
   </div>
 }
 
-function displayFilterValue(value: string, noPaymentLabel = NO_PAYMENT_LABEL) {
-  return value === NO_PAYMENT_FILTER ? noPaymentLabel : value
-}
-
 function MultiSelect({ label, values, options, onChange }: { label: string; values: string[]; options: string[]; onChange: (values: string[]) => void }) {
   const [choice, setChoice] = React.useState('')
   const { t } = useLanguage()
@@ -67,20 +59,6 @@ function dayLabel(iso: string, t: (key: string, fallback: string) => string) {
   const yesterdayIso = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
   if (iso === yesterdayIso) return t('expense.yesterday', 'Yesterday')
   return displayDate(iso)
-}
-
-export function applyExpenseFilters(expenses: Expense[], filters: ExpenseFilters) {
-  const range = getPresetRange(filters.preset, filters.start, filters.end)
-  return filterByDateRange(expenses, range.start, range.end).filter((expense) => {
-    if (filters.categories.length && !filters.categories.includes(categoryName(expense.category))) return false
-    if (filters.payments.length && !filters.payments.some((payment) => payment === NO_PAYMENT_FILTER ? !expense.paymentMethod.trim() : payment === expense.paymentMethod)) return false
-    if (!hasAnyTag(expense.tags, filters.tags)) return false
-    if (filters.reimbursement === 'Reimbursed' && expense.reimbursement !== 'Reimbursed') return false
-    if (filters.reimbursement === 'Pending' && expense.reimbursement !== 'Pending') return false
-    if (filters.reimbursement === 'None' && expense.reimbursement) return false
-    if (filters.search && !expense.description.toLowerCase().includes(filters.search.toLowerCase())) return false
-    return true
-  })
 }
 
 function parseFilterDate(value: string) {

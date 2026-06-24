@@ -1,17 +1,17 @@
 import * as React from 'react'
 import { ArrowRight } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import type { ExpenseFilters } from '../components/expenses/ExpenseTable'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Sector, Tooltip, XAxis, YAxis } from 'recharts'
 import type { PieSectorShapeProps } from 'recharts'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Select, Tabs } from '../components/ui'
-import { ExpenseFilterBar, applyExpenseFilters, defaultFilters } from '../components/expenses/ExpenseTable'
+import { ExpenseFilterBar } from '../components/expenses/ExpenseTable'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { QueryError } from '../components/layout/QueryError'
 import { useExpenses } from '../hooks/useExpenses'
 import { useLanguage } from '../hooks/useLanguage'
 import { chartPalette, categoryColor, categoryIcon, currency, groupTotals, monthlyTotals, monthsForYear } from '../lib/format'
 import { groupTagTotals } from '../lib/tags'
+import { applyExpenseFilters, defaultFilters, type ExpenseFilters } from '../lib/expenseFilters'
 
 const moneyTick = (value: number) => `$${Math.round(value).toLocaleString()}`
 const validYear = (year: number, fallback: number) => (Number.isFinite(year) && year > 0 ? year : fallback)
