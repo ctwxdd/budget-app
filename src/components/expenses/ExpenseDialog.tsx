@@ -218,13 +218,13 @@ function DateQuickChips({ selected, onPick }: { selected: string; onPick: (value
     { label: 'Yesterday', value: isoDaysAgo(1) },
     { label: '2d ago', value: isoDaysAgo(2) },
   ], [])
-  return <div className="flex flex-wrap gap-1.5 pt-1">{chips.map((chip) => {
+  return <div className="flex flex-wrap gap-1 pt-0.5">{chips.map((chip) => {
     const active = selected === chip.value
     return <button
       key={chip.label}
       type="button"
       onClick={() => onPick(chip.value)}
-      className={cn('rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition motion-safe:active:scale-[0.96]', active ? 'border-coral/40 bg-coral/15 text-coral' : 'border-border bg-accent/40 text-muted-foreground hover:bg-accent/70')}
+      className={cn('rounded-full border px-2.5 py-0.5 text-[11px] font-semibold leading-4 transition motion-safe:active:scale-[0.96]', active ? 'border-coral/40 bg-coral/15 text-coral' : 'border-border bg-accent/40 text-muted-foreground hover:bg-accent/70')}
     >{chip.label}</button>
   })}</div>
 }
@@ -622,8 +622,8 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     mobileBottomSheet
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={saving}>{saving ? 'Saving...' : (expense ? 'Save changes' : 'Add expense')}</Button></div>}
   >
-    <form id={formId} onSubmit={submit} className="grid w-full min-w-0 max-w-full gap-x-5 gap-y-4 px-0.5 pb-0.5 sm:grid-cols-2">
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
+    <form id={formId} onSubmit={submit} className="grid w-full min-w-0 max-w-full gap-x-5 gap-y-3 px-0.5 pb-0.5 sm:grid-cols-2 sm:gap-y-4">
+      <label className="block min-w-0 space-y-1 text-sm font-semibold text-muted-foreground"><span className="block">Date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
         <span className="block">Description</span>
         {giftcardPurchase
@@ -631,8 +631,8 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
           : <DescriptionAutosuggest value={form.description} onChange={(description) => setForm({ ...form, description })} suggestions={descriptionSuggestions} currentCategory={form.category} placeholder="Groceries, rent, coffee..." isOpen={activeMenu === 'description'} onOpenChange={setMenu('description')} />}
       </div>
       <AmountInputWithCalculator label={giftcardPurchase ? 'Cost paid' : 'Amount'} value={form.amount} onChange={setAmount} allowZero={zeroCostGiftcardEntry} />
-      <div className="min-h-6 sm:col-span-2">
-        {noteOpen ? <label className="block space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Note</span><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label> : <Button type="button" variant="ghost" size="sm" className="h-6 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
+      <div className="min-h-5 sm:col-span-2">
+        {noteOpen ? <label className="block space-y-1 text-sm font-semibold text-muted-foreground"><span className="block">Note</span><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label> : <Button type="button" variant="ghost" size="sm" className="h-5 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
       </div>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Category</span><CategoryCombobox value={form.category} onChange={setCategory} options={categories} isOpen={activeMenu === 'category'} onOpenChange={setMenu('category')} /></label>
       <div className={cn('min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground', splitEnabled && 'sm:col-span-2')}>
