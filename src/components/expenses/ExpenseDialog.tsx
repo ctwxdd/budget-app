@@ -625,13 +625,18 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     <form id={formId} onSubmit={submit} className="grid w-full min-w-0 max-w-full gap-x-5 gap-y-3 px-0.5 pb-0.5 sm:grid-cols-2 sm:gap-y-4">
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="flex min-w-0 items-center justify-between gap-2"><span>Date</span><DateQuickChips className="justify-end" selected={form.date} onPick={(date) => setForm({ ...form, date })} /></span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
       <div className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">
-        <span className="flex min-w-0 items-center justify-between gap-2"><span>Description</span>{!noteOpen && <Button type="button" variant="ghost" size="sm" className="h-6 shrink-0 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}</span>
+        <span className="flex min-w-0 items-center justify-between gap-2">
+          <span>Description</span>
+          {noteOpen
+            ? <Button type="button" variant="ghost" size="sm" className="h-6 shrink-0 px-0 py-0 text-muted-foreground hover:bg-transparent hover:text-coral" onClick={() => { setNote(''); setNoteOpen(false) }}>Remove note</Button>
+            : <Button type="button" variant="ghost" size="sm" className="h-6 shrink-0 px-0 py-0 text-coral hover:bg-transparent" onClick={() => setNoteOpen(true)}>+ Add note</Button>}
+        </span>
         {giftcardPurchase
           ? <GiftcardComposer parts={giftcardParts} structured={giftcardStructured} vendors={vendors} sources={giftcardSources} rawDescription={form.description} paidAmount={Number(form.amount) || 0} onRawChange={(description) => setForm({ ...form, description })} onStructuredChange={setGiftcardStructured} onChange={setGiftcardParts} />
           : <DescriptionAutosuggest value={form.description} onChange={(description) => setForm({ ...form, description })} suggestions={descriptionSuggestions} currentCategory={form.category} placeholder="Groceries, rent, coffee..." isOpen={activeMenu === 'description'} onOpenChange={setMenu('description')} />}
+        {noteOpen && <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note: chase 10%, shared dinner..." />}
       </div>
       <AmountInputWithCalculator label={giftcardPurchase ? 'Cost paid' : 'Amount'} value={form.amount} onChange={setAmount} allowZero={zeroCostGiftcardEntry} />
-      {noteOpen && <label className="block space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2"><span className="block">Note</span><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="chase 10%, shared dinner..." /></label>}
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Category</span><CategoryCombobox value={form.category} onChange={setCategory} options={categories} isOpen={activeMenu === 'category'} onOpenChange={setMenu('category')} /></label>
       <div className={cn('min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground', splitEnabled && 'sm:col-span-2')}>
         {splitEnabled
