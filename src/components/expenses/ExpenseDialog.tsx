@@ -115,6 +115,7 @@ function StringAutosuggest({ value, onChange, options, placeholder }: { value: s
 
 function TagsInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const options = useTags()
+  const { t } = useLanguage()
   const [draft, setDraft] = React.useState('')
   const [focused, setFocused] = React.useState(false)
   const [highlight, setHighlight] = React.useState(0)
@@ -125,7 +126,7 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
   const suggestions = React.useMemo(() => options
     .filter((tag) => !selectedKeys.has(tag.toLocaleLowerCase()))
     .filter((tag) => !query || tag.toLocaleLowerCase().includes(query))
-    .slice(0, 6), [options, query, selectedKeys])
+    .slice(0, 5), [options, query, selectedKeys])
   const exactDraft = Boolean(draft.trim() && selectedKeys.has(draft.trim().toLocaleLowerCase()))
   const canAddDraft = Boolean(draft.trim() && !exactDraft)
   const open = focused && (suggestions.length > 0 || canAddDraft)
@@ -173,38 +174,40 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
     {selected.length > 0 && <div className="flex flex-wrap gap-1.5">
       {selected.map((tag) => <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/[0.08] py-1 pl-2.5 pr-1 text-xs font-bold text-primary">
         #{tag}
-        <button type="button" aria-label={`Remove ${tag} tag`} className="grid h-5 w-5 place-items-center rounded-full text-primary/65 transition hover:bg-primary/15 hover:text-primary" onClick={() => removeTag(tag)}>×</button>
+        <button type="button" aria-label={`Remove ${tag} tag`} className="grid h-6 w-6 place-items-center rounded-full text-primary/65 transition hover:bg-primary/15 hover:text-primary" onClick={() => removeTag(tag)}>×</button>
       </span>)}
     </div>}
-    <div className="relative">
-      <Input
-        value={draft}
-        onChange={(event) => onDraftChange(event.target.value)}
-        onFocus={() => { if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current); setFocused(true) }}
-        onBlur={() => { blurTimerRef.current = window.setTimeout(() => setFocused(false), 150) }}
-        onKeyDown={onKeyDown}
-        placeholder={selected.length ? 'Add another tag...' : 'Travel, House, Project...'}
-        autoComplete="off"
-      />
-      {open && <FadeScroll outerClassName="absolute left-0 right-0 top-full z-[60] mt-1.5 rounded-2xl border border-border bg-card shadow-lift" className="max-h-56 overflow-auto p-1">
+    <Input
+      value={draft}
+      onChange={(event) => onDraftChange(event.target.value)}
+      onFocus={() => { if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current); setFocused(true) }}
+      onBlur={() => { blurTimerRef.current = window.setTimeout(() => setFocused(false), 180) }}
+      onKeyDown={onKeyDown}
+      placeholder={selected.length ? t('expense.tagAnotherPlaceholder', 'Add another tag...') : t('expense.tagPlaceholder', 'Travel, House, Project...')}
+      autoComplete="off"
+    />
+    {open && <div className="rounded-2xl border border-border/70 bg-card/80 p-2 shadow-sm">
+      <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {suggestions.map((tag, index) => <button
           key={tag}
           type="button"
-          className={cn('flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition', index === highlight ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/70')}
-          onPointerDown={(event) => { event.preventDefault(); pick(tag) }}
+          className={cn('inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-bold transition', index === highlight ? 'border-primary/30 bg-primary/[0.12] text-primary' : 'border-border bg-background/80 text-foreground hover:bg-accent/70')}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => pick(tag)}
         >
-          <span className="font-semibold text-primary">#</span><span className="truncate font-medium text-foreground">{tag}</span>
+          <span className="text-primary">#</span><span className="max-w-36 truncate">{tag}</span>
         </button>)}
         {canAddDraft && <button
           type="button"
-          className={cn('flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition', highlight === suggestions.length ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/70')}
-          onPointerDown={(event) => { event.preventDefault(); addTags(draft) }}
+          className={cn('inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-bold transition', highlight === suggestions.length ? 'border-primary/30 bg-primary/[0.12] text-primary' : 'border-dashed border-primary/35 bg-primary/[0.06] text-primary hover:bg-primary/10')}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => addTags(draft)}
         >
-          <span className="font-semibold text-primary">+</span><span className="truncate font-medium text-foreground">Add “{draft.trim()}”</span>
+          <span>+</span><span className="max-w-40 truncate">{t('expense.addTag', 'Add')} “{draft.trim()}”</span>
         </button>}
-      </FadeScroll>}
-    </div>
-    <p className="px-1 text-[11px] font-medium text-muted-foreground/80">Pick an existing tag or type a new one. Commas add multiple tags.</p>
+      </div>
+    </div>}
+    <p className="px-1 text-[11px] font-medium text-muted-foreground/80">{t('expense.tagHelp', 'Pick an existing tag or type a new one. Commas add multiple tags.')}</p>
   </div>
 }
 
