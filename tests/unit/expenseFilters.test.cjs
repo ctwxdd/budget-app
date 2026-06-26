@@ -4,6 +4,7 @@ const assert = require('node:assert/strict')
 const {
   NO_PAYMENT_FILTER,
   applyExpenseFilters,
+  compareExpenses,
   defaultFilters,
   displayFilterValue,
 } = require('../../.tmp-test/src/lib/expenseFilters.js')
@@ -74,4 +75,16 @@ test('combines date range, search, and reimbursement filters', () => {
   })
 
   assert.deepEqual(ids(result), [2])
+})
+
+test('sorts recent expenses by date and then newest sheet row first', () => {
+  const rows = [
+    expense({ rowIndex: 4, date: '2026-06-24', description: 'Older same-day row' }),
+    expense({ rowIndex: 7, date: '2026-06-24', description: 'Newer same-day row' }),
+    expense({ rowIndex: 8, date: '2026-06-23', description: 'Previous day row' }),
+  ]
+
+  const result = [...rows].sort((a, b) => compareExpenses(a, b, 'date', 'desc'))
+
+  assert.deepEqual(ids(result), [7, 4, 8])
 })

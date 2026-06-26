@@ -9,6 +9,7 @@ import { useExpenses } from '../hooks/useExpenses'
 import { useLanguage } from '../hooks/useLanguage'
 import { categoryColor, categoryIcon, currency, displayDate, filterByDateRange, getPresetRange, groupTotals, sumExpenses } from '../lib/format'
 import type { Expense } from '../lib/types'
+import { compareExpenses } from '../lib/expenseFilters'
 
 export function OverviewPage() {
   const navigate = useNavigate()
@@ -25,7 +26,7 @@ export function OverviewPage() {
   const lastTotal = sumExpenses(lastMonth)
   const delta = lastTotal ? ((thisTotal - lastTotal) / lastTotal) * 100 : 0
   const top = groupTotals(thisMonth, 'category').filter((item) => item.total > 0).slice(0, 5)
-  const recent = [...data].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10)
+  const recent = [...data].sort((a, b) => compareExpenses(a, b, 'date', 'desc')).slice(0, 10)
   const kpis = [
     { label: t('expenses.thisMonth', 'This month'), emoji: '💸', value: currency.format(thisTotal), tint: 'from-coral/15 to-peach/20', href: '/analytics?tab=category&preset=thisMonth' },
     { label: t('expenses.lastMonth', 'Last month'), emoji: '📆', value: currency.format(lastTotal), tint: 'from-lavender/15 to-sky/15', href: '/analytics?tab=category&preset=lastMonth' },

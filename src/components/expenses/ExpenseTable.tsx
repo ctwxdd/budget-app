@@ -10,9 +10,9 @@ import { useAddExpense, useCategories, useDeleteExpense, usePaymentMethods, useS
 import { useToast } from '../ui/Toast'
 import { parseTags } from '../../lib/tags'
 import { useLanguage } from '../../hooks/useLanguage'
-import { NO_PAYMENT_FILTER, NO_PAYMENT_LABEL, displayFilterValue, type ExpenseFilters } from '../../lib/expenseFilters'
+import { NO_PAYMENT_FILTER, NO_PAYMENT_LABEL, compareExpenses, displayFilterValue, type ExpenseFilters, type ExpenseSortKey } from '../../lib/expenseFilters'
 
-type SortKey = 'date' | 'amount'
+type SortKey = ExpenseSortKey
 type FilterKey = keyof ExpenseFilters
 
 function expenseSheetRowUrl(sheetId: string, sheetGid: number, rowIndex: number) {
@@ -400,12 +400,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
   const expenseSheetGid = sheetMeta.data?.sheets.find((sheet) => sheet.title === 'Expense')?.sheetId
   const { toast } = useToast()
   const { t } = useLanguage()
-  const sorted = React.useMemo(() => [...expenses].sort((a, b) => {
-    const primary = sortKey === 'date' ? a.date.localeCompare(b.date) : a.amount - b.amount
-    const tieBreaker = a.rowIndex - b.rowIndex
-    const result = primary || tieBreaker
-    return sortDir === 'asc' ? result : -result
-  }), [expenses, sortKey, sortDir])
+  const sorted = React.useMemo(() => [...expenses].sort((a, b) => compareExpenses(a, b, sortKey, sortDir)), [expenses, sortKey, sortDir])
   const pageSize = 50
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const current = sorted.slice((page - 1) * pageSize, page * pageSize)

@@ -13,6 +13,9 @@ export type ExpenseFilters = {
   search: string
 }
 
+export type ExpenseSortKey = 'date' | 'amount'
+export type SortDirection = 'asc' | 'desc'
+
 export const NO_PAYMENT_FILTER = '__NO_PAYMENT__'
 export const NO_PAYMENT_LABEL = 'No payment method'
 
@@ -43,4 +46,11 @@ export function applyExpenseFilters(expenses: Expense[], filters: ExpenseFilters
     if (filters.search && !expense.description.toLowerCase().includes(filters.search.toLowerCase())) return false
     return true
   })
+}
+
+export function compareExpenses(a: Expense, b: Expense, sortKey: ExpenseSortKey = 'date', sortDir: SortDirection = 'desc') {
+  const primary = sortKey === 'date' ? a.date.localeCompare(b.date) : a.amount - b.amount
+  const tieBreaker = a.rowIndex - b.rowIndex
+  const result = primary || tieBreaker
+  return sortDir === 'asc' ? result : -result
 }
