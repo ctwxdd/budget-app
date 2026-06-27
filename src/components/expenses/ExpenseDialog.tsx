@@ -279,9 +279,15 @@ function formatAmountInput(value: number, allowZero = false) {
 
 function AmountInputWithCalculator({ label, value, onChange, allowZero = false }: { label: string; value: number; onChange: (value: string) => void; allowZero?: boolean }) {
   const [open, setOpen] = React.useState(false)
+  const [editing, setEditing] = React.useState(false)
+  const [draft, setDraft] = React.useState(() => formatAmountInput(value, allowZero))
   const [expression, setExpression] = React.useState('')
   const result = React.useMemo(() => sumAmountExpression(expression), [expression])
-  const amountValue = formatAmountInput(value, allowZero)
+  const savedAmountValue = formatAmountInput(value, allowZero)
+  const amountValue = editing ? draft : savedAmountValue
+  React.useEffect(() => {
+    if (!editing) setDraft(savedAmountValue)
+  }, [editing, savedAmountValue])
   const addToken = (token: string) => {
     setExpression((current) => {
       if (/^\d+$/.test(token)) return current === '0' ? token : current + token
@@ -306,7 +312,21 @@ function AmountInputWithCalculator({ label, value, onChange, allowZero = false }
     <span className="block">{label}</span>
     <div>
       <div className="flex min-w-0 gap-2">
-        <Input className="min-w-0 flex-1" inputMode="decimal" type="number" min={allowZero ? '0' : '0.01'} step="0.01" required value={amountValue} onChange={(event) => onChange(event.target.value)} />
+        <Input
+          className="min-w-0 flex-1"
+          inputMode="decimal"
+          type="number"
+          min={allowZero ? '0' : '0.01'}
+          step="0.01"
+          required
+          value={amountValue}
+          onFocus={() => setEditing(true)}
+          onBlur={() => setEditing(false)}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            onChange(event.target.value)
+          }}
+        />
         <button
           type="button"
           aria-label="Open amount calculator"
