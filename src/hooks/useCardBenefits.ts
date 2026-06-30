@@ -21,7 +21,7 @@ export function useCardBenefits() {
     queryKey: ['cardBenefits', sheetId],
     queryFn: async () => {
       try {
-        const data = { benefits: parseCardBenefitRows((await getSheet(sheetId, 'CardBenefits!A2:I1000')).values || []), tabMissing: false }
+        const data = { benefits: parseCardBenefitRows((await getSheet(sheetId, 'CardBenefits!A2:I')).values || []), tabMissing: false }
         writeLocalCache(cacheKey, data)
         return data
       } catch (error) {
@@ -51,7 +51,7 @@ export function useAddCardBenefit() {
 
   return useMutation({
     mutationFn: (benefit: CardBenefitSheetInput) => addCardBenefit(sheetId, benefit),
-    onSuccess: (_result, benefit) => {
+    onSuccess: (result, benefit) => {
       clearLocalCache(`cardBenefits.${sheetId}`)
       queryClient.setQueryData<CardBenefitsData>(['cardBenefits', sheetId], (old) => {
         const nextBenefit = parseCardBenefitRows([[
@@ -65,7 +65,7 @@ export function useAddCardBenefit() {
           benefit.endDate,
           String(benefit.active),
         ]])[0]
-        return nextBenefit ? { benefits: [...(old?.benefits || []), { ...nextBenefit, rowIndex: -Date.now() }], tabMissing: false } : old
+        return nextBenefit ? { benefits: [...(old?.benefits || []), { ...nextBenefit, rowIndex: result.rowIndex }], tabMissing: false } : old
       })
       queryClient.invalidateQueries({ queryKey: ['cardBenefits', sheetId] })
     },

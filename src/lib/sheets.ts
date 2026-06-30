@@ -274,10 +274,16 @@ export function cardBenefitToRow(benefit: CardBenefitSheetInput): (string | bool
 }
 
 export async function addCardBenefit(sheetId: string, benefit: CardBenefitSheetInput) {
-  const rows = (await getSheet(sheetId, 'CardBenefits!A2:I1000')).values || []
+  const row = cardBenefitToRow(benefit)
+  const rows = (await getSheet(sheetId, 'CardBenefits!A2:I')).values || []
   const emptyIndex = rows.findIndex((row) => !row.some((cell) => String(cell ?? '').trim()))
   const rowIndex = (emptyIndex === -1 ? rows.length : emptyIndex) + 2
-  return updateRow(sheetId, `CardBenefits!A${rowIndex}:I${rowIndex}`, cardBenefitToRow(benefit))
+  await updateRow(sheetId, `CardBenefits!A${rowIndex}:I${rowIndex}`, row)
+  const saved = (await getSheet(sheetId, `CardBenefits!A${rowIndex}:I${rowIndex}`)).values?.[0] || []
+  if (String(saved[0] ?? '').trim() !== benefit.card || String(saved[1] ?? '').trim() !== benefit.benefit) {
+    throw new Error('Google Sheets accepted the request, but the benefit row was not saved. Please check that the CardBenefits tab is editable.')
+  }
+  return { rowIndex }
 }
 
 // --- New spreadsheet bootstrap ----------------------------------------------
