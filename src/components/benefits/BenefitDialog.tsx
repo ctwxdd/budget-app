@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { Button, Dialog, Input, Select, Textarea, useToast } from '../ui'
 import { useAddCardBenefit, useUpdateCardBenefit } from '../../hooks/useCardBenefits'
+import { useCategories } from '../../hooks/useExpenses'
 import { type CardBenefit, type CardBenefitPeriod } from '../../lib/cardBenefits'
 
 const benefitPeriods: CardBenefitPeriod[] = ['monthly', 'quarterly', 'semiannual', 'annual']
@@ -27,6 +28,7 @@ function benefitFormFromRow(benefit: CardBenefit): BenefitForm {
 export function BenefitDialog({ open, onOpenChange, benefit, productName, productOptions = [], startDate }: { open: boolean; onOpenChange: (open: boolean) => void; benefit: CardBenefit | null; productName: string; productOptions?: string[]; startDate?: string }) {
   const addBenefit = useAddCardBenefit()
   const updateBenefit = useUpdateCardBenefit()
+  const categories = useCategories()
   const { toast } = useToast()
   const [form, setForm] = React.useState<BenefitForm>(() => emptyBenefit())
   const [product, setProduct] = React.useState(productName)
@@ -66,6 +68,7 @@ export function BenefitDialog({ open, onOpenChange, benefit, productName, produc
 
   const formId = 'benefit-form'
   const productListId = 'benefit-product-options'
+  const categoryListId = 'benefit-category-options'
   const saving = addBenefit.isPending || updateBenefit.isPending
   return <Dialog open={open} onOpenChange={onOpenChange} title={isEditing ? 'Edit benefit' : 'Add benefit'} description="Save a card credit template to the CardBenefits tab in Google Sheets." mobileBottomSheet
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} disabled={saving}>{saving ? 'Saving...' : (isEditing ? 'Save changes' : 'Add benefit')}</Button></div>}
@@ -82,7 +85,10 @@ export function BenefitDialog({ open, onOpenChange, benefit, productName, produc
           {benefitPeriods.map((period) => <option key={period} value={period}>{period}</option>)}
         </Select>
       </label>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Category<Input value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} placeholder="Dining" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Category
+        <Input list={categoryListId} value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} placeholder="Dining" />
+        <datalist id={categoryListId}>{categories.map((category) => <option key={category} value={category} />)}</datalist>
+      </label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Merchant / tag<Input value={form.matcher} onChange={(event) => setForm({ ...form, matcher: event.target.value })} placeholder="Resy, hotel, airline" /></label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Start date<Input className="min-w-0 max-w-full appearance-none" type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">End date<Input className="min-w-0 max-w-full appearance-none" type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} /></label>

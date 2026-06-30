@@ -30,7 +30,6 @@ export function BenefitTrackerPage() {
   const [benefitDialogOpen, setBenefitDialogOpen] = React.useState(false)
   const [editingBenefit, setEditingBenefit] = React.useState<CardBenefit | null>(null)
   const productNames = React.useMemo(() => Array.from(new Set(cardsQuery.cards.map((card) => card.product || card.name).filter(Boolean))).sort(), [cardsQuery.cards])
-  const defaultProduct = productNames[0] || ''
   const benefitByRow = React.useMemo(() => new Map(cardBenefits.benefits.map((benefit) => [benefit.rowIndex, benefit])), [cardBenefits.benefits])
   const editBenefit = React.useCallback((benefit: CardBenefit) => {
     setEditingBenefit(benefitByRow.get(benefit.rowIndex) || benefit)
@@ -58,7 +57,7 @@ export function BenefitTrackerPage() {
       </CardHeader>
       <CardContent><BenefitProgressList usages={benefitUsages} benefitByRow={benefitByRow} tabMissing={cardBenefits.tabMissing} creditsDisabled={benefitCredits.tabMissing} onAddBenefit={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} onEditBenefit={editBenefit} onEditCredit={(usage, credit) => { setCreditUsage(usage); setCreditRow(credit || null) }} /></CardContent>
     </Card>
-    <BenefitDialog open={benefitDialogOpen} onOpenChange={(open) => { setBenefitDialogOpen(open); if (!open) setEditingBenefit(null) }} benefit={editingBenefit} productName={editingBenefit?.card || defaultProduct} productOptions={productNames} />
+    <BenefitDialog open={benefitDialogOpen} onOpenChange={(open) => { setBenefitDialogOpen(open); if (!open) setEditingBenefit(null) }} benefit={editingBenefit} productName={editingBenefit?.card || ''} productOptions={productNames} />
     {creditUsage && <BenefitCreditDialog open usage={creditUsage} credit={creditRow} onOpenChange={(open) => { if (!open) { setCreditUsage(null); setCreditRow(null) } }} />}
   </div>
 }
@@ -75,7 +74,8 @@ function EmptyBenefits({ onAddBenefit }: { onAddBenefit: () => void }) {
 function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled, onAddBenefit, onEditBenefit, onEditCredit }: { usages: BenefitUsage[]; benefitByRow: Map<number, CardBenefit>; tabMissing: boolean; creditsDisabled: boolean; onAddBenefit: () => void; onEditBenefit: (benefit: CardBenefit) => void; onEditCredit: (usage: BenefitUsage, credit?: CardBenefitCredit) => void }) {
   const deleteBenefit = useDeleteCardBenefit()
   const [confirmBenefit, setConfirmBenefit] = React.useState<CardBenefit | null>(null)
-  const [collapsed, setCollapsed] = React.useState<Set<string>>(() => new Set())
+  const [view, setView] = React.useState<'benefit' | 'card'>('benefit')
+  const [collapsed, setCollapsed] = React.useState<Set<string> | null>(null)
   if (tabMissing) return <div className="rounded-3xl border border-dashed bg-butter/10 p-5 text-sm">
     <p className="font-extrabold">Add a CardBenefits tab to track card credits here.</p>
     <p className="mt-1 text-muted-foreground">Columns: Product, Benefit, Amount, Period, Category, Merchant/Tag, Start Date, End Date, Active.</p>
@@ -100,21 +100,62 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
       amount: items.reduce((sum, usage) => sum + usage.benefit.amount, 0),
     }))
     .sort((a, b) => b.left - a.left || a.product.localeCompare(b.product) || a.name.localeCompare(b.name))
+  const cardGroups = Array.from(usages.reduce((map, usage) => {
+    map.set(usage.benefit.card, [...(map.get(usage.benefit.card) || []), usage])
+    return map
+  }, new Map<string, BenefitUsage[]>()).entries())
+    .map(([card, items]) => ({
+      card,
+      items: items.sort((a, b) => a.benefit.benefit.localeCompare(b.benefit.benefit)),
+      used: items.reduce((sum, usage) => sum + usage.used, 0),
+      left: items.reduce((sum, usage) => sum + usage.remaining, 0),
+    }))
+    .sort((a, b) => b.left - a.left || a.card.localeCompare(b.card))
   const toggleGroup = (key: string) => setCollapsed((current) => {
-    const next = new Set(current)
+    const next = new Set(current ?? groups.map((group) => group.key))
     next.has(key) ? next.delete(key) : next.add(key)
     return next
   })
+  const isGroupCollapsed = (key: string) => collapsed?.has(key) ?? true
   return <div className="space-y-3">
     <div className="grid grid-cols-3 gap-2">
       <BenefitKpi label="Benefits tracked" value={String(groups.length)} />
       <BenefitKpi label="Used this period" value={currency.format(totalUsed)} />
       <BenefitKpi label="Left this period" value={currency.format(totalLeft)} />
     </div>
-    <div className="space-y-3">
+    <div className="grid h-10 grid-cols-2 gap-1 rounded-full bg-accent/60 p-0.5">
+      {(['benefit', 'card'] as const).map((mode) => <button key={mode} type="button" className={`rounded-full px-3 text-xs font-extrabold capitalize transition ${view === mode ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:bg-card/70'}`} onClick={() => setView(mode)}>{mode === 'benefit' ? 'Benefit view' : 'Card view'}</button>)}
+    </div>
+    {view === 'card' && <div className="grid gap-3 md:grid-cols-2">
+      {cardGroups.map((group) => <div key={group.card} className="rounded-3xl border border-border/70 bg-card p-3 shadow-sm">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-extrabold">{group.card}</p>
+            <p className="text-[11px] font-semibold text-muted-foreground">{currency.format(group.used)} used · {currency.format(group.left)} left</p>
+          </div>
+        </div>
+        <div className="mt-2 divide-y divide-border/60">
+          {group.items.map((usage) => {
+            const template = benefitByRow.get(usage.benefit.rowIndex) || usage.benefit
+            const credit = usage.creditRows?.[0]
+            return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-extrabold">{usage.benefit.benefit}</p>
+                <p className="truncate text-[11px] font-semibold text-muted-foreground">{currency.format(usage.used)} / {currency.format(usage.benefit.amount)} · {currency.format(usage.remaining)} left</p>
+              </div>
+              <div className="flex gap-1">
+                <Button type="button" variant="secondary" size="sm" className="h-8 rounded-full px-3 text-xs" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>{credit ? 'Edit' : 'Used'}</Button>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditBenefit(template)} aria-label={`Edit ${usage.benefit.benefit}`}><Pencil className="h-3.5 w-3.5" /></Button>
+              </div>
+            </div>
+          })}
+        </div>
+      </div>)}
+    </div>}
+    {view === 'benefit' && <div className="space-y-3">
       {groups.map((group) => {
         const groupPct = group.amount > 0 ? Math.min(100, Math.round((group.used / group.amount) * 100)) : 0
-        const isCollapsed = collapsed.has(group.key)
+        const isCollapsed = isGroupCollapsed(group.key)
         return <div key={group.key} className="overflow-hidden rounded-3xl border border-border/70 bg-card shadow-sm">
           <div className={`border-border/60 bg-accent/25 px-3 py-2.5 transition sm:px-4 ${isCollapsed ? '' : 'border-b'}`}>
             <div className="flex items-start justify-between gap-3">
@@ -163,7 +204,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
                 </div>
                 <div className="flex items-center justify-end gap-1">
                   <Button type="button" variant="secondary" size="sm" className="h-8 justify-center rounded-full px-3 text-xs sm:w-auto" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>
-                    {credit ? 'Edit credit' : 'Mark credit'}
+                    {credit ? 'Edit' : 'Used'}
                   </Button>
                 </div>
               </div>
@@ -171,7 +212,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
           </div>}
         </div>
       })}
-    </div>
+    </div>}
     <ConfirmDialog
       open={!!confirmBenefit}
       onOpenChange={(open) => { if (!open) setConfirmBenefit(null) }}

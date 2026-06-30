@@ -121,6 +121,7 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
   const [focused, setFocused] = React.useState(false)
   const [highlight, setHighlight] = React.useState(0)
   const blurTimerRef = React.useRef<number | null>(null)
+  const tagPointerRef = React.useRef<{ x: number; y: number } | null>(null)
   const selected = React.useMemo(() => parseTags(value), [value])
   const selectedKeys = React.useMemo(() => new Set(selected.map((tag) => tag.toLocaleLowerCase())), [selected])
   const query = draft.trim().toLocaleLowerCase()
@@ -153,6 +154,14 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
     setDraft(parts.at(-1) || '')
   }
   const pick = (tag: string) => addTags(tag)
+  const rememberTagPointer: React.PointerEventHandler<HTMLButtonElement> = (event) => {
+    tagPointerRef.current = { x: event.clientX, y: event.clientY }
+  }
+  const isTagTap = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const start = tagPointerRef.current
+    tagPointerRef.current = null
+    return !start || Math.hypot(event.clientX - start.x, event.clientY - start.y) < 8
+  }
   const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
     if (event.key === 'Enter') {
       event.preventDefault()
@@ -194,7 +203,8 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
           type="button"
           className={cn('inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-bold transition', index === highlight ? 'border-primary/30 bg-primary/[0.12] text-primary' : 'border-border bg-background/80 text-foreground hover:bg-accent/70')}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => pick(tag)}
+          onPointerDown={rememberTagPointer}
+          onPointerUp={(event) => { if (isTagTap(event)) pick(tag) }}
         >
           <span className="text-primary">#</span><span className="max-w-36 truncate">{tag}</span>
         </button>)}
@@ -202,7 +212,8 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
           type="button"
           className={cn('inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-bold transition', highlight === suggestions.length ? 'border-primary/30 bg-primary/[0.12] text-primary' : 'border-dashed border-primary/35 bg-primary/[0.06] text-primary hover:bg-primary/10')}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => addTags(draft)}
+          onPointerDown={rememberTagPointer}
+          onPointerUp={(event) => { if (isTagTap(event)) addTags(draft) }}
         >
           <span>+</span><span className="max-w-40 truncate">{t('expense.addTag', 'Add')} “{draft.trim()}”</span>
         </button>}
