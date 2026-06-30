@@ -10,6 +10,7 @@ const zh: Record<string, string> = {
   'nav.expenses': '支出',
   'nav.giftcards': '禮品卡',
   'nav.cards': '信用卡',
+  'nav.benefits': '權益追蹤',
   'nav.analytics': '分析',
   'nav.settings': '設定',
   'app.subtitle': '個人支出記帳',

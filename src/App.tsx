@@ -11,6 +11,7 @@ const SetupPage = React.lazy(() => import('./pages/SetupPage').then((module) => 
 const OverviewPage = React.lazy(() => import('./pages/OverviewPage').then((module) => ({ default: module.OverviewPage })))
 const ExpensesPage = React.lazy(() => import('./pages/ExpensesPage').then((module) => ({ default: module.ExpensesPage })))
 const AnalyticsPage = React.lazy(() => import('./pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })))
+const BenefitTrackerPage = React.lazy(() => import('./pages/BenefitTrackerPage').then((module) => ({ default: module.BenefitTrackerPage })))
 const GiftcardsPage = React.lazy(() => import('./pages/Giftcards').then((module) => ({ default: module.GiftcardsPage })))
 const CardsPage = React.lazy(() => import('./pages/Cards').then((module) => ({ default: module.CardsPage })))
 const SettingsPage = React.lazy(() => import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })))
@@ -36,5 +37,5 @@ function PageFallback() {
 export default function App() {
   const missingClientId = !import.meta.env.VITE_GOOGLE_CLIENT_ID
   if (missingClientId) return <MissingConfigScreen />
-  return <ToastProvider><AuthProvider><React.Suspense fallback={<PageFallback />}><Routes><Route path="/login" element={<LoginPage />} /><Route path="/setup" element={<ProtectedRoute><SetupPage /></ProtectedRoute>} /><Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}><Route index element={<OverviewPage />} /><Route path="expenses" element={<ExpensesPage />} /><Route path="giftcards" element={<GiftcardsPage />} /><Route path="cards" element={<CardsPage />} /><Route path="analytics" element={<AnalyticsPage />} /><Route path="settings" element={<SettingsPage />} /></Route><Route path="*" element={<Navigate to="/" replace />} /></Routes></React.Suspense></AuthProvider></ToastProvider>
+  return <ToastProvider><AuthProvider><React.Suspense fallback={<PageFallback />}><Routes><Route path="/login" element={<LoginPage />} /><Route path="/setup" element={<ProtectedRoute><SetupPage /></ProtectedRoute>} /><Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}><Route index element={<OverviewPage />} /><Route path="expenses" element={<ExpensesPage />} /><Route path="giftcards" element={<GiftcardsPage />} /><Route path="cards" element={<CardsPage />} /><Route path="benefits" element={<BenefitTrackerPage />} /><Route path="analytics" element={<AnalyticsPage />} /><Route path="settings" element={<SettingsPage />} /></Route><Route path="*" element={<Navigate to="/" replace />} /></Routes></React.Suspense></AuthProvider></ToastProvider>
 }

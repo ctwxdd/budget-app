@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, CreditCard, ExternalLink, Gift, Home, List, LogOut, Menu, Moon, Plus, Settings, Sun, X } from 'lucide-react'
+import { BadgeDollarSign, BarChart3, CreditCard, ExternalLink, Gift, Home, List, LogOut, Menu, Moon, Plus, Settings, Sun, X } from 'lucide-react'
 import { SHEET_ID_KEY } from '../../lib/defaults'
 import { useAuth } from '../../lib/auth'
 import { useTheme } from '../../hooks/useTheme'
@@ -17,6 +17,7 @@ const nav = [
   { to: '/expenses', label: 'Expenses', labelKey: 'nav.expenses', pageLabel: 'Expenses', pageKey: 'nav.expenses', emoji: '🧾', icon: List },
   { to: '/giftcards', label: 'Giftcards', labelKey: 'nav.giftcards', pageLabel: 'Giftcards', pageKey: 'nav.giftcards', emoji: '🎁', icon: Gift },
   { to: '/cards', label: 'Cards', labelKey: 'nav.cards', pageLabel: 'Credit Cards', pageKey: 'nav.cards', emoji: '💳', icon: CreditCard },
+  { to: '/benefits', label: 'Benefits', labelKey: 'nav.benefits', pageLabel: 'Benefit Tracker', pageKey: 'nav.benefits', emoji: '🏷️', icon: BadgeDollarSign },
   { to: '/analytics', label: 'Analytics', labelKey: 'nav.analytics', pageLabel: 'Analytics', pageKey: 'nav.analytics', emoji: '📊', icon: BarChart3 },
   { to: '/settings', label: 'Settings', labelKey: 'nav.settings', pageLabel: 'Settings', pageKey: 'nav.settings', emoji: '⚙️', icon: Settings },
 ]
@@ -25,6 +26,7 @@ const routePreloaders: Record<string, () => Promise<unknown>> = {
   '/': () => import('../../pages/OverviewPage'),
   '/expenses': () => import('../../pages/ExpensesPage'),
   '/analytics': () => import('../../pages/AnalyticsPage'),
+  '/benefits': () => import('../../pages/BenefitTrackerPage'),
   '/cards': () => import('../../pages/Cards'),
   '/giftcards': () => import('../../pages/Giftcards'),
   '/settings': () => import('../../pages/SettingsPage'),
