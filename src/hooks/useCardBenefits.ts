@@ -1,7 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
-import { getSheet, isRateLimitError } from '../lib/sheets'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { addCardBenefit, getSheet, isRateLimitError, type CardBenefitSheetInput } from '../lib/sheets'
 import { parseCardBenefitRows, type CardBenefit } from '../lib/cardBenefits'
-import { readLocalCache, writeLocalCache } from '../lib/localCache'
+import { clearLocalCache, readLocalCache, writeLocalCache } from '../lib/localCache'
 import { useSheetId } from './useExpenses'
 
 type CardBenefitsData = { benefits: CardBenefit[]; tabMissing: boolean }
@@ -43,4 +43,17 @@ export function useCardBenefits() {
     isLoading: query.isLoading,
     error: query.error,
   }
+}
+
+export function useAddCardBenefit() {
+  const sheetId = useSheetId()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (benefit: CardBenefitSheetInput) => addCardBenefit(sheetId, benefit),
+    onSuccess: () => {
+      clearLocalCache(`cardBenefits.${sheetId}`)
+      queryClient.invalidateQueries({ queryKey: ['cardBenefits', sheetId] })
+    },
+  })
 }

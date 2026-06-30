@@ -4,12 +4,12 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ListFilter, Pencil, Plus, Search, Trash2, WalletCards, X } from 'lucide-react'
 import { PageErrorBoundary } from '../components/ErrorBoundary'
 import { SkeletonCards } from '../components/layout/Skeletons'
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, Dialog, Input, Textarea } from '../components/ui'
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, Dialog, Input, Select, Textarea } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { useAddCard, useCards, useCreateCardsTab, useDeleteCard, useUpdateCard, type CardRow } from '../hooks/useCards'
-import { useCardBenefits } from '../hooks/useCardBenefits'
+import { useAddCardBenefit, useCardBenefits } from '../hooks/useCardBenefits'
 import { useExpenses } from '../hooks/useExpenses'
-import { calculateBenefitUsageByCard, type BenefitUsage } from '../lib/cardBenefits'
+import { calculateBenefitUsageByCard, type BenefitUsage, type CardBenefitPeriod } from '../lib/cardBenefits'
 import { currency, filterByDateRange, getPresetRange } from '../lib/format'
 import { cn } from '../lib/utils'
 import { ExpenseDialog, type FormState } from '../components/expenses/ExpenseDialog'
@@ -23,6 +23,7 @@ type CardForm = Pick<CardRow, 'name' | 'issuer' | 'last4' | 'active' | 'note' | 
 type CardsView = 'cards' | 'list'
 const VIEW_KEY = 'credit-cards-view'
 const emptyCard = (): CardForm => ({ name: '', issuer: '', last4: '', active: true, note: '', annualFee: 0, subRequired: 0, subStart: '', subPeriodMonths: 0, subBonus: '' })
+const benefitPeriods: CardBenefitPeriod[] = ['monthly', 'quarterly', 'semiannual', 'annual']
 
 // Adds `months` whole months to a YYYY-MM-DD string (UTC, day-clamped).
 function addMonthsISO(iso: string, months: number): string {
@@ -95,6 +96,7 @@ function CardsContent() {
   const cardBenefits = useCardBenefits()
   const createTab = useCreateCardsTab()
   const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [benefitDialogOpen, setBenefitDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<CardRow | null>(null)
   const [spendTemplate, setSpendTemplate] = React.useState<FormState | null>(null)
   const [selectedRow, setSelectedRow] = React.useState<number | null>(null)
@@ -271,6 +273,7 @@ function CardsContent() {
         <div className="grid h-10 shrink-0 grid-cols-2 gap-1 rounded-full bg-accent/60 p-0.5">
           {(['cards', 'list'] as const).map((mode) => <button key={mode} type="button" className={cn('rounded-full px-3 text-xs font-semibold capitalize transition', view === mode ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => setView(mode)}>{mode === 'cards' ? `▦ ${t('card.cardsView', 'Cards')}` : `≣ ${t('expenses.listView', 'List')}`}</button>)}
         </div>
+        <Button onClick={() => setBenefitDialogOpen(true)} variant="outline" disabled={cardBenefits.tabMissing || !cards.length} className="h-10 w-10 shrink-0 justify-center whitespace-nowrap rounded-full p-0 sm:w-auto sm:px-4" aria-label="Add benefit"><Plus className="h-4 w-4" /><span className="hidden sm:inline">Benefit</span></Button>
         <Button onClick={openAdd} variant="gradient" className="h-10 w-10 shrink-0 justify-center whitespace-nowrap rounded-full p-0 shadow-soft sm:w-auto sm:px-4" aria-label={t('card.addCard', 'Add card')}><Plus className="h-4 w-4" /><span className="hidden sm:inline">{t('card.newCard', 'New card')}</span></Button>
       </div>
     </div>
@@ -287,6 +290,7 @@ function CardsContent() {
       <div className="space-y-2 p-2 md:hidden">{visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} benefits={getBenefits(card.name)} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}</div>
     </Card>}
     <CardDialog open={dialogOpen} onOpenChange={setDialogOpen} card={editing} />
+    <BenefitDialog open={benefitDialogOpen} onOpenChange={setBenefitDialogOpen} cards={cards} />
     {spendTemplate && <ExpenseDialog open template={spendTemplate} onOpenChange={(open) => { if (!open) setSpendTemplate(null) }} />}
   </div>
 }
@@ -539,6 +543,83 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
           </p>
         </div>}
       </div>
+    </form>
+  </Dialog>
+}
+
+type BenefitForm = {
+  card: string
+  benefit: string
+  amount: number
+  period: CardBenefitPeriod
+  category: string
+  matcher: string
+  startDate: string
+  endDate: string
+  active: boolean
+}
+
+function emptyBenefit(cards: CardRow[]): BenefitForm {
+  const defaultCard = cards.find((card) => card.active)?.name || cards[0]?.name || ''
+  return { card: defaultCard, benefit: '', amount: 0, period: 'monthly', category: '', matcher: '', startDate: format(new Date(), 'yyyy-MM-dd'), endDate: '', active: true }
+}
+
+function BenefitDialog({ open, onOpenChange, cards }: { open: boolean; onOpenChange: (open: boolean) => void; cards: CardRow[] }) {
+  const addBenefit = useAddCardBenefit()
+  const { toast } = useToast()
+  const [form, setForm] = React.useState<BenefitForm>(() => emptyBenefit(cards))
+
+  React.useEffect(() => {
+    if (open) setForm(emptyBenefit(cards))
+  }, [open, cards])
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const payload = {
+      card: form.card.trim(),
+      benefit: form.benefit.trim(),
+      amount: Number(form.amount) || 0,
+      period: form.period,
+      category: form.category.trim(),
+      matcher: form.matcher.trim(),
+      startDate: form.startDate,
+      endDate: form.endDate,
+      active: form.active,
+    }
+    if (!payload.card) return toast({ title: 'Choose a card first.', variant: 'destructive' })
+    if (!payload.benefit) return toast({ title: 'Benefit name is required.', variant: 'destructive' })
+    if (payload.amount <= 0) return toast({ title: 'Benefit amount must be greater than 0.', variant: 'destructive' })
+    try {
+      await addBenefit.mutateAsync(payload)
+      toast({ title: 'Benefit added' })
+      onOpenChange(false)
+    } catch (error) {
+      toast({ title: 'Could not add benefit', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+    }
+  }
+
+  const formId = 'benefit-form'
+  return <Dialog open={open} onOpenChange={onOpenChange} title="Add benefit" description="Save a card credit to the CardBenefits tab in Google Sheets." mobileBottomSheet
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} disabled={addBenefit.isPending}>{addBenefit.isPending ? 'Saving...' : 'Add benefit'}</Button></div>}
+  >
+    <form id={formId} onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Card
+        <Select required value={form.card} onChange={(event) => setForm({ ...form, card: event.target.value })}>
+          {cards.map((card) => <option key={card.rowIndex} value={card.name}>{card.name}{card.active ? '' : ' (inactive)'}</option>)}
+        </Select>
+      </label>
+      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Benefit name<Input required value={form.benefit} onChange={(event) => setForm({ ...form, benefit: event.target.value })} placeholder="Dining Credit" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Amount<Input required inputMode="decimal" type="number" min="0" step="0.01" value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="25" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Period
+        <Select value={form.period} onChange={(event) => setForm({ ...form, period: event.target.value as CardBenefitPeriod })}>
+          {benefitPeriods.map((period) => <option key={period} value={period}>{period}</option>)}
+        </Select>
+      </label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Category<Input value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} placeholder="Dining" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Merchant / tag<Input value={form.matcher} onChange={(event) => setForm({ ...form, matcher: event.target.value })} placeholder="Resy, hotel, airline" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Start date<Input type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">End date<Input type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} /></label>
+      <label className="flex items-center gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 text-sm font-semibold text-muted-foreground dark:bg-card/70 sm:col-span-2"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4 accent-coral" />Active</label>
     </form>
   </Dialog>
 }

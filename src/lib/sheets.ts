@@ -203,6 +203,17 @@ export type CardSheetRow = {
 }
 
 export type CardSheetInput = Omit<CardSheetRow, 'rowIndex'>
+export type CardBenefitSheetInput = {
+  card: string
+  benefit: string
+  amount: number
+  period: string
+  category: string
+  matcher: string
+  startDate: string
+  endDate: string
+  active: boolean
+}
 
 export const cardsHeaders = ['Name', 'Issuer', 'Last4', 'Active', 'Note', 'Annual Fee', 'SUB Required', 'SUB Start', 'SUB Deadline', 'SUB Bonus']
 
@@ -246,6 +257,24 @@ export async function updateCard(sheetId: string, card: CardSheetRow) {
 
 export async function deleteCard(sheetId: string, sheetGid: number, rowIndex: number) {
   return deleteRow(sheetId, sheetGid, rowIndex - 1)
+}
+
+export function cardBenefitToRow(benefit: CardBenefitSheetInput): (string | boolean)[] {
+  return [
+    benefit.card,
+    benefit.benefit,
+    moneyCell(benefit.amount),
+    benefit.period,
+    benefit.category,
+    benefit.matcher,
+    benefit.startDate,
+    benefit.endDate,
+    benefit.active,
+  ]
+}
+
+export async function addCardBenefit(sheetId: string, benefit: CardBenefitSheetInput) {
+  return appendRow(sheetId, 'CardBenefits!A:I', cardBenefitToRow(benefit))
 }
 
 // --- New spreadsheet bootstrap ----------------------------------------------
