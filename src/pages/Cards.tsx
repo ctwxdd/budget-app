@@ -576,8 +576,8 @@ type BenefitForm = {
   active: boolean
 }
 
-function emptyBenefit(): BenefitForm {
-  return { benefit: '', amount: 0, period: 'monthly', category: '', matcher: '', startDate: format(new Date(), 'yyyy-MM-dd'), endDate: '', active: true }
+function emptyBenefit(startDate?: string): BenefitForm {
+  return { benefit: '', amount: 0, period: 'monthly', category: '', matcher: '', startDate: startDate || format(new Date(), 'yyyy-MM-dd'), endDate: '', active: true }
 }
 
 function benefitFormFromRow(benefit: CardBenefit): BenefitForm {
@@ -593,8 +593,8 @@ function BenefitDialog({ open, onOpenChange, card, benefit }: { open: boolean; o
   const isEditing = !!benefit
 
   React.useEffect(() => {
-    if (open) setForm(benefit ? benefitFormFromRow(benefit) : emptyBenefit())
-  }, [open, benefit])
+    if (open) setForm(benefit ? benefitFormFromRow(benefit) : emptyBenefit(card?.subStart))
+  }, [open, benefit, card?.subStart])
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
