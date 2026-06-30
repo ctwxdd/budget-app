@@ -277,17 +277,47 @@ function formatAmountInput(value: number, allowZero = false) {
   return value || allowZero ? String(value) : ''
 }
 
+type DecimalInputProps = Omit<React.ComponentProps<typeof Input>, 'type' | 'value' | 'onChange'> & {
+  value: number
+  onChange: (value: string) => void
+  allowZero?: boolean
+}
+
+function DecimalInput({ value, onChange, allowZero = false, onFocus, onBlur, ...props }: DecimalInputProps) {
+  const [focused, setFocused] = React.useState(false)
+  const amountValue = formatAmountInput(value, allowZero)
+  const [inputValue, setInputValue] = React.useState(amountValue)
+
+  React.useEffect(() => {
+    if (!focused) setInputValue(amountValue)
+  }, [amountValue, focused])
+
+  return <Input
+    {...props}
+    inputMode="decimal"
+    pattern="[0-9]*[.]?[0-9]*"
+    value={focused ? inputValue : amountValue}
+    onFocus={(event) => {
+      setFocused(true)
+      onFocus?.(event)
+    }}
+    onBlur={(event) => {
+      setFocused(false)
+      setInputValue(amountValue)
+      onBlur?.(event)
+    }}
+    onChange={(event) => {
+      setInputValue(event.target.value)
+      onChange(event.target.value)
+    }}
+  />
+}
+
 function AmountInputWithCalculator({ label, value, onChange, allowZero = false }: { label: string; value: number; onChange: (value: string) => void; allowZero?: boolean }) {
   const [open, setOpen] = React.useState(false)
-  const [editing, setEditing] = React.useState(false)
-  const [draft, setDraft] = React.useState(() => formatAmountInput(value, allowZero))
   const [expression, setExpression] = React.useState('')
   const result = React.useMemo(() => sumAmountExpression(expression), [expression])
-  const savedAmountValue = formatAmountInput(value, allowZero)
-  const amountValue = editing ? draft : savedAmountValue
-  React.useEffect(() => {
-    if (!editing) setDraft(savedAmountValue)
-  }, [editing, savedAmountValue])
+  const amountValue = formatAmountInput(value, allowZero)
   const addToken = (token: string) => {
     setExpression((current) => {
       if (/^\d+$/.test(token)) return current === '0' ? token : current + token
@@ -304,7 +334,8 @@ function AmountInputWithCalculator({ label, value, onChange, allowZero = false }
   const backspace = () => setExpression((current) => current.slice(0, -1))
   const apply = () => {
     if (result === null) return
-    onChange(result.toFixed(2))
+    const next = result.toFixed(2)
+    onChange(next)
     setOpen(false)
   }
 
@@ -312,20 +343,12 @@ function AmountInputWithCalculator({ label, value, onChange, allowZero = false }
     <span className="block">{label}</span>
     <div>
       <div className="flex min-w-0 gap-2">
-        <Input
+        <DecimalInput
           className="min-w-0 flex-1"
-          inputMode="decimal"
-          type="number"
-          min={allowZero ? '0' : '0.01'}
-          step="0.01"
           required
-          value={amountValue}
-          onFocus={() => setEditing(true)}
-          onBlur={() => setEditing(false)}
-          onChange={(event) => {
-            setDraft(event.target.value)
-            onChange(event.target.value)
-          }}
+          value={value}
+          allowZero={allowZero}
+          onChange={onChange}
         />
         <button
           type="button"
@@ -794,16 +817,12 @@ function SplitPaymentEditor({
           <div className="flex items-center justify-between gap-3">
             <label className="min-w-0 flex-1 space-y-1.5">
               <span className="block text-xs font-bold uppercase tracking-wide text-muted-foreground">{isBalancingPayment ? 'Remaining amount' : `Amount ${index + 1}`}</span>
-              <Input
-                inputMode="decimal"
-                type="number"
-                min="0.01"
-                step="0.01"
+              <DecimalInput
                 disabled={isBalancingPayment}
                 className={isBalancingPayment ? 'bg-muted text-muted-foreground' : undefined}
-                value={formatAmountInput(payment.amount)}
-                onChange={(event) => {
-                  const amount = Number(event.target.value)
+                value={payment.amount}
+                onChange={(rawValue) => {
+                  const amount = Number(rawValue)
                   onChange(payment.id, { amount: Number.isFinite(amount) ? Math.abs(amount) : 0 })
                 }}
               />
@@ -996,7 +1015,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
         <span className="min-w-0"><span className="block text-sm font-extrabold">Full refund</span><span className="block text-xs font-medium text-muted-foreground">Use the full purchase amount: {currency.format(originalAmount)}</span></span>
       </button>}
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Return date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Return amount</span><Input className={cn('min-w-0 max-w-full', fullRefund && 'bg-muted text-muted-foreground')} inputMode="decimal" type="number" min="0.01" max={originalAmount || undefined} step="0.01" required disabled={fullRefund} value={(fullRefund && originalAmount > 0 ? originalAmount : form.amount) || ''} onChange={(event) => setAmount(event.target.value)} />{fullRefund ? <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Amount is locked for a full refund.</span> : <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Enter a positive partial refund amount.</span>}</label>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Return amount</span><DecimalInput className={cn('min-w-0 max-w-full', fullRefund && 'bg-muted text-muted-foreground')} required disabled={fullRefund} value={fullRefund && originalAmount > 0 ? originalAmount : form.amount} onChange={setAmount} />{fullRefund ? <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Amount is locked for a full refund.</span> : <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Enter a positive partial refund amount.</span>}</label>
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2"><span className="block">Description</span><Input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Return: purchase description (date)" /></label>
       <div className="rounded-3xl border border-border/70 bg-accent/35 p-3 text-sm sm:col-span-2"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Category</p><p className="mt-1 font-semibold text-foreground">{form.category || 'Uncategorized'}</p></div>
       {original && !returnExpense && (originalIsGiftcard || giftcardReturnMode === 'new') && <div className="space-y-3 rounded-3xl border border-border/70 bg-accent/25 p-3 sm:col-span-2">
