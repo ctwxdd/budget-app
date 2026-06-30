@@ -1,0 +1,89 @@
+import * as React from 'react'
+import { format } from 'date-fns'
+import { Button, Dialog, Input, Select, Textarea, useToast } from '../ui'
+import { useAddCardBenefit, useUpdateCardBenefit } from '../../hooks/useCardBenefits'
+import { type CardBenefit, type CardBenefitPeriod } from '../../lib/cardBenefits'
+
+const benefitPeriods: CardBenefitPeriod[] = ['monthly', 'quarterly', 'semiannual', 'annual']
+
+type BenefitForm = {
+  benefit: string
+  amount: number
+  period: CardBenefitPeriod
+  category: string
+  matcher: string
+  startDate: string
+  endDate: string
+  active: boolean
+}
+
+function emptyBenefit(startDate?: string): BenefitForm {
+  return { benefit: '', amount: 0, period: 'monthly', category: '', matcher: '', startDate: startDate || format(new Date(), 'yyyy-MM-dd'), endDate: '', active: true }
+}
+
+function benefitFormFromRow(benefit: CardBenefit): BenefitForm {
+  return { benefit: benefit.benefit, amount: benefit.amount, period: benefit.period, category: benefit.category, matcher: benefit.matcher, startDate: benefit.startDate, endDate: benefit.endDate, active: benefit.active }
+}
+
+export function BenefitDialog({ open, onOpenChange, benefit, productName, startDate }: { open: boolean; onOpenChange: (open: boolean) => void; benefit: CardBenefit | null; productName: string; startDate?: string }) {
+  const addBenefit = useAddCardBenefit()
+  const updateBenefit = useUpdateCardBenefit()
+  const { toast } = useToast()
+  const [form, setForm] = React.useState<BenefitForm>(() => emptyBenefit())
+  const [product, setProduct] = React.useState(productName)
+  const isEditing = !!benefit
+
+  React.useEffect(() => {
+    if (!open) return
+    setForm(benefit ? benefitFormFromRow(benefit) : emptyBenefit(startDate))
+    setProduct(benefit?.card || productName)
+  }, [open, benefit, productName, startDate])
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const payload = {
+      card: product.trim(),
+      benefit: form.benefit.trim(),
+      amount: Number(form.amount) || 0,
+      period: form.period,
+      category: form.category.trim(),
+      matcher: form.matcher.trim(),
+      startDate: form.startDate,
+      endDate: form.endDate,
+      active: form.active,
+    }
+    if (!payload.card) return toast({ title: 'Product is required.', variant: 'destructive' })
+    if (!payload.benefit) return toast({ title: 'Benefit name is required.', variant: 'destructive' })
+    if (payload.amount <= 0) return toast({ title: 'Benefit amount must be greater than 0.', variant: 'destructive' })
+    try {
+      if (benefit) await updateBenefit.mutateAsync({ rowIndex: benefit.rowIndex, benefit: payload })
+      else await addBenefit.mutateAsync(payload)
+      toast({ title: benefit ? 'Benefit updated' : 'Benefit added' })
+      onOpenChange(false)
+    } catch (error) {
+      toast({ title: benefit ? 'Could not update benefit' : 'Could not add benefit', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+    }
+  }
+
+  const formId = 'benefit-form'
+  const saving = addBenefit.isPending || updateBenefit.isPending
+  return <Dialog open={open} onOpenChange={onOpenChange} title={isEditing ? 'Edit benefit' : 'Add benefit'} description="Save a card credit template to the CardBenefits tab in Google Sheets." mobileBottomSheet
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} disabled={saving}>{saving ? 'Saving...' : (isEditing ? 'Save changes' : 'Add benefit')}</Button></div>}
+  >
+    <form id={formId} onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Product template<Input required value={product} onChange={(event) => setProduct(event.target.value)} placeholder="Amex Platinum" /></label>
+      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Benefit name<Input required value={form.benefit} onChange={(event) => setForm({ ...form, benefit: event.target.value })} placeholder="Dining Credit" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Amount<Input required inputMode="decimal" type="number" min="0" step="0.01" value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="25" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Period
+        <Select value={form.period} onChange={(event) => setForm({ ...form, period: event.target.value as CardBenefitPeriod })}>
+          {benefitPeriods.map((period) => <option key={period} value={period}>{period}</option>)}
+        </Select>
+      </label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Category<Input value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} placeholder="Dining" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Merchant / tag<Input value={form.matcher} onChange={(event) => setForm({ ...form, matcher: event.target.value })} placeholder="Resy, hotel, airline" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Start date<Input type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">End date<Input type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} /></label>
+      <label className="flex items-center gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 text-sm font-semibold text-muted-foreground dark:bg-card/70 sm:col-span-2"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4 accent-coral" />Active</label>
+    </form>
+  </Dialog>
+}
