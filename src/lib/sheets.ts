@@ -299,6 +299,16 @@ export async function addCardBenefit(sheetId: string, benefit: CardBenefitSheetI
   return { rowIndex }
 }
 
+export async function updateCardBenefit(sheetId: string, rowIndex: number, benefit: CardBenefitSheetInput) {
+  await updateRow(sheetId, `CardBenefits!A${rowIndex}:I${rowIndex}`, cardBenefitToRow(benefit))
+  return { rowIndex }
+}
+
+export async function deleteCardBenefit(sheetId: string, rowIndex: number) {
+  await clearRange(sheetId, `CardBenefits!A${rowIndex}:I${rowIndex}`)
+  return { rowIndex }
+}
+
 // --- New spreadsheet bootstrap ----------------------------------------------
 
 const EXPENSE_GID = 1

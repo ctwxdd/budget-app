@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { addCardBenefit, getSheet, isRateLimitError, type CardBenefitSheetInput } from '../lib/sheets'
+import { addCardBenefit, deleteCardBenefit, getSheet, isRateLimitError, updateCardBenefit, type CardBenefitSheetInput } from '../lib/sheets'
 import { parseCardBenefitRows, type CardBenefit } from '../lib/cardBenefits'
 import { clearLocalCache, readLocalCache, writeLocalCache } from '../lib/localCache'
 import { useSheetId } from './useExpenses'
@@ -67,6 +67,47 @@ export function useAddCardBenefit() {
         ]])[0]
         return nextBenefit ? { benefits: [...(old?.benefits || []), { ...nextBenefit, rowIndex: result.rowIndex }], tabMissing: false } : old
       })
+      queryClient.invalidateQueries({ queryKey: ['cardBenefits', sheetId] })
+    },
+  })
+}
+
+export function useUpdateCardBenefit() {
+  const sheetId = useSheetId()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ rowIndex, benefit }: { rowIndex: number; benefit: CardBenefitSheetInput }) => updateCardBenefit(sheetId, rowIndex, benefit),
+    onSuccess: (result, { benefit }) => {
+      clearLocalCache(`cardBenefits.${sheetId}`)
+      queryClient.setQueryData<CardBenefitsData>(['cardBenefits', sheetId], (old) => {
+        const nextBenefit = parseCardBenefitRows([[
+          benefit.card,
+          benefit.benefit,
+          String(benefit.amount),
+          benefit.period,
+          benefit.category,
+          benefit.matcher,
+          benefit.startDate,
+          benefit.endDate,
+          String(benefit.active),
+        ]])[0]
+        return nextBenefit ? { benefits: (old?.benefits || []).map((item) => item.rowIndex === result.rowIndex ? { ...nextBenefit, rowIndex: result.rowIndex } : item), tabMissing: false } : old
+      })
+      queryClient.invalidateQueries({ queryKey: ['cardBenefits', sheetId] })
+    },
+  })
+}
+
+export function useDeleteCardBenefit() {
+  const sheetId = useSheetId()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (benefit: CardBenefit) => deleteCardBenefit(sheetId, benefit.rowIndex),
+    onSuccess: (_result, benefit) => {
+      clearLocalCache(`cardBenefits.${sheetId}`)
+      queryClient.setQueryData<CardBenefitsData>(['cardBenefits', sheetId], (old) => ({ benefits: (old?.benefits || []).filter((item) => item.rowIndex !== benefit.rowIndex), tabMissing: false }))
       queryClient.invalidateQueries({ queryKey: ['cardBenefits', sheetId] })
     },
   })

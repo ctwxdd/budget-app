@@ -7,9 +7,9 @@ import { SkeletonCards } from '../components/layout/Skeletons'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, Dialog, Input, Select, Textarea } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { useAddCard, useCards, useCreateCardsTab, useDeleteCard, useUpdateCard, type CardRow } from '../hooks/useCards'
-import { useAddCardBenefit, useCardBenefits } from '../hooks/useCardBenefits'
+import { useAddCardBenefit, useCardBenefits, useDeleteCardBenefit, useUpdateCardBenefit } from '../hooks/useCardBenefits'
 import { useExpenses } from '../hooks/useExpenses'
-import { calculateBenefitUsageByCard, type BenefitUsage, type CardBenefitPeriod } from '../lib/cardBenefits'
+import { calculateBenefitUsageByCard, type BenefitUsage, type CardBenefit, type CardBenefitPeriod } from '../lib/cardBenefits'
 import { currency, filterByDateRange, getPresetRange } from '../lib/format'
 import { cn } from '../lib/utils'
 import { ExpenseDialog, type FormState } from '../components/expenses/ExpenseDialog'
@@ -97,6 +97,7 @@ function CardsContent() {
   const createTab = useCreateCardsTab()
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [benefitCard, setBenefitCard] = React.useState<CardRow | null>(null)
+  const [editingBenefit, setEditingBenefit] = React.useState<CardBenefit | null>(null)
   const [editing, setEditing] = React.useState<CardRow | null>(null)
   const [spendTemplate, setSpendTemplate] = React.useState<FormState | null>(null)
   const [selectedRow, setSelectedRow] = React.useState<number | null>(null)
@@ -278,18 +279,18 @@ function CardsContent() {
     </div>
 
     {!visibleCards.length ? <EmptyState title={search ? t('common.noMatches', 'No matches') : (!showInactive && cards.some((c) => !c.active) ? t('card.noActive', 'No active cards') : t('card.noCards', 'No cards yet'))} text={search ? (t('card.noSearchMatches', 'Nothing matches') + ` "${search}".`) : (!showInactive && cards.some((c) => !c.active) ? t('card.noActiveHelp', 'All your cards are marked inactive — enable "Show inactive" to see them.') : t('card.noCardsHelp', 'Add credit cards here so they show up first in the Expense payment method picker.'))} action={!cards.length ? <Button onClick={openAdd}><Plus className="h-4 w-4" />{t('card.addCard', 'Add card')}</Button> : undefined} /> : view === 'cards' ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} benefits={getBenefits(card.name)} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} onAddBenefit={cardBenefits.tabMissing ? undefined : setBenefitCard} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
+      {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} benefits={getBenefits(card.name)} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} onAddBenefit={cardBenefits.tabMissing ? undefined : setBenefitCard} onEditBenefit={setEditingBenefit} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
     </div> : <Card className="overflow-hidden rounded-2xl">
       <div className="hidden md:block">
         <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] gap-3 border-b border-border/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
           <span /><span>{t('card.name', 'Name')}</span><span>{t('card.issuer', 'Issuer')}</span><span className="text-right">AF</span><span className="text-right">{t('expenses.thisMonth', 'This month')}</span><span className="text-right">{t('card.allTime', 'All time')}</span><span>SUB</span><span>{t('card.status', 'Status')}</span><span>{t('expenses.actions', 'Actions')}</span>
         </div>
-        {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} benefits={getBenefits(card.name)} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} onAddBenefit={cardBenefits.tabMissing ? undefined : setBenefitCard} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
+        {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} benefits={getBenefits(card.name)} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} onAddBenefit={cardBenefits.tabMissing ? undefined : setBenefitCard} onEditBenefit={setEditingBenefit} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
       </div>
-      <div className="space-y-2 p-2 md:hidden">{visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} benefits={getBenefits(card.name)} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} onAddBenefit={cardBenefits.tabMissing ? undefined : setBenefitCard} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}</div>
+      <div className="space-y-2 p-2 md:hidden">{visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} benefits={getBenefits(card.name)} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} onAddBenefit={cardBenefits.tabMissing ? undefined : setBenefitCard} onEditBenefit={setEditingBenefit} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}</div>
     </Card>}
     <CardDialog open={dialogOpen} onOpenChange={setDialogOpen} card={editing} />
-    <BenefitDialog open={!!benefitCard} onOpenChange={(open) => { if (!open) setBenefitCard(null) }} card={benefitCard} />
+    <BenefitDialog open={!!benefitCard || !!editingBenefit} onOpenChange={(open) => { if (!open) { setBenefitCard(null); setEditingBenefit(null) } }} card={benefitCard} benefit={editingBenefit} />
     {spendTemplate && <ExpenseDialog open template={spendTemplate} onOpenChange={(open) => { if (!open) setSpendTemplate(null) }} />}
   </div>
 }
@@ -343,7 +344,9 @@ function BenefitChips({ benefits }: { benefits: BenefitUsage[] }) {
   </div>
 }
 
-function BenefitTracker({ benefits }: { benefits: BenefitUsage[] }) {
+function BenefitTracker({ benefits, onEdit }: { benefits: BenefitUsage[]; onEdit: (benefit: CardBenefit) => void }) {
+  const deleteBenefit = useDeleteCardBenefit()
+  const [confirmBenefit, setConfirmBenefit] = React.useState<CardBenefit | null>(null)
   if (!benefits.length) return null
   return <div className="mt-2 grid gap-2 md:grid-cols-2">
     {benefits.map((usage) => {
@@ -354,7 +357,11 @@ function BenefitTracker({ benefits }: { benefits: BenefitUsage[] }) {
             <p className="truncate font-extrabold text-emerald-700 dark:text-mint">{usage.benefit.benefit}</p>
             <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">{usage.start} → {usage.end}</p>
           </div>
-          <span className="shrink-0 font-bold text-foreground">{currency.format(usage.remaining)} left</span>
+          <div className="flex shrink-0 items-center gap-1">
+            <span className="font-bold text-foreground">{currency.format(usage.remaining)} left</span>
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(usage.benefit)} aria-label={`Edit ${usage.benefit.benefit}`}><Pencil className="h-3.5 w-3.5" /></Button>
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setConfirmBenefit(usage.benefit)} disabled={deleteBenefit.isPending} aria-label={`Delete ${usage.benefit.benefit}`}><Trash2 className="h-3.5 w-3.5" /></Button>
+          </div>
         </div>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-border/60">
           <div className="h-full rounded-full bg-mint" style={{ width: `${pct}%` }} />
@@ -365,6 +372,15 @@ function BenefitTracker({ benefits }: { benefits: BenefitUsage[] }) {
         </div>
       </div>
     })}
+    <ConfirmDialog
+      open={!!confirmBenefit}
+      onOpenChange={(open) => { if (!open) setConfirmBenefit(null) }}
+      title={`Delete ${confirmBenefit?.benefit || 'benefit'}?`}
+      description="This clears the benefit row from CardBenefits. Matching expenses stay unchanged."
+      confirmLabel="Delete"
+      destructive
+      onConfirm={async () => { if (confirmBenefit) await deleteBenefit.mutateAsync(confirmBenefit) }}
+    />
   </div>
 }
 
@@ -384,7 +400,7 @@ function CardActionBar({ card, onSpend, onViewExpenses, onAddBenefit }: { card: 
   </div>
 }
 
-function CardListRow({ card, spend, sub, benefits, expanded, onToggle, onEdit, onSpend, onViewExpenses, onAddBenefit, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; benefits: BenefitUsage[]; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void; onAddBenefit?: (card: CardRow) => void; selected: boolean; onSelect: () => void }) {
+function CardListRow({ card, spend, sub, benefits, expanded, onToggle, onEdit, onSpend, onViewExpenses, onAddBenefit, onEditBenefit, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; benefits: BenefitUsage[]; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void; onAddBenefit?: (card: CardRow) => void; onEditBenefit: (benefit: CardBenefit) => void; selected: boolean; onSelect: () => void }) {
   const hasDetails = Boolean(sub || benefits.length)
   return <div className={cn('border-b border-border/50 last:border-b-0 transition', !card.active && 'opacity-55', selected && 'bg-coral/5 ring-1 ring-inset ring-coral/30')}>
     <div role="button" tabIndex={0} onClick={onSelect} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect() } }} className="grid cursor-pointer grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-accent/30">
@@ -401,11 +417,11 @@ function CardListRow({ card, spend, sub, benefits, expanded, onToggle, onEdit, o
       <span onClick={(event) => event.stopPropagation()}><RowActions card={card} onEdit={onEdit} /></span>
     </div>
     {selected && <CardActionBar card={card} onSpend={onSpend} onViewExpenses={onViewExpenses} onAddBenefit={onAddBenefit} />}
-    {expanded && (sub || benefits.length > 0) && <div className="px-4 pb-3">{sub && <SubTracker card={card} sub={sub} />}<BenefitTracker benefits={benefits} /></div>}
+    {expanded && (sub || benefits.length > 0) && <div className="px-4 pb-3">{sub && <SubTracker card={card} sub={sub} />}<BenefitTracker benefits={benefits} onEdit={onEditBenefit} /></div>}
   </div>
 }
 
-function CardMobileRow({ card, spend, sub, benefits, expanded, onToggle, onEdit, onSpend, onViewExpenses, onAddBenefit, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; benefits: BenefitUsage[]; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void; onAddBenefit?: (card: CardRow) => void; selected: boolean; onSelect: () => void }) {
+function CardMobileRow({ card, spend, sub, benefits, expanded, onToggle, onEdit, onSpend, onViewExpenses, onAddBenefit, onEditBenefit, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; benefits: BenefitUsage[]; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void; onAddBenefit?: (card: CardRow) => void; onEditBenefit: (benefit: CardBenefit) => void; selected: boolean; onSelect: () => void }) {
   const hasDetails = Boolean(sub || benefits.length)
   const subtitle = [card.issuer, card.last4 && `••••${card.last4}`, card.annualFee > 0 && `${currency.format(card.annualFee)}/yr`].filter(Boolean).join(' · ')
   return <div className={cn('overflow-hidden rounded-2xl border bg-white/70 shadow-sm transition dark:bg-card/70', !card.active && 'opacity-55', selected ? 'border-coral/60 ring-2 ring-coral/20' : 'border-border/70')}>
@@ -427,7 +443,7 @@ function CardMobileRow({ card, spend, sub, benefits, expanded, onToggle, onEdit,
           <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
         </button>}
       </div>
-      {expanded && (sub || benefits.length > 0) && <>{sub && <SubTracker card={card} sub={sub} />}<BenefitTracker benefits={benefits} /></>}
+      {expanded && (sub || benefits.length > 0) && <>{sub && <SubTracker card={card} sub={sub} />}<BenefitTracker benefits={benefits} onEdit={onEditBenefit} /></>}
     </div>
     {selected && <CardActionBar card={card} onSpend={onSpend} onViewExpenses={onViewExpenses} onAddBenefit={onAddBenefit} />}
   </div>
@@ -564,20 +580,27 @@ function emptyBenefit(): BenefitForm {
   return { benefit: '', amount: 0, period: 'monthly', category: '', matcher: '', startDate: format(new Date(), 'yyyy-MM-dd'), endDate: '', active: true }
 }
 
-function BenefitDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange: (open: boolean) => void; card: CardRow | null }) {
+function benefitFormFromRow(benefit: CardBenefit): BenefitForm {
+  return { benefit: benefit.benefit, amount: benefit.amount, period: benefit.period, category: benefit.category, matcher: benefit.matcher, startDate: benefit.startDate, endDate: benefit.endDate, active: benefit.active }
+}
+
+function BenefitDialog({ open, onOpenChange, card, benefit }: { open: boolean; onOpenChange: (open: boolean) => void; card: CardRow | null; benefit: CardBenefit | null }) {
   const addBenefit = useAddCardBenefit()
+  const updateBenefit = useUpdateCardBenefit()
   const { toast } = useToast()
   const [form, setForm] = React.useState<BenefitForm>(() => emptyBenefit())
+  const cardName = benefit?.card || card?.name || ''
+  const isEditing = !!benefit
 
   React.useEffect(() => {
-    if (open) setForm(emptyBenefit())
-  }, [open, card])
+    if (open) setForm(benefit ? benefitFormFromRow(benefit) : emptyBenefit())
+  }, [open, benefit])
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!card) return
+    if (!cardName) return
     const payload = {
-      card: card.name.trim(),
+      card: cardName.trim(),
       benefit: form.benefit.trim(),
       amount: Number(form.amount) || 0,
       period: form.period,
@@ -590,22 +613,24 @@ function BenefitDialog({ open, onOpenChange, card }: { open: boolean; onOpenChan
     if (!payload.benefit) return toast({ title: 'Benefit name is required.', variant: 'destructive' })
     if (payload.amount <= 0) return toast({ title: 'Benefit amount must be greater than 0.', variant: 'destructive' })
     try {
-      await addBenefit.mutateAsync(payload)
-      toast({ title: 'Benefit added' })
+      if (benefit) await updateBenefit.mutateAsync({ rowIndex: benefit.rowIndex, benefit: payload })
+      else await addBenefit.mutateAsync(payload)
+      toast({ title: benefit ? 'Benefit updated' : 'Benefit added' })
       onOpenChange(false)
     } catch (error) {
-      toast({ title: 'Could not add benefit', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+      toast({ title: benefit ? 'Could not update benefit' : 'Could not add benefit', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
     }
   }
 
   const formId = 'benefit-form'
-  return <Dialog open={open} onOpenChange={onOpenChange} title="Add benefit" description="Save a card credit to the CardBenefits tab in Google Sheets." mobileBottomSheet
-    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} disabled={addBenefit.isPending}>{addBenefit.isPending ? 'Saving...' : 'Add benefit'}</Button></div>}
+  const saving = addBenefit.isPending || updateBenefit.isPending
+  return <Dialog open={open} onOpenChange={onOpenChange} title={isEditing ? 'Edit benefit' : 'Add benefit'} description="Save a card credit to the CardBenefits tab in Google Sheets." mobileBottomSheet
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} disabled={saving}>{saving ? 'Saving...' : (isEditing ? 'Save changes' : 'Add benefit')}</Button></div>}
   >
     <form id={formId} onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
       <div className="rounded-3xl border border-border/70 bg-accent/30 px-4 py-3 text-sm sm:col-span-2">
         <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Card</p>
-        <p className="mt-0.5 truncate font-semibold text-foreground">{card?.name || 'Selected card'}</p>
+        <p className="mt-0.5 truncate font-semibold text-foreground">{cardName || 'Selected card'}</p>
       </div>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Benefit name<Input required value={form.benefit} onChange={(event) => setForm({ ...form, benefit: event.target.value })} placeholder="Dining Credit" /></label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Amount<Input required inputMode="decimal" type="number" min="0" step="0.01" value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="25" /></label>
