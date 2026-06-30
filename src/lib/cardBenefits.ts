@@ -26,6 +26,22 @@ export type BenefitUsage = {
   used: number
   remaining: number
   count: number
+  creditAmount?: number
+  pendingCreditAmount?: number
+  creditCount?: number
+  creditRows?: CardBenefitCredit[]
+}
+
+export type BenefitCreditStatus = 'pending' | 'received'
+
+export type CardBenefitCredit = {
+  rowIndex: number
+  date: string
+  card: string
+  benefit: string
+  amount: number
+  status: BenefitCreditStatus
+  note: string
 }
 
 const periods = new Set<CardBenefitPeriod>(['monthly', 'quarterly', 'semiannual', 'annual'])
@@ -53,6 +69,10 @@ function parseBoolean(value: unknown, fallback: boolean) {
   if (/^(true|yes|y|active|1)$/i.test(text)) return true
   if (/^(false|no|n|inactive|0)$/i.test(text)) return false
   return fallback
+}
+
+function parseCreditStatus(value: unknown): BenefitCreditStatus {
+  return /^pending$/i.test(String(value ?? '').trim()) ? 'pending' : 'received'
 }
 
 function iso(date: Date) {
@@ -122,6 +142,23 @@ export function parseCardBenefitRows(rows: string[][] = []): CardBenefit[] {
     .filter((benefit) => benefit.card || benefit.benefit || benefit.amount)
 }
 
+export function parseBenefitCreditRows(rows: string[][] = []): CardBenefitCredit[] {
+  return rows
+    .map((row, index) => {
+      const [date = '', card = '', benefit = '', amount = '', status = '', note = ''] = row
+      return {
+        rowIndex: index + 2,
+        date: parseDate(date),
+        card: String(card || '').trim(),
+        benefit: String(benefit || '').trim(),
+        amount: parseCurrency(amount),
+        status: parseCreditStatus(status),
+        note: String(note || '').trim(),
+      }
+    })
+    .filter((credit) => credit.date || credit.card || credit.benefit || credit.amount)
+}
+
 export function benefitWindow(benefit: CardBenefit, todayIso = iso(new Date())) {
   const today = new Date(`${todayIso}T00:00:00.000Z`)
   if (Number.isNaN(today.getTime())) return null
@@ -176,6 +213,31 @@ export function calculateBenefitUsage(benefit: CardBenefit, expenses: Expense[],
     used: money(used),
     remaining: money(Math.max(0, benefit.amount - used)),
     count: matches.length,
+  }
+}
+
+function sameText(a: string, b: string) {
+  return a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase()
+}
+
+export function applyBenefitCredits(usage: BenefitUsage, credits: CardBenefitCredit[]): BenefitUsage {
+  const rows = credits.filter((credit) =>
+    sameText(credit.card, usage.benefit.card) &&
+    sameText(credit.benefit, usage.benefit.benefit) &&
+    credit.date >= usage.start &&
+    credit.date <= usage.end)
+  if (!rows.length) return usage
+  const creditAmount = money(rows.filter((credit) => credit.status === 'received').reduce((sum, credit) => sum + credit.amount, 0))
+  const pendingCreditAmount = money(rows.filter((credit) => credit.status === 'pending').reduce((sum, credit) => sum + credit.amount, 0))
+  const used = creditAmount > 0 ? Math.min(usage.benefit.amount, creditAmount) : usage.used
+  return {
+    ...usage,
+    used,
+    remaining: money(Math.max(0, usage.benefit.amount - used)),
+    creditAmount,
+    pendingCreditAmount,
+    creditCount: rows.length,
+    creditRows: rows,
   }
 }
 

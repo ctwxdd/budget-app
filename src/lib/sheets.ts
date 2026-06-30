@@ -215,6 +215,14 @@ export type CardBenefitSheetInput = {
   endDate: string
   active: boolean
 }
+export type BenefitCreditSheetInput = {
+  date: string
+  card: string
+  benefit: string
+  amount: number
+  status: string
+  note: string
+}
 
 export const cardsHeaders = ['Name', 'Issuer', 'Product', 'Last4', 'Active', 'Note', 'Annual Fee', 'SUB Required', 'SUB Start', 'SUB Deadline', 'SUB Bonus']
 
@@ -311,17 +319,61 @@ export async function deleteCardBenefit(sheetId: string, rowIndex: number) {
   return { rowIndex }
 }
 
+export function benefitCreditToRow(credit: BenefitCreditSheetInput): string[] {
+  return [
+    credit.date,
+    credit.card,
+    credit.benefit,
+    moneyCell(credit.amount),
+    credit.status || 'Received',
+    credit.note,
+  ]
+}
+
+export function nextBenefitCreditRowIndex(rows: unknown[][]): number {
+  const lastDataIndex = rows.findLastIndex((row) => row.slice(0, 4).some((cell) => String(cell ?? '').trim()))
+  return lastDataIndex + 3
+}
+
+export async function addBenefitCredit(sheetId: string, credit: BenefitCreditSheetInput) {
+  const row = benefitCreditToRow(credit)
+  const rows = (await getSheet(sheetId, 'BenefitCredits!A2:F')).values || []
+  const rowIndex = nextBenefitCreditRowIndex(rows)
+  try {
+    await updateRow(sheetId, `BenefitCredits!A${rowIndex}:F${rowIndex}`, row)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!/exceeds grid/i.test(message)) throw error
+    const sheetGid = (await getSheetMeta(sheetId)).sheets.find((sheet) => sheet.title === 'BenefitCredits')?.sheetId
+    if (sheetGid === undefined) throw error
+    await insertRow(sheetId, sheetGid, rowIndex - 1)
+    await updateRow(sheetId, `BenefitCredits!A${rowIndex}:F${rowIndex}`, row)
+  }
+  return { rowIndex }
+}
+
+export async function updateBenefitCredit(sheetId: string, rowIndex: number, credit: BenefitCreditSheetInput) {
+  await updateRow(sheetId, `BenefitCredits!A${rowIndex}:F${rowIndex}`, benefitCreditToRow(credit))
+  return { rowIndex }
+}
+
+export async function createBenefitCreditsTab(sheetId: string) {
+  return addSheetTab(sheetId, 'BenefitCredits', benefitCreditsHeaders)
+}
+
 // --- New spreadsheet bootstrap ----------------------------------------------
 
 const EXPENSE_GID = 1
 const CARDS_GID = 2
 const GIFTCARD_GID = 3
 const CARD_BENEFITS_GID = 4
+const BENEFIT_CREDITS_GID = 5
 
 const EXPENSE_HEADERS = ['Date', 'Expense', 'Description', 'Category', 'Payment Method', 'Reimbursement', '', 'Tags']
 const GIFTCARD_HEADERS_LEFT = ['Card', 'Date', 'Paid', 'Face', 'Vendor', 'Direct', 'Pool', 'Cum Before', 'FIFO', 'Balance']
 const GIFTCARD_HEADERS_RIGHT = ['Merchant', 'Cards', 'Purchased', 'Spent', 'Balance', 'Active']
 export const cardBenefitsHeaders = ['Product', 'Benefit', 'Amount', 'Period', 'Category', 'Merchant/Tag', 'Start Date', 'End Date', 'Active']
+export const benefitCreditsHeaders = ['Date', 'Card', 'Benefit', 'Amount', 'Status', 'Note']
 
 function headerCell(text: string) {
   return {
@@ -425,6 +477,7 @@ export async function createSpreadsheet({ title, categories, paymentMethods, rei
           { startColumn: 11, headers: GIFTCARD_HEADERS_RIGHT },
         ]),
         buildSheet(CARD_BENEFITS_GID, 'CardBenefits', cardBenefitsHeaders.length, [{ startColumn: 0, headers: cardBenefitsHeaders }]),
+        buildSheet(BENEFIT_CREDITS_GID, 'BenefitCredits', benefitCreditsHeaders.length, [{ startColumn: 0, headers: benefitCreditsHeaders }]),
       ],
     }),
   })
@@ -476,6 +529,12 @@ export async function createSpreadsheet({ title, categories, paymentMethods, rei
         dateFormat(CARD_BENEFITS_GID, 7),
         dateValidation(CARD_BENEFITS_GID, 7),
         booleanCheckbox(CARD_BENEFITS_GID, 8),
+        // Benefit credits
+        dateFormat(BENEFIT_CREDITS_GID, 0),
+        dateValidation(BENEFIT_CREDITS_GID, 0),
+        currencyFormat(BENEFIT_CREDITS_GID, 3),
+        nonNegativeNumberValidation(BENEFIT_CREDITS_GID, 3),
+        listValidation(BENEFIT_CREDITS_GID, 4, ['Received', 'Pending'], true),
       ],
     }),
   })

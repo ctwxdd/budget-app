@@ -3,10 +3,12 @@ const assert = require('node:assert/strict')
 
 const {
   benefitWindow,
+  applyBenefitCredits,
   calculateBenefitUsage,
   calculateBenefitUsageByCard,
   cardProductKey,
   expandCardBenefitsForCards,
+  parseBenefitCreditRows,
   parseCardBenefitRows,
 } = require('../../.tmp-test/src/lib/cardBenefits.js')
 
@@ -73,6 +75,37 @@ test('uses calendar half years for semiannual credits', () => {
 
   assert.deepEqual(benefitWindow(benefit, '2026-02-15'), { start: '2026-01-01', end: '2026-06-30' })
   assert.deepEqual(benefitWindow(benefit, '2026-07-01'), { start: '2026-07-01', end: '2026-12-31' })
+})
+
+test('manual received benefit credits override expense matching', () => {
+  const [benefit] = parseCardBenefitRows([['Amex Aspire', 'Hilton Hotel Credit', '200', 'semiannual', 'Travel', 'hilton', '2026-01-01', '', 'TRUE']])
+  const usage = calculateBenefitUsage(benefit, [
+    expense({ paymentMethod: 'Amex Aspire', category: 'Travel', description: 'Hilton stay', amount: 50 }),
+  ], '2026-06-30')
+  const credits = parseBenefitCreditRows([
+    ['2026-06-20', 'Amex Aspire', 'Hilton Hotel Credit', '$200', 'Received', 'Statement credit posted'],
+  ])
+
+  const adjusted = applyBenefitCredits(usage, credits)
+
+  assert.equal(adjusted.used, 200)
+  assert.equal(adjusted.remaining, 0)
+  assert.equal(adjusted.creditAmount, 200)
+  assert.equal(adjusted.creditCount, 1)
+})
+
+test('pending benefit credits do not count as used yet', () => {
+  const [benefit] = parseCardBenefitRows([['Amex Aspire', 'Hilton Hotel Credit', '200', 'semiannual', 'Travel', 'hilton', '2026-01-01', '', 'TRUE']])
+  const usage = calculateBenefitUsage(benefit, [], '2026-06-30')
+  const credits = parseBenefitCreditRows([
+    ['2026-06-20', 'Amex Aspire', 'Hilton Hotel Credit', '$200', 'Pending', 'Booked, waiting for credit'],
+  ])
+
+  const adjusted = applyBenefitCredits(usage, credits)
+
+  assert.equal(adjusted.used, 0)
+  assert.equal(adjusted.remaining, 200)
+  assert.equal(adjusted.pendingCreditAmount, 200)
 })
 
 test('groups benefit usage by normalized card name', () => {
