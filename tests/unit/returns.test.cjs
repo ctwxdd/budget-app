@@ -56,3 +56,24 @@ test('finds original purchase and excludes the return being edited', () => {
     count: 1,
   })
 })
+
+test('matches split-payment returns by payment method', () => {
+  const cardPart = expense({ rowIndex: 30, amount: 70, description: 'IKEA desk', date: '2026-06-25', paymentMethod: 'Amex Platinum' })
+  const giftcardPart = expense({ rowIndex: 31, amount: 30, description: 'IKEA desk', date: '2026-06-25', paymentMethod: 'IKEA GC' })
+  const cardReturn = expense({ rowIndex: 32, amount: -20, description: 'Return: IKEA desk (2026-06-25)', date: '2026-06-26', paymentMethod: 'Amex Platinum' })
+  const giftcardReturn = expense({ rowIndex: 33, amount: -5, description: 'Return: IKEA desk (2026-06-25)', date: '2026-06-26', paymentMethod: 'IKEA GC' })
+  const rows = [cardPart, giftcardPart, cardReturn, giftcardReturn]
+
+  assert.equal(findOriginalExpenseForReturn(cardReturn, rows), cardPart)
+  assert.equal(findOriginalExpenseForReturn(giftcardReturn, rows), giftcardPart)
+  assert.deepEqual(getReturnSummary(cardPart, rows), {
+    returned: 20,
+    remaining: 50,
+    count: 1,
+  })
+  assert.deepEqual(getReturnSummary(giftcardPart, rows), {
+    returned: 5,
+    remaining: 25,
+    count: 1,
+  })
+})

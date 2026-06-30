@@ -20,8 +20,12 @@ function normalizedDescription(value: string) {
   return splitDescriptionNote(value).base.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
 }
 
-function targetKey(target: ReturnTarget) {
-  return `${target.date}\n${normalizedDescription(target.description)}`
+function normalizedPaymentMethod(value: string) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+}
+
+function targetKey(target: ReturnTarget, paymentMethod = '') {
+  return `${target.date}\n${normalizedDescription(target.description)}\n${normalizedPaymentMethod(paymentMethod)}`
 }
 
 export function parseReturnTarget(description: string): ReturnTarget | null {
@@ -34,19 +38,25 @@ export function parseReturnTarget(description: string): ReturnTarget | null {
 export function findOriginalExpenseForReturn(returnExpense: Expense, expenses: Expense[]) {
   const target = parseReturnTarget(returnExpense.description)
   if (!target) return null
-  const key = targetKey(target)
-  return expenses.find((expense) => expense.amount > 0 && targetKey({ description: expense.description, date: expense.date }) === key) || null
+  const key = targetKey(target, returnExpense.paymentMethod)
+  const fallbackKey = targetKey(target)
+  return expenses.find((expense) => {
+    if (expense.amount <= 0) return false
+    const expenseKey = targetKey({ description: expense.description, date: expense.date }, expense.paymentMethod)
+    if (returnExpense.paymentMethod) return expenseKey === key
+    return targetKey({ description: expense.description, date: expense.date }) === fallbackKey
+  }) || null
 }
 
 export function getReturnSummary(original: Expense, expenses: Expense[], ignoredReturnRowIndex?: number): ReturnSummary {
   if (original.amount <= 0) return { returned: 0, remaining: 0, count: 0 }
-  const key = targetKey({ description: original.description, date: original.date })
+  const key = targetKey({ description: original.description, date: original.date }, original.paymentMethod)
   let returned = 0
   let count = 0
   for (const expense of expenses) {
     if (expense.amount >= 0 || expense.rowIndex === ignoredReturnRowIndex) continue
     const target = parseReturnTarget(expense.description)
-    if (!target || targetKey(target) !== key) continue
+    if (!target || targetKey(target, expense.paymentMethod) !== key) continue
     returned += Math.abs(expense.amount)
     count += 1
   }
