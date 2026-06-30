@@ -278,7 +278,16 @@ export async function addCardBenefit(sheetId: string, benefit: CardBenefitSheetI
   const rows = (await getSheet(sheetId, 'CardBenefits!A2:I')).values || []
   const emptyIndex = rows.findIndex((row) => !row.some((cell) => String(cell ?? '').trim()))
   const rowIndex = (emptyIndex === -1 ? rows.length : emptyIndex) + 2
-  await updateRow(sheetId, `CardBenefits!A${rowIndex}:I${rowIndex}`, row)
+  try {
+    await updateRow(sheetId, `CardBenefits!A${rowIndex}:I${rowIndex}`, row)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!/exceeds grid/i.test(message)) throw error
+    const sheetGid = (await getSheetMeta(sheetId)).sheets.find((sheet) => sheet.title === 'CardBenefits')?.sheetId
+    if (sheetGid === undefined) throw error
+    await insertRow(sheetId, sheetGid, rowIndex - 1)
+    await updateRow(sheetId, `CardBenefits!A${rowIndex}:I${rowIndex}`, row)
+  }
   const saved = (await getSheet(sheetId, `CardBenefits!A${rowIndex}:I${rowIndex}`)).values?.[0] || []
   if (String(saved[0] ?? '').trim() !== benefit.card || String(saved[1] ?? '').trim() !== benefit.benefit) {
     throw new Error('Google Sheets accepted the request, but the benefit row was not saved. Please check that the CardBenefits tab is editable.')
