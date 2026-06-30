@@ -110,7 +110,7 @@ const zh: Record<string, string> = {
   'card.saveCardError': '無法儲存信用卡',
   'card.loadError': '無法載入信用卡',
   'card.setupTitle': '設定試算表中的 Cards 分頁',
-  'card.setupDescription': '建立包含 Name、Issuer、Last4、Active、Note、Annual Fee、SUB Required、SUB Start、SUB Deadline、SUB Bonus 欄位的 Cards 分頁。',
+  'card.setupDescription': '建立包含 Name、Issuer、Product、Last4、Active、Note、Annual Fee、SUB Required、SUB Start、SUB Deadline、SUB Bonus 欄位的 Cards 分頁。',
   'card.creating': '建立中...',
   'card.createTab': '建立 Cards 分頁',
   'card.cardsOnList': '卡片數',

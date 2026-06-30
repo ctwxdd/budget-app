@@ -61,7 +61,7 @@ function parseDate(value: unknown): string {
 function parseCards(rows: string[][] = []): CardRow[] {
   return rows
     .map((row, index) => {
-      const [name = '', issuer = '', last4 = '', active = '', note = '', annualFee = '', subRequired = '', subStart = '', subDeadline = '', subBonus = '', product = ''] = row
+      const [name = '', issuer = '', product = '', last4 = '', active = '', note = '', annualFee = '', subRequired = '', subStart = '', subDeadline = '', subBonus = ''] = row
       const cardName = String(name || '').trim()
       return {
         rowIndex: index + 2,
@@ -83,10 +83,10 @@ function parseCards(rows: string[][] = []): CardRow[] {
 
 export function useCards() {
   const sheetId = useSheetId()
-  const cacheKey = `cards.v4.${sheetId}`
+  const cacheKey = `cards.v5.${sheetId}`
   const cached = readLocalCache<CardsData>(cacheKey, LOCAL_CACHE_AGE)
   const query = useQuery<CardsData>({
-    queryKey: ['cards', 'v4', sheetId],
+    queryKey: ['cards', 'v5', sheetId],
     queryFn: async () => {
       try {
         const data = { cards: parseCards((await getSheet(sheetId, 'Cards!A2:K1000')).values || []), tabMissing: false }
@@ -126,8 +126,8 @@ export function useCreateCardsTab() {
   return useMutation({
     mutationFn: () => createCardsTab(sheetId),
     onSuccess: () => {
-      clearLocalCache(`cards.v4.${sheetId}`)
-      queryClient.invalidateQueries({ queryKey: ['cards', 'v4', sheetId] })
+      clearLocalCache(`cards.v5.${sheetId}`)
+      queryClient.invalidateQueries({ queryKey: ['cards', 'v5', sheetId] })
       queryClient.invalidateQueries({ queryKey: ['sheetMeta', sheetId] })
     },
   })
@@ -138,7 +138,7 @@ export function useAddCard() {
   const sheetId = useSheetId()
   return useMutation({
     mutationFn: (card: CardSheetInput) => addCard(sheetId, card),
-    onSuccess: () => { clearLocalCache(`cards.v4.${sheetId}`); queryClient.invalidateQueries({ queryKey: ['cards', 'v4', sheetId] }) },
+    onSuccess: () => { clearLocalCache(`cards.v5.${sheetId}`); queryClient.invalidateQueries({ queryKey: ['cards', 'v5', sheetId] }) },
   })
 }
 
@@ -147,7 +147,7 @@ export function useUpdateCard() {
   const sheetId = useSheetId()
   return useMutation({
     mutationFn: (card: CardRow) => updateCard(sheetId, card),
-    onSuccess: () => { clearLocalCache(`cards.v4.${sheetId}`); queryClient.invalidateQueries({ queryKey: ['cards', 'v4', sheetId] }) },
+    onSuccess: () => { clearLocalCache(`cards.v5.${sheetId}`); queryClient.invalidateQueries({ queryKey: ['cards', 'v5', sheetId] }) },
   })
 }
 
@@ -161,6 +161,6 @@ export function useDeleteCard() {
       if (sheetGid === undefined) throw new Error('Could not find a Cards tab in this spreadsheet.')
       return deleteCard(sheetId, sheetGid, card.rowIndex)
     },
-    onSuccess: () => { clearLocalCache(`cards.v4.${sheetId}`); queryClient.invalidateQueries({ queryKey: ['cards', 'v4', sheetId] }) },
+    onSuccess: () => { clearLocalCache(`cards.v5.${sheetId}`); queryClient.invalidateQueries({ queryKey: ['cards', 'v5', sheetId] }) },
   })
 }

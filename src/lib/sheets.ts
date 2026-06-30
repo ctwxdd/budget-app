@@ -216,7 +216,7 @@ export type CardBenefitSheetInput = {
   active: boolean
 }
 
-export const cardsHeaders = ['Name', 'Issuer', 'Last4', 'Active', 'Note', 'Annual Fee', 'SUB Required', 'SUB Start', 'SUB Deadline', 'SUB Bonus', 'Product']
+export const cardsHeaders = ['Name', 'Issuer', 'Product', 'Last4', 'Active', 'Note', 'Annual Fee', 'SUB Required', 'SUB Start', 'SUB Deadline', 'SUB Bonus']
 
 function moneyCell(value: number): string {
   const amount = Number(value) || 0
@@ -233,6 +233,7 @@ export function cardToRow(card: CardSheetInput | CardSheetRow): (string | number
   return [
     card.name,
     card.issuer,
+    card.product || '',
     card.last4,
     card.active,
     card.note,
@@ -241,7 +242,6 @@ export function cardToRow(card: CardSheetInput | CardSheetRow): (string | number
     card.subStart || '',
     card.subDeadline || '',
     card.subBonus || '',
-    card.product || '',
   ]
 }
 

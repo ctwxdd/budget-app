@@ -234,7 +234,7 @@ function CardsContent() {
 
   if (isLoading) return <SkeletonCards />
   if (error) return <EmptyState title={t('card.loadError', 'Could not load cards')} text={error.message} />
-  if (tabMissing) return <EmptyState title={t('card.setupTitle', 'Set up Cards tab in your sheet')} text={t('card.setupDescription', 'Create a Cards tab with Name, Issuer, Last4, Active, Note, Annual Fee, SUB Required, SUB Start, SUB Deadline, SUB Bonus, and Product columns.')} action={<Button onClick={() => createTab.mutate()} disabled={createTab.isPending}>{createTab.isPending ? t('card.creating', 'Creating...') : t('card.createTab', 'Create Cards tab')}</Button>} />
+  if (tabMissing) return <EmptyState title={t('card.setupTitle', 'Set up Cards tab in your sheet')} text={t('card.setupDescription', 'Create a Cards tab with Name, Issuer, Product, Last4, Active, Note, Annual Fee, SUB Required, SUB Start, SUB Deadline, and SUB Bonus columns.')} action={<Button onClick={() => createTab.mutate()} disabled={createTab.isPending}>{createTab.isPending ? t('card.creating', 'Creating...') : t('card.createTab', 'Create Cards tab')}</Button>} />
 
   const monthTotal = cards.reduce((sum, card) => sum + (card.active ? getSpend(card.name).month : 0), 0)
   const subActiveCount = cards.filter((card) => isSubActive(subStatusByRow.get(card.rowIndex) || null)).length
@@ -541,8 +541,8 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
   >
     <form id={formId} onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">{t('card.name', 'Name')}<Input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Chase Sapphire" /></label>
-      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Product<Input value={form.product} onChange={(event) => setForm({ ...form, product: event.target.value })} placeholder={form.name ? cardProductName(form.name) : 'Amex Platinum'} /></label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('card.issuer', 'Issuer')}<Input value={form.issuer} onChange={(event) => setForm({ ...form, issuer: event.target.value })} placeholder="Chase" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Product<Input value={form.product} onChange={(event) => setForm({ ...form, product: event.target.value })} placeholder={form.name ? cardProductName(form.name) : 'Amex Platinum'} /></label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('card.last4', 'Last4')}<Input inputMode="numeric" maxLength={4} value={form.last4} onChange={(event) => setForm({ ...form, last4: event.target.value.replace(/\D/g, '').slice(0, 4) })} placeholder="1234" /></label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('card.annualFee', 'Annual fee')}<Input inputMode="decimal" type="number" min="0" step="0.01" value={form.annualFee || ''} onChange={(event) => setForm({ ...form, annualFee: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="0" /></label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('card.openDate', 'Open date')}<Input className="min-w-0 max-w-full appearance-none" type="date" value={form.subStart} onChange={(event) => setForm({ ...form, subStart: event.target.value })} /></label>
