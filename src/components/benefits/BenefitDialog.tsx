@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { format } from 'date-fns'
 import { Button, Dialog, Input, Select, Textarea, useToast } from '../ui'
 import { useAddCardBenefit, useUpdateCardBenefit } from '../../hooks/useCardBenefits'
 import { type CardBenefit, type CardBenefitPeriod } from '../../lib/cardBenefits'
@@ -18,7 +17,7 @@ type BenefitForm = {
 }
 
 function emptyBenefit(startDate?: string): BenefitForm {
-  return { benefit: '', amount: 0, period: 'monthly', category: '', matcher: '', startDate: startDate || format(new Date(), 'yyyy-MM-dd'), endDate: '', active: true }
+  return { benefit: '', amount: 0, period: 'monthly', category: '', matcher: '', startDate: startDate || '', endDate: '', active: true }
 }
 
 function benefitFormFromRow(benefit: CardBenefit): BenefitForm {
@@ -85,8 +84,8 @@ export function BenefitDialog({ open, onOpenChange, benefit, productName, produc
       </label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Category<Input value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} placeholder="Dining" /></label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Merchant / tag<Input value={form.matcher} onChange={(event) => setForm({ ...form, matcher: event.target.value })} placeholder="Resy, hotel, airline" /></label>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Start date<Input type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">End date<Input type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Start date<Input className="min-w-0 max-w-full appearance-none" type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">End date<Input className="min-w-0 max-w-full appearance-none" type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} /></label>
       <label className="flex items-center gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 text-sm font-semibold text-muted-foreground dark:bg-card/70 sm:col-span-2"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4 accent-coral" />Active</label>
     </form>
   </Dialog>

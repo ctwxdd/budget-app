@@ -56,7 +56,7 @@ export function BenefitTrackerPage() {
         </div>
         {!cardBenefits.tabMissing && <Button type="button" size="sm" onClick={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} className="rounded-full"><Plus className="h-4 w-4" />Add benefit</Button>}
       </CardHeader>
-      <CardContent><BenefitProgressList usages={benefitUsages} tabMissing={cardBenefits.tabMissing} creditsDisabled={benefitCredits.tabMissing} onAddBenefit={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} onEditBenefit={editBenefit} onEditCredit={(usage, credit) => { setCreditUsage(usage); setCreditRow(credit || null) }} /></CardContent>
+      <CardContent><BenefitProgressList usages={benefitUsages} benefitByRow={benefitByRow} tabMissing={cardBenefits.tabMissing} creditsDisabled={benefitCredits.tabMissing} onAddBenefit={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} onEditBenefit={editBenefit} onEditCredit={(usage, credit) => { setCreditUsage(usage); setCreditRow(credit || null) }} /></CardContent>
     </Card>
     <BenefitDialog open={benefitDialogOpen} onOpenChange={(open) => { setBenefitDialogOpen(open); if (!open) setEditingBenefit(null) }} benefit={editingBenefit} productName={editingBenefit?.card || defaultProduct} productOptions={productNames} />
     {creditUsage && <BenefitCreditDialog open usage={creditUsage} credit={creditRow} onOpenChange={(open) => { if (!open) { setCreditUsage(null); setCreditRow(null) } }} />}
@@ -72,7 +72,7 @@ function EmptyBenefits({ onAddBenefit }: { onAddBenefit: () => void }) {
   </div>
 }
 
-function BenefitProgressList({ usages, tabMissing, creditsDisabled, onAddBenefit, onEditBenefit, onEditCredit }: { usages: BenefitUsage[]; tabMissing: boolean; creditsDisabled: boolean; onAddBenefit: () => void; onEditBenefit: (benefit: CardBenefit) => void; onEditCredit: (usage: BenefitUsage, credit?: CardBenefitCredit) => void }) {
+function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled, onAddBenefit, onEditBenefit, onEditCredit }: { usages: BenefitUsage[]; benefitByRow: Map<number, CardBenefit>; tabMissing: boolean; creditsDisabled: boolean; onAddBenefit: () => void; onEditBenefit: (benefit: CardBenefit) => void; onEditCredit: (usage: BenefitUsage, credit?: CardBenefitCredit) => void }) {
   const deleteBenefit = useDeleteCardBenefit()
   const [confirmBenefit, setConfirmBenefit] = React.useState<CardBenefit | null>(null)
   const [collapsed, setCollapsed] = React.useState<Set<string>>(() => new Set())
@@ -84,22 +84,25 @@ function BenefitProgressList({ usages, tabMissing, creditsDisabled, onAddBenefit
   const totalLeft = usages.reduce((sum, usage) => sum + usage.remaining, 0)
   const totalUsed = usages.reduce((sum, usage) => sum + usage.used, 0)
   const groups = Array.from(usages.reduce((map, usage) => {
-    const key = usage.benefit.benefit || 'Benefit'
+    const template = benefitByRow.get(usage.benefit.rowIndex) || usage.benefit
+    const key = `${template.card}||${template.benefit || 'Benefit'}`
     map.set(key, [...(map.get(key) || []), usage])
     return map
   }, new Map<string, BenefitUsage[]>()).entries())
-    .map(([name, items]) => ({
-      name,
+    .map(([key, items]) => ({
+      key,
+      name: (items[0] && (benefitByRow.get(items[0].benefit.rowIndex)?.benefit || items[0].benefit.benefit)) || 'Benefit',
+      product: (items[0] && (benefitByRow.get(items[0].benefit.rowIndex)?.card || items[0].benefit.card)) || '',
       items: items.sort((a, b) => a.benefit.card.localeCompare(b.benefit.card)),
-      benefit: items[0]?.benefit,
+      benefit: items[0] ? benefitByRow.get(items[0].benefit.rowIndex) || items[0].benefit : undefined,
       used: items.reduce((sum, usage) => sum + usage.used, 0),
       left: items.reduce((sum, usage) => sum + usage.remaining, 0),
       amount: items.reduce((sum, usage) => sum + usage.benefit.amount, 0),
     }))
-    .sort((a, b) => b.left - a.left || a.name.localeCompare(b.name))
-  const toggleGroup = (name: string) => setCollapsed((current) => {
+    .sort((a, b) => b.left - a.left || a.product.localeCompare(b.product) || a.name.localeCompare(b.name))
+  const toggleGroup = (key: string) => setCollapsed((current) => {
     const next = new Set(current)
-    next.has(name) ? next.delete(name) : next.add(name)
+    next.has(key) ? next.delete(key) : next.add(key)
     return next
   })
   return <div className="space-y-3">
@@ -111,24 +114,24 @@ function BenefitProgressList({ usages, tabMissing, creditsDisabled, onAddBenefit
     <div className="space-y-3">
       {groups.map((group) => {
         const groupPct = group.amount > 0 ? Math.min(100, Math.round((group.used / group.amount) * 100)) : 0
-        const isCollapsed = collapsed.has(group.name)
-        return <div key={group.name} className="overflow-hidden rounded-3xl border border-border/70 bg-card shadow-sm">
+        const isCollapsed = collapsed.has(group.key)
+        return <div key={group.key} className="overflow-hidden rounded-3xl border border-border/70 bg-card shadow-sm">
           <div className={`border-border/60 bg-accent/25 px-3 py-2.5 transition sm:px-4 ${isCollapsed ? '' : 'border-b'}`}>
             <div className="flex items-start justify-between gap-3">
-              <button type="button" className="min-w-0 flex-1 text-left" onClick={() => toggleGroup(group.name)} aria-expanded={!isCollapsed}>
+              <button type="button" className="min-w-0 flex-1 text-left" onClick={() => toggleGroup(group.key)} aria-expanded={!isCollapsed}>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-extrabold">{group.name}</p>
-                  <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground">{group.items.length} card{group.items.length === 1 ? '' : 's'} · {currency.format(group.left)} left</p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground">{group.product} · {group.items.length} card{group.items.length === 1 ? '' : 's'} · {currency.format(group.left)} left</p>
                 </div>
               </button>
               <div className="flex shrink-0 items-center gap-1">
                 <p className="hidden text-xs font-extrabold tabular-nums text-muted-foreground sm:block">{currency.format(group.used)} / {currency.format(group.amount)}</p>
                 <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => group.benefit && onEditBenefit(group.benefit)} disabled={!group.benefit} aria-label={`Edit ${group.name}`}><Pencil className="h-3.5 w-3.5" /></Button>
                 <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => group.benefit && setConfirmBenefit(group.benefit)} disabled={!group.benefit || deleteBenefit.isPending} aria-label={`Delete ${group.name}`}><Trash2 className="h-3.5 w-3.5" /></Button>
-                <button type="button" className="rounded-full bg-background/70 px-2 py-0.5 text-[10px] font-bold text-muted-foreground" onClick={() => toggleGroup(group.name)} aria-expanded={!isCollapsed}>{isCollapsed ? 'Show' : 'Hide'}</button>
+                <button type="button" className="rounded-full bg-background/70 px-2 py-0.5 text-[10px] font-bold text-muted-foreground" onClick={() => toggleGroup(group.key)} aria-expanded={!isCollapsed}>{isCollapsed ? 'Show' : 'Hide'}</button>
               </div>
             </div>
-            <button type="button" className="mt-2 block w-full" onClick={() => toggleGroup(group.name)} aria-label={`${isCollapsed ? 'Show' : 'Hide'} ${group.name}`}>
+            <button type="button" className="mt-2 block w-full" onClick={() => toggleGroup(group.key)} aria-label={`${isCollapsed ? 'Show' : 'Hide'} ${group.name}`}>
               <div className="h-2 overflow-hidden rounded-full bg-muted">
                 <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${groupPct}%` }} />
               </div>
