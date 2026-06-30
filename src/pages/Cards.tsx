@@ -7,7 +7,9 @@ import { SkeletonCards } from '../components/layout/Skeletons'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, Dialog, Input, Textarea } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { useAddCard, useCards, useCreateCardsTab, useDeleteCard, useUpdateCard, type CardRow } from '../hooks/useCards'
+import { useCardBenefits } from '../hooks/useCardBenefits'
 import { useExpenses } from '../hooks/useExpenses'
+import { calculateBenefitUsageByCard, type BenefitUsage } from '../lib/cardBenefits'
 import { currency, filterByDateRange, getPresetRange } from '../lib/format'
 import { cn } from '../lib/utils'
 import { ExpenseDialog, type FormState } from '../components/expenses/ExpenseDialog'
@@ -90,6 +92,7 @@ function CardsContent() {
   const { cards, tabMissing, isLoading, error } = useCards()
   const { t } = useLanguage()
   const expensesQuery = useExpenses()
+  const cardBenefits = useCardBenefits()
   const createTab = useCreateCardsTab()
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<CardRow | null>(null)
@@ -185,6 +188,12 @@ function CardsContent() {
     return map
   }, [cards, subSpendByRow])
 
+  const benefitUsageByCard = React.useMemo(() => calculateBenefitUsageByCard(cardBenefits.benefits, expensesQuery.data || []), [cardBenefits.benefits, expensesQuery.data])
+  const getBenefits = React.useCallback(
+    (name: string) => benefitUsageByCard.get(name.trim().toLocaleLowerCase()) || [],
+    [benefitUsageByCard],
+  )
+
   const getSpend = React.useCallback(
     (name: string) => spendByCard.get(name.trim().toLocaleLowerCase()) || zeroSpend,
     [spendByCard],
@@ -224,8 +233,8 @@ function CardsContent() {
   if (tabMissing) return <EmptyState title={t('card.setupTitle', 'Set up Cards tab in your sheet')} text={t('card.setupDescription', 'Create a Cards tab with Name, Issuer, Last4, Active, Note, Annual Fee, SUB Required, SUB Start, SUB Deadline, and SUB Bonus columns.')} action={<Button onClick={() => createTab.mutate()} disabled={createTab.isPending}>{createTab.isPending ? t('card.creating', 'Creating...') : t('card.createTab', 'Create Cards tab')}</Button>} />
 
   const monthTotal = cards.reduce((sum, card) => sum + (card.active ? getSpend(card.name).month : 0), 0)
-  const annualFeeTotal = cards.reduce((sum, card) => sum + (card.active ? card.annualFee || 0 : 0), 0)
   const subActiveCount = cards.filter((card) => isSubActive(subStatusByRow.get(card.rowIndex) || null)).length
+  const benefitRemainingTotal = cards.reduce((sum, card) => sum + getBenefits(card.name).reduce((inner, benefit) => inner + benefit.remaining, 0), 0)
 
   const openAdd = () => { setEditing(null); setDialogOpen(true) }
   const openEdit = (card: CardRow) => { setEditing(card); setDialogOpen(true) }
@@ -236,8 +245,13 @@ function CardsContent() {
       <Kpi label={t('card.cardsOnList', 'Cards on list')} emoji="💳" value={String(cards.length)} tint="from-sky/15 to-lavender/10" />
       <Kpi label={t('card.subOpen', 'SUB open')} emoji="🎁" value={String(subActiveCount)} tint="from-coral/15 to-peach/20" />
       <Kpi label={t('expenses.thisMonth', 'This month')} emoji="💸" value={currency.format(monthTotal)} tint="from-mint/15 to-sage/15" />
-      <Kpi label={t('card.annualFees', 'Annual fees')} emoji="🧾" value={currency.format(annualFeeTotal)} tint="from-amber-200/30 to-peach/20" />
+      <Kpi label="Credits left" emoji="🏷️" value={currency.format(benefitRemainingTotal)} tint="from-amber-200/30 to-peach/20" />
     </div>
+
+    {cardBenefits.tabMissing && <Card className="rounded-2xl border-dashed bg-butter/10 p-4 text-sm">
+      <p className="font-bold">Add a CardBenefits tab to track card credits.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Columns: Card, Benefit, Amount, Period, Category, Merchant/Tag, Start Date, End Date, Active.</p>
+    </Card>}
 
     <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-white/60 p-2 shadow-sm backdrop-blur dark:bg-card/60 sm:flex-row sm:items-center">
       <div className="relative flex-1">
@@ -262,15 +276,15 @@ function CardsContent() {
     </div>
 
     {!visibleCards.length ? <EmptyState title={search ? t('common.noMatches', 'No matches') : (!showInactive && cards.some((c) => !c.active) ? t('card.noActive', 'No active cards') : t('card.noCards', 'No cards yet'))} text={search ? (t('card.noSearchMatches', 'Nothing matches') + ` "${search}".`) : (!showInactive && cards.some((c) => !c.active) ? t('card.noActiveHelp', 'All your cards are marked inactive — enable "Show inactive" to see them.') : t('card.noCardsHelp', 'Add credit cards here so they show up first in the Expense payment method picker.'))} action={!cards.length ? <Button onClick={openAdd}><Plus className="h-4 w-4" />{t('card.addCard', 'Add card')}</Button> : undefined} /> : view === 'cards' ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
+      {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} benefits={getBenefits(card.name)} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
     </div> : <Card className="overflow-hidden rounded-2xl">
       <div className="hidden md:block">
         <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] gap-3 border-b border-border/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
           <span /><span>{t('card.name', 'Name')}</span><span>{t('card.issuer', 'Issuer')}</span><span className="text-right">AF</span><span className="text-right">{t('expenses.thisMonth', 'This month')}</span><span className="text-right">{t('card.allTime', 'All time')}</span><span>SUB</span><span>{t('card.status', 'Status')}</span><span>{t('expenses.actions', 'Actions')}</span>
         </div>
-        {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
+        {visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardListRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} benefits={getBenefits(card.name)} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}
       </div>
-      <div className="space-y-2 p-2 md:hidden">{visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}</div>
+      <div className="space-y-2 p-2 md:hidden">{visibleCards.map((card) => { const s = subStatusByRow.get(card.rowIndex) || null; const rowSub = isSubActive(s) ? s : null; return <CardMobileRow key={card.rowIndex} card={card} spend={getSpend(card.name)} sub={rowSub} benefits={getBenefits(card.name)} expanded={expanded.has(card.rowIndex)} onToggle={() => toggleExpanded(card.rowIndex)} onEdit={openEdit} onSpend={handleSpend} onViewExpenses={handleViewExpenses} selected={selectedRow === card.rowIndex} onSelect={() => handleSelect(card.rowIndex)} /> })}</div>
     </Card>}
     <CardDialog open={dialogOpen} onOpenChange={setDialogOpen} card={editing} />
     {spendTemplate && <ExpenseDialog open template={spendTemplate} onOpenChange={(open) => { if (!open) setSpendTemplate(null) }} />}
@@ -316,6 +330,41 @@ function SubTracker({ card, sub }: { card: CardRow; sub: SubStatus }) {
   </div>
 }
 
+function BenefitChips({ benefits }: { benefits: BenefitUsage[] }) {
+  if (!benefits.length) return null
+  return <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
+    {benefits.slice(0, 3).map((usage) => <span key={usage.benefit.rowIndex} className="inline-flex max-w-full items-center rounded-full border border-mint/30 bg-mint/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-mint" title={`${usage.benefit.benefit}: ${currency.format(usage.used)} used, ${currency.format(usage.remaining)} left`}>
+      <span className="truncate">{usage.benefit.benefit}</span><span className="ml-1 shrink-0">{currency.format(usage.remaining)} left</span>
+    </span>)}
+    {benefits.length > 3 && <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">+{benefits.length - 3}</span>}
+  </div>
+}
+
+function BenefitTracker({ benefits }: { benefits: BenefitUsage[] }) {
+  if (!benefits.length) return null
+  return <div className="mt-2 grid gap-2 md:grid-cols-2">
+    {benefits.map((usage) => {
+      const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
+      return <div key={usage.benefit.rowIndex} className="rounded-2xl border border-mint/30 bg-mint/10 p-3 text-xs">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate font-extrabold text-emerald-700 dark:text-mint">{usage.benefit.benefit}</p>
+            <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">{usage.start} → {usage.end}</p>
+          </div>
+          <span className="shrink-0 font-bold text-foreground">{currency.format(usage.remaining)} left</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-border/60">
+          <div className="h-full rounded-full bg-mint" style={{ width: `${pct}%` }} />
+        </div>
+        <div className="mt-1.5 flex items-center justify-between tabular-nums text-muted-foreground">
+          <span>Used {currency.format(usage.used)} / {currency.format(usage.benefit.amount)}</span>
+          <span>{usage.count} match{usage.count === 1 ? '' : 'es'}</span>
+        </div>
+      </div>
+    })}
+  </div>
+}
+
 function CardActionBar({ card, onSpend, onViewExpenses }: { card: CardRow; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void }) {
   return <div className="border-t border-border/60 bg-gradient-to-r from-accent/10 via-accent/35 to-accent/10 px-3 py-3 md:px-4">
     <div className="mx-auto flex w-full max-w-md flex-nowrap items-center justify-center gap-2 rounded-full border border-border/60 bg-card/85 p-1.5 shadow-sm backdrop-blur">
@@ -329,29 +378,29 @@ function CardActionBar({ card, onSpend, onViewExpenses }: { card: CardRow; onSpe
   </div>
 }
 
-function CardListRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, onViewExpenses, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void; selected: boolean; onSelect: () => void }) {
-  const hasSub = Boolean(sub)
+function CardListRow({ card, spend, sub, benefits, expanded, onToggle, onEdit, onSpend, onViewExpenses, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; benefits: BenefitUsage[]; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void; selected: boolean; onSelect: () => void }) {
+  const hasDetails = Boolean(sub || benefits.length)
   return <div className={cn('border-b border-border/50 last:border-b-0 transition', !card.active && 'opacity-55', selected && 'bg-coral/5 ring-1 ring-inset ring-coral/30')}>
     <div role="button" tabIndex={0} onClick={onSelect} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect() } }} className="grid cursor-pointer grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem_5.5rem] items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-accent/30">
-      <button type="button" onClick={(event) => { event.stopPropagation(); onToggle() }} disabled={!hasSub} className={cn('inline-flex h-7 w-7 items-center justify-center rounded-full transition', hasSub ? 'text-foreground hover:bg-accent' : 'text-muted-foreground/30 cursor-default')} aria-label={expanded ? 'Collapse' : 'Expand SUB tracker'}>
+      <button type="button" onClick={(event) => { event.stopPropagation(); onToggle() }} disabled={!hasDetails} className={cn('inline-flex h-7 w-7 items-center justify-center rounded-full transition', hasDetails ? 'text-foreground hover:bg-accent' : 'text-muted-foreground/30 cursor-default')} aria-label={expanded ? 'Collapse' : 'Expand trackers'}>
         <ChevronDown className={cn('h-4 w-4 transition-transform', expanded && 'rotate-180')} />
       </button>
-      <div className="min-w-0"><p className="truncate font-semibold">{card.name}</p><p className="text-xs text-muted-foreground">{card.last4 ? `••••${card.last4}` : 'No last4'}</p></div>
+      <div className="min-w-0"><p className="truncate font-semibold">{card.name}</p><p className="text-xs text-muted-foreground">{card.last4 ? `••••${card.last4}` : 'No last4'}</p><BenefitChips benefits={benefits} /></div>
       <span className="truncate text-muted-foreground">{card.issuer || '—'}</span>
       <span className="text-right tabular-nums text-muted-foreground">{card.annualFee > 0 ? <span className="font-medium text-foreground">{currency.format(card.annualFee)}</span> : '—'}</span>
       <span className="text-right font-display font-bold text-coral tabular-nums">{spend.month !== 0 ? currency.format(spend.month) : <span className="font-sans text-xs font-medium text-muted-foreground">—</span>}</span>
       <span className="text-right tabular-nums text-muted-foreground">{spend.total !== 0 ? <><span className="font-semibold text-foreground">{currency.format(spend.total)}</span><span className="ml-1 text-[11px]">· {spend.count}</span></> : '—'}</span>
-      <span>{sub ? <SubChip sub={sub} compact /> : <span className="text-xs text-muted-foreground">—</span>}</span>
+      <span>{sub ? <SubChip sub={sub} compact /> : benefits.length ? <span className="text-xs font-semibold text-emerald-700 dark:text-mint">{benefits.length} credit{benefits.length === 1 ? '' : 's'}</span> : <span className="text-xs text-muted-foreground">—</span>}</span>
       <span><ActiveStatus card={card} /></span>
       <span onClick={(event) => event.stopPropagation()}><RowActions card={card} onEdit={onEdit} /></span>
     </div>
     {selected && <CardActionBar card={card} onSpend={onSpend} onViewExpenses={onViewExpenses} />}
-    {expanded && sub && <div className="px-4 pb-3"><SubTracker card={card} sub={sub} /></div>}
+    {expanded && (sub || benefits.length > 0) && <div className="px-4 pb-3">{sub && <SubTracker card={card} sub={sub} />}<BenefitTracker benefits={benefits} /></div>}
   </div>
 }
 
-function CardMobileRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, onViewExpenses, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void; selected: boolean; onSelect: () => void }) {
-  const hasSub = Boolean(sub)
+function CardMobileRow({ card, spend, sub, benefits, expanded, onToggle, onEdit, onSpend, onViewExpenses, selected, onSelect }: { card: CardRow; spend: CardSpend; sub: SubStatus | null; benefits: BenefitUsage[]; expanded: boolean; onToggle: () => void; onEdit: (card: CardRow) => void; onSpend: (card: CardRow) => void; onViewExpenses: (card: CardRow) => void; selected: boolean; onSelect: () => void }) {
+  const hasDetails = Boolean(sub || benefits.length)
   const subtitle = [card.issuer, card.last4 && `••••${card.last4}`, card.annualFee > 0 && `${currency.format(card.annualFee)}/yr`].filter(Boolean).join(' · ')
   return <div className={cn('overflow-hidden rounded-2xl border bg-white/70 shadow-sm transition dark:bg-card/70', !card.active && 'opacity-55', selected ? 'border-coral/60 ring-2 ring-coral/20' : 'border-border/70')}>
     <div role="button" tabIndex={0} onClick={onSelect} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect() } }} className="cursor-pointer p-3 transition hover:bg-accent/20">
@@ -363,15 +412,16 @@ function CardMobileRow({ card, spend, sub, expanded, onToggle, onEdit, onSpend, 
         <div><p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">This month</p><p className="font-display text-base font-extrabold text-coral tabular-nums">{currency.format(spend.month)}</p></div>
         <div className="text-right"><p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">All time</p><p className="font-display text-base font-bold tabular-nums">{currency.format(spend.total)}<span className="ml-1 text-[10px] font-medium text-muted-foreground">· {spend.count}</span></p></div>
       </div>
+      <BenefitChips benefits={benefits} />
       {card.note && <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{card.note}</p>}
       <div className="mt-3 flex items-center justify-between gap-2">
         <span><ActiveStatus card={card} /></span>
-        {hasSub && sub && <button type="button" onClick={(event) => { event.stopPropagation(); onToggle() }} className="inline-flex items-center gap-1 rounded-full bg-accent/60 px-2.5 py-1 text-[11px] font-semibold text-foreground transition hover:bg-accent">
-          <SubChip sub={sub} compact />
+        {hasDetails && <button type="button" onClick={(event) => { event.stopPropagation(); onToggle() }} className="inline-flex items-center gap-1 rounded-full bg-accent/60 px-2.5 py-1 text-[11px] font-semibold text-foreground transition hover:bg-accent">
+          {sub ? <SubChip sub={sub} compact /> : <span>{benefits.length} credit{benefits.length === 1 ? '' : 's'}</span>}
           <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
         </button>}
       </div>
-      {expanded && sub && <SubTracker card={card} sub={sub} />}
+      {expanded && (sub || benefits.length > 0) && <>{sub && <SubTracker card={card} sub={sub} />}<BenefitTracker benefits={benefits} /></>}
     </div>
     {selected && <CardActionBar card={card} onSpend={onSpend} onViewExpenses={onViewExpenses} />}
   </div>

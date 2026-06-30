@@ -253,10 +253,12 @@ export async function deleteCard(sheetId: string, sheetGid: number, rowIndex: nu
 const EXPENSE_GID = 1
 const CARDS_GID = 2
 const GIFTCARD_GID = 3
+const CARD_BENEFITS_GID = 4
 
 const EXPENSE_HEADERS = ['Date', 'Expense', 'Description', 'Category', 'Payment Method', 'Reimbursement', '', 'Tags']
 const GIFTCARD_HEADERS_LEFT = ['Card', 'Date', 'Paid', 'Face', 'Vendor', 'Direct', 'Pool', 'Cum Before', 'FIFO', 'Balance']
 const GIFTCARD_HEADERS_RIGHT = ['Merchant', 'Cards', 'Purchased', 'Spent', 'Balance', 'Active']
+export const cardBenefitsHeaders = ['Card', 'Benefit', 'Amount', 'Period', 'Category', 'Merchant/Tag', 'Start Date', 'End Date', 'Active']
 
 function headerCell(text: string) {
   return {
@@ -359,6 +361,7 @@ export async function createSpreadsheet({ title, categories, paymentMethods, rei
           { startColumn: 0, headers: GIFTCARD_HEADERS_LEFT },
           { startColumn: 11, headers: GIFTCARD_HEADERS_RIGHT },
         ]),
+        buildSheet(CARD_BENEFITS_GID, 'CardBenefits', cardBenefitsHeaders.length, [{ startColumn: 0, headers: cardBenefitsHeaders }]),
       ],
     }),
   })
@@ -401,6 +404,15 @@ export async function createSpreadsheet({ title, categories, paymentMethods, rei
         nonNegativeNumberValidation(GIFTCARD_GID, 2),
         nonNegativeNumberValidation(GIFTCARD_GID, 3),
         booleanCheckbox(GIFTCARD_GID, 16),
+        // Card benefits
+        currencyFormat(CARD_BENEFITS_GID, 2),
+        nonNegativeNumberValidation(CARD_BENEFITS_GID, 2),
+        listValidation(CARD_BENEFITS_GID, 3, ['monthly', 'quarterly', 'semiannual', 'annual']),
+        dateFormat(CARD_BENEFITS_GID, 6),
+        dateValidation(CARD_BENEFITS_GID, 6),
+        dateFormat(CARD_BENEFITS_GID, 7),
+        dateValidation(CARD_BENEFITS_GID, 7),
+        booleanCheckbox(CARD_BENEFITS_GID, 8),
       ],
     }),
   })

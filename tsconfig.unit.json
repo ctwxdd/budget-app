@@ -16,6 +16,7 @@
     "noFallthroughCasesInSwitch": true
   },
   "files": [
+    "src/lib/cardBenefits.ts",
     "src/lib/expenseFilters.ts",
     "src/lib/format.ts",
     "src/lib/giftcards.ts",
