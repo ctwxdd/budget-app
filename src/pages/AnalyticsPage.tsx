@@ -71,7 +71,7 @@ export function AnalyticsPage() {
       navigate(`/expenses?${params.toString()}`)
     }} /> : <EmptyChart />}</CardContent></Card> : null },
     { value: 'payment', label: t('analytics.byPayment', 'By Payment'), content: tab === 'payment' ? <Card><CardHeader><CardTitle>{t('analytics.paymentTitle', 'Spending by payment method')}</CardTitle><CardDescription>{t('analytics.paymentDescription', 'See which cards or accounts carried the load.')}</CardDescription></CardHeader><CardContent>{payment.length ? <div className="h-60 md:h-72"><ResponsiveContainer><BarChart data={payment} layout="vertical" margin={{ left: 20 }}><CartesianGrid strokeDasharray="3 3" stroke="#F0EAE5" /><XAxis type="number" tickFormatter={moneyTick} /><YAxis type="category" dataKey="name" width={90} /><Tooltip formatter={(value: unknown) => currency.format(Number(value || 0))} /><Bar dataKey="total" fill={chartPalette[2]} radius={[0, 12, 12, 0]} /></BarChart></ResponsiveContainer></div> : <EmptyChart />}</CardContent></Card> : null },
-    { value: 'benefits', label: 'Benefits', content: tab === 'benefits' ? <Card><CardHeader><CardTitle>Card benefits</CardTitle><CardDescription>Track credit usage by exact card and current benefit period.</CardDescription></CardHeader><CardContent><BenefitProgressList usages={benefitUsages} tabMissing={cardBenefits.tabMissing} onOpenExpenses={(usage) => {
+    { value: 'benefits', label: 'Benefits', content: tab === 'benefits' ? <Card><CardHeader><CardTitle>Card benefits</CardTitle><CardDescription>Track each benefit first, then see every card using it.</CardDescription></CardHeader><CardContent><BenefitProgressList usages={benefitUsages} tabMissing={cardBenefits.tabMissing} onOpenExpenses={(usage) => {
       const params = new URLSearchParams({ payment: usage.benefit.card, preset: 'custom', start: usage.start, end: usage.end, from: 'analytics' })
       if (usage.benefit.category) params.set('category', usage.benefit.category)
       if (usage.benefit.matcher) params.set('search', usage.benefit.matcher.split(',')[0].trim())
@@ -95,41 +95,72 @@ function BenefitProgressList({ usages, tabMissing, onOpenExpenses }: { usages: B
   if (!usages.length) return <EmptyChart />
   const totalLeft = usages.reduce((sum, usage) => sum + usage.remaining, 0)
   const totalUsed = usages.reduce((sum, usage) => sum + usage.used, 0)
+  const groups = Array.from(usages.reduce((map, usage) => {
+    const key = usage.benefit.benefit || 'Benefit'
+    map.set(key, [...(map.get(key) || []), usage])
+    return map
+  }, new Map<string, BenefitUsage[]>()).entries())
+    .map(([name, items]) => ({
+      name,
+      items: items.sort((a, b) => a.benefit.card.localeCompare(b.benefit.card)),
+      used: items.reduce((sum, usage) => sum + usage.used, 0),
+      left: items.reduce((sum, usage) => sum + usage.remaining, 0),
+      amount: items.reduce((sum, usage) => sum + usage.benefit.amount, 0),
+    }))
+    .sort((a, b) => b.left - a.left || a.name.localeCompare(b.name))
   return <div className="space-y-3">
     <div className="grid grid-cols-3 gap-2">
-      <BenefitKpi label="Credits tracked" value={String(usages.length)} />
+      <BenefitKpi label="Benefits tracked" value={String(groups.length)} />
       <BenefitKpi label="Used this period" value={currency.format(totalUsed)} />
       <BenefitKpi label="Left this period" value={currency.format(totalLeft)} />
     </div>
-    <div className="overflow-hidden rounded-3xl border border-border/70 bg-card shadow-sm">
-      {usages.map((usage) => {
-        const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
-        const done = usage.remaining <= 0.005
-        return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid gap-2 border-b border-border/60 px-3 py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.8fr)_auto] sm:items-center sm:px-4">
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <p className="truncate text-sm font-extrabold">{usage.benefit.benefit}</p>
-              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${done ? 'bg-mint/15 text-emerald-700 dark:text-mint' : 'bg-butter/25 text-amber-700 dark:text-butter'}`}>{done ? 'Done' : `${currency.format(usage.remaining)} left`}</span>
+    <div className="space-y-3">
+      {groups.map((group) => {
+        const groupPct = group.amount > 0 ? Math.min(100, Math.round((group.used / group.amount) * 100)) : 0
+        return <div key={group.name} className="overflow-hidden rounded-3xl border border-border/70 bg-card shadow-sm">
+          <div className="border-b border-border/60 bg-accent/25 px-3 py-2.5 sm:px-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-extrabold">{group.name}</p>
+                <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground">{group.items.length} card{group.items.length === 1 ? '' : 's'} · {currency.format(group.left)} left</p>
+              </div>
+              <p className="shrink-0 text-xs font-extrabold tabular-nums text-muted-foreground">{currency.format(group.used)} / {currency.format(group.amount)}</p>
             </div>
-            <p className="mt-0.5 truncate text-[11px] font-semibold text-muted-foreground">{usage.benefit.card}</p>
-            {(usage.benefit.category || usage.benefit.matcher) && <p className="mt-0.5 truncate text-[11px] text-muted-foreground/85">
-              {[usage.benefit.category, usage.benefit.matcher].filter(Boolean).join(' · ')}
-            </p>}
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${groupPct}%` }} />
+            </div>
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-muted-foreground">
-              <span className="tabular-nums">{currency.format(usage.used)} / {currency.format(usage.benefit.amount)}</span>
-              <span className="tabular-nums">{usage.count} match{usage.count === 1 ? '' : 'es'}</span>
-            </div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${pct}%` }} />
-            </div>
-            <p className="mt-1 truncate text-[10px] font-medium text-muted-foreground">{usage.start} → {usage.end}</p>
+          <div>
+            {group.items.map((usage) => {
+              const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
+              const done = usage.remaining <= 0.005
+              return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid gap-2 border-b border-border/60 px-3 py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,1.25fr)_minmax(10rem,0.8fr)_auto] sm:items-center sm:px-4">
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="truncate text-sm font-extrabold">{usage.benefit.card}</p>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${done ? 'bg-mint/15 text-emerald-700 dark:text-mint' : 'bg-butter/25 text-amber-700 dark:text-butter'}`}>{done ? 'Done' : `${currency.format(usage.remaining)} left`}</span>
+                  </div>
+                  {(usage.benefit.category || usage.benefit.matcher) && <p className="mt-0.5 truncate text-[11px] text-muted-foreground/85">
+                    {[usage.benefit.category, usage.benefit.matcher].filter(Boolean).join(' · ')}
+                  </p>}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-muted-foreground">
+                    <span className="tabular-nums">{currency.format(usage.used)} / {currency.format(usage.benefit.amount)}</span>
+                    <span className="tabular-nums">{usage.count} match{usage.count === 1 ? '' : 'es'}</span>
+                  </div>
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="mt-1 truncate text-[10px] font-medium text-muted-foreground">{usage.start} → {usage.end}</p>
+                </div>
+                <Button type="button" variant="secondary" size="sm" className="h-8 justify-center rounded-full px-3 text-xs sm:w-auto" onClick={() => onOpenExpenses(usage)}>
+                  View
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            })}
           </div>
-          <Button type="button" variant="secondary" size="sm" className="h-8 justify-center rounded-full px-3 text-xs sm:w-auto" onClick={() => onOpenExpenses(usage)}>
-            View
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Button>
         </div>
       })}
     </div>
