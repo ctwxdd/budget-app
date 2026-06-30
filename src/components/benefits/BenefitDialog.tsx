@@ -25,7 +25,7 @@ function benefitFormFromRow(benefit: CardBenefit): BenefitForm {
   return { benefit: benefit.benefit, amount: benefit.amount, period: benefit.period, category: benefit.category, matcher: benefit.matcher, startDate: benefit.startDate, endDate: benefit.endDate, active: benefit.active }
 }
 
-export function BenefitDialog({ open, onOpenChange, benefit, productName, startDate }: { open: boolean; onOpenChange: (open: boolean) => void; benefit: CardBenefit | null; productName: string; startDate?: string }) {
+export function BenefitDialog({ open, onOpenChange, benefit, productName, productOptions = [], startDate }: { open: boolean; onOpenChange: (open: boolean) => void; benefit: CardBenefit | null; productName: string; productOptions?: string[]; startDate?: string }) {
   const addBenefit = useAddCardBenefit()
   const updateBenefit = useUpdateCardBenefit()
   const { toast } = useToast()
@@ -66,12 +66,16 @@ export function BenefitDialog({ open, onOpenChange, benefit, productName, startD
   }
 
   const formId = 'benefit-form'
+  const productListId = 'benefit-product-options'
   const saving = addBenefit.isPending || updateBenefit.isPending
   return <Dialog open={open} onOpenChange={onOpenChange} title={isEditing ? 'Edit benefit' : 'Add benefit'} description="Save a card credit template to the CardBenefits tab in Google Sheets." mobileBottomSheet
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} disabled={saving}>{saving ? 'Saving...' : (isEditing ? 'Save changes' : 'Add benefit')}</Button></div>}
   >
     <form id={formId} onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Product template<Input required value={product} onChange={(event) => setProduct(event.target.value)} placeholder="Amex Platinum" /></label>
+      <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Product template
+        <Input required list={productListId} value={product} onChange={(event) => setProduct(event.target.value)} placeholder="Amex Platinum" />
+        <datalist id={productListId}>{productOptions.map((option) => <option key={option} value={option} />)}</datalist>
+      </label>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">Benefit name<Input required value={form.benefit} onChange={(event) => setForm({ ...form, benefit: event.target.value })} placeholder="Dining Credit" /></label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Amount<Input required inputMode="decimal" type="number" min="0" step="0.01" value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="25" /></label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">Period

@@ -31,6 +31,11 @@ export function BenefitTrackerPage() {
   const [editingBenefit, setEditingBenefit] = React.useState<CardBenefit | null>(null)
   const productNames = React.useMemo(() => Array.from(new Set(cardsQuery.cards.map((card) => card.product || card.name).filter(Boolean))).sort(), [cardsQuery.cards])
   const defaultProduct = productNames[0] || ''
+  const benefitByRow = React.useMemo(() => new Map(cardBenefits.benefits.map((benefit) => [benefit.rowIndex, benefit])), [cardBenefits.benefits])
+  const editBenefit = React.useCallback((benefit: CardBenefit) => {
+    setEditingBenefit(benefitByRow.get(benefit.rowIndex) || benefit)
+    setBenefitDialogOpen(true)
+  }, [benefitByRow])
   const loadError = error || cardsQuery.error || cardBenefits.error || benefitCredits.error
 
   if (isLoading || cardsQuery.isLoading || cardBenefits.isLoading || benefitCredits.isLoading) return <SkeletonCards />
@@ -51,9 +56,9 @@ export function BenefitTrackerPage() {
         </div>
         {!cardBenefits.tabMissing && <Button type="button" size="sm" onClick={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} className="rounded-full"><Plus className="h-4 w-4" />Add benefit</Button>}
       </CardHeader>
-      <CardContent><BenefitProgressList usages={benefitUsages} tabMissing={cardBenefits.tabMissing} creditsDisabled={benefitCredits.tabMissing} onAddBenefit={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} onEditBenefit={(benefit) => { setEditingBenefit(benefit); setBenefitDialogOpen(true) }} onEditCredit={(usage, credit) => { setCreditUsage(usage); setCreditRow(credit || null) }} /></CardContent>
+      <CardContent><BenefitProgressList usages={benefitUsages} tabMissing={cardBenefits.tabMissing} creditsDisabled={benefitCredits.tabMissing} onAddBenefit={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} onEditBenefit={editBenefit} onEditCredit={(usage, credit) => { setCreditUsage(usage); setCreditRow(credit || null) }} /></CardContent>
     </Card>
-    <BenefitDialog open={benefitDialogOpen} onOpenChange={(open) => { setBenefitDialogOpen(open); if (!open) setEditingBenefit(null) }} benefit={editingBenefit} productName={editingBenefit?.card || defaultProduct} />
+    <BenefitDialog open={benefitDialogOpen} onOpenChange={(open) => { setBenefitDialogOpen(open); if (!open) setEditingBenefit(null) }} benefit={editingBenefit} productName={editingBenefit?.card || defaultProduct} productOptions={productNames} />
     {creditUsage && <BenefitCreditDialog open usage={creditUsage} credit={creditRow} onOpenChange={(open) => { if (!open) { setCreditUsage(null); setCreditRow(null) } }} />}
   </div>
 }
@@ -86,6 +91,7 @@ function BenefitProgressList({ usages, tabMissing, creditsDisabled, onAddBenefit
     .map(([name, items]) => ({
       name,
       items: items.sort((a, b) => a.benefit.card.localeCompare(b.benefit.card)),
+      benefit: items[0]?.benefit,
       used: items.reduce((sum, usage) => sum + usage.used, 0),
       left: items.reduce((sum, usage) => sum + usage.remaining, 0),
       amount: items.reduce((sum, usage) => sum + usage.benefit.amount, 0),
@@ -107,21 +113,27 @@ function BenefitProgressList({ usages, tabMissing, creditsDisabled, onAddBenefit
         const groupPct = group.amount > 0 ? Math.min(100, Math.round((group.used / group.amount) * 100)) : 0
         const isCollapsed = collapsed.has(group.name)
         return <div key={group.name} className="overflow-hidden rounded-3xl border border-border/70 bg-card shadow-sm">
-          <button type="button" className={`block w-full border-border/60 bg-accent/25 px-3 py-2.5 text-left transition hover:bg-accent/40 sm:px-4 ${isCollapsed ? '' : 'border-b'}`} onClick={() => toggleGroup(group.name)} aria-expanded={!isCollapsed}>
+          <div className={`border-border/60 bg-accent/25 px-3 py-2.5 transition sm:px-4 ${isCollapsed ? '' : 'border-b'}`}>
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-extrabold">{group.name}</p>
-                <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground">{group.items.length} card{group.items.length === 1 ? '' : 's'} · {currency.format(group.left)} left</p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <p className="text-xs font-extrabold tabular-nums text-muted-foreground">{currency.format(group.used)} / {currency.format(group.amount)}</p>
-                <span className="rounded-full bg-background/70 px-2 py-0.5 text-[10px] font-bold text-muted-foreground">{isCollapsed ? 'Show' : 'Hide'}</span>
+              <button type="button" className="min-w-0 flex-1 text-left" onClick={() => toggleGroup(group.name)} aria-expanded={!isCollapsed}>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-extrabold">{group.name}</p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground">{group.items.length} card{group.items.length === 1 ? '' : 's'} · {currency.format(group.left)} left</p>
+                </div>
+              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <p className="hidden text-xs font-extrabold tabular-nums text-muted-foreground sm:block">{currency.format(group.used)} / {currency.format(group.amount)}</p>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => group.benefit && onEditBenefit(group.benefit)} disabled={!group.benefit} aria-label={`Edit ${group.name}`}><Pencil className="h-3.5 w-3.5" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => group.benefit && setConfirmBenefit(group.benefit)} disabled={!group.benefit || deleteBenefit.isPending} aria-label={`Delete ${group.name}`}><Trash2 className="h-3.5 w-3.5" /></Button>
+                <button type="button" className="rounded-full bg-background/70 px-2 py-0.5 text-[10px] font-bold text-muted-foreground" onClick={() => toggleGroup(group.name)} aria-expanded={!isCollapsed}>{isCollapsed ? 'Show' : 'Hide'}</button>
               </div>
             </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${groupPct}%` }} />
-            </div>
-          </button>
+            <button type="button" className="mt-2 block w-full" onClick={() => toggleGroup(group.name)} aria-label={`${isCollapsed ? 'Show' : 'Hide'} ${group.name}`}>
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${groupPct}%` }} />
+              </div>
+            </button>
+          </div>
           {!isCollapsed && <div>
             {group.items.map((usage) => {
               const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
@@ -150,8 +162,6 @@ function BenefitProgressList({ usages, tabMissing, creditsDisabled, onAddBenefit
                   <Button type="button" variant="secondary" size="sm" className="h-8 justify-center rounded-full px-3 text-xs sm:w-auto" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>
                     {credit ? 'Edit credit' : 'Mark credit'}
                   </Button>
-                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditBenefit(usage.benefit)} aria-label={`Edit ${usage.benefit.benefit}`}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setConfirmBenefit(usage.benefit)} disabled={deleteBenefit.isPending} aria-label={`Delete ${usage.benefit.benefit}`}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               </div>
             })}
