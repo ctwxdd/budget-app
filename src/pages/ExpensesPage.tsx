@@ -44,6 +44,7 @@ export function ExpensesPage() {
       categories: drilldownCategory ? [drilldownCategory] : [],
       payments: drilldownPayment ? [drilldownPayment] : [],
       tags: drilldownTag ? [drilldownTag] : [],
+      search: searchParams.get('search') || '',
     }
   }, [drilldownCategory, drilldownPayment, drilldownTag, searchParams])
   const { data = [], isLoading, error, refetch } = useExpenses()

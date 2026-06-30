@@ -58,6 +58,18 @@ test('matches tags case-insensitively and keeps untagged rows out', () => {
   assert.deepEqual(ids(result), [1])
 })
 
+test('search matches description or tags', () => {
+  const rows = [
+    expense({ rowIndex: 1, description: 'Dinner', tags: 'Resy' }),
+    expense({ rowIndex: 2, description: 'Resy cafe', tags: '' }),
+    expense({ rowIndex: 3, description: 'Dinner', tags: 'Travel' }),
+  ]
+
+  const result = applyExpenseFilters(rows, { ...defaultFilters, search: 'resy' })
+
+  assert.deepEqual(ids(result), [1, 2])
+})
+
 test('combines date range, search, and reimbursement filters', () => {
   const rows = [
     expense({ rowIndex: 1, date: '2026-06-09', description: 'T&T Supermarket', reimbursement: 'Pending' }),

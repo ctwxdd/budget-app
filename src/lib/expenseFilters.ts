@@ -1,6 +1,6 @@
 import type { DatePreset, Expense } from './types'
 import { categoryName, filterByDateRange, getPresetRange } from './format'
-import { hasAnyTag } from './tags'
+import { hasAnyTag, parseTags } from './tags'
 
 export type ExpenseFilters = {
   preset: DatePreset
@@ -43,7 +43,11 @@ export function applyExpenseFilters(expenses: Expense[], filters: ExpenseFilters
     if (filters.reimbursement === 'Reimbursed' && expense.reimbursement !== 'Reimbursed') return false
     if (filters.reimbursement === 'Pending' && expense.reimbursement !== 'Pending') return false
     if (filters.reimbursement === 'None' && expense.reimbursement) return false
-    if (filters.search && !expense.description.toLowerCase().includes(filters.search.toLowerCase())) return false
+    if (filters.search) {
+      const query = filters.search.toLowerCase()
+      const haystack = `${expense.description} ${parseTags(expense.tags).join(' ')}`.toLowerCase()
+      if (!haystack.includes(query)) return false
+    }
     return true
   })
 }

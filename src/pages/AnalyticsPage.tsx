@@ -8,7 +8,9 @@ import { ExpenseFilterBar } from '../components/expenses/ExpenseTable'
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { QueryError } from '../components/layout/QueryError'
 import { useExpenses } from '../hooks/useExpenses'
+import { useCardBenefits } from '../hooks/useCardBenefits'
 import { useLanguage } from '../hooks/useLanguage'
+import { calculateBenefitUsage, type BenefitUsage } from '../lib/cardBenefits'
 import { chartPalette, categoryColor, categoryIcon, currency, groupTotals, monthlyTotals, monthsForYear } from '../lib/format'
 import { groupTagTotals } from '../lib/tags'
 import { applyExpenseFilters, defaultFilters, type ExpenseFilters } from '../lib/expenseFilters'
@@ -21,11 +23,12 @@ export function AnalyticsPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { data = [], isLoading, error, refetch } = useExpenses()
+  const cardBenefits = useCardBenefits()
   const { t } = useLanguage()
   const requestedPreset = searchParams.get('preset') as ExpenseFilters['preset'] | null
   const initialPreset = requestedPreset && ['thisMonth', 'lastMonth', 'thisYear', 'all', 'custom'].includes(requestedPreset) ? requestedPreset : 'thisYear'
   const requestedTab = searchParams.get('tab')
-  const initialTab = requestedTab && ['category', 'tag', 'payment', 'trend', 'year'].includes(requestedTab) ? requestedTab : 'category'
+  const initialTab = requestedTab && ['category', 'tag', 'payment', 'benefits', 'trend', 'year'].includes(requestedTab) ? requestedTab : 'category'
   const [filters, setFilters] = React.useState<ExpenseFilters>({ ...defaultFilters, preset: initialPreset })
   const [tab, setTab] = React.useState(initialTab)
   const currentYear = new Date().getFullYear()
@@ -43,6 +46,11 @@ export function AnalyticsPage() {
   const trend = monthlyTotals(filtered)
   const compareA = monthsForYear(safeYearA, data)
   const compareB = monthsForYear(safeYearB, data)
+  const benefitUsages = React.useMemo(() => cardBenefits.benefits
+    .map((benefit) => calculateBenefitUsage(benefit, data))
+    .filter((usage): usage is BenefitUsage => Boolean(usage))
+    .sort((a, b) => a.end.localeCompare(b.end) || b.remaining - a.remaining || a.benefit.card.localeCompare(b.benefit.card)),
+  [cardBenefits.benefits, data])
   const yearCompare = compareA.map((item, index) => ({ month: item.month, [String(safeYearA)]: item.value, [String(safeYearB)]: compareB[index]?.value ?? 0 }))
   const yearOptionsA = [currentYear, ...years].filter((v, i, a) => a.indexOf(v) === i)
   const yearOptionsB = [currentYear - 1, ...years].filter((v, i, a) => a.indexOf(v) === i)
@@ -60,6 +68,12 @@ export function AnalyticsPage() {
       navigate(`/expenses?${params.toString()}`)
     }} /> : <EmptyChart />}</CardContent></Card> : null },
     { value: 'payment', label: t('analytics.byPayment', 'By Payment'), content: tab === 'payment' ? <Card><CardHeader><CardTitle>{t('analytics.paymentTitle', 'Spending by payment method')}</CardTitle><CardDescription>{t('analytics.paymentDescription', 'See which cards or accounts carried the load.')}</CardDescription></CardHeader><CardContent>{payment.length ? <div className="h-60 md:h-72"><ResponsiveContainer><BarChart data={payment} layout="vertical" margin={{ left: 20 }}><CartesianGrid strokeDasharray="3 3" stroke="#F0EAE5" /><XAxis type="number" tickFormatter={moneyTick} /><YAxis type="category" dataKey="name" width={90} /><Tooltip formatter={(value: unknown) => currency.format(Number(value || 0))} /><Bar dataKey="total" fill={chartPalette[2]} radius={[0, 12, 12, 0]} /></BarChart></ResponsiveContainer></div> : <EmptyChart />}</CardContent></Card> : null },
+    { value: 'benefits', label: 'Benefits', content: tab === 'benefits' ? <Card><CardHeader><CardTitle>Card benefits</CardTitle><CardDescription>Track credit usage by exact card and current benefit period.</CardDescription></CardHeader><CardContent><BenefitProgressList usages={benefitUsages} tabMissing={cardBenefits.tabMissing} onOpenExpenses={(usage) => {
+      const params = new URLSearchParams({ payment: usage.benefit.card, preset: 'custom', start: usage.start, end: usage.end, from: 'analytics' })
+      if (usage.benefit.category) params.set('category', usage.benefit.category)
+      if (usage.benefit.matcher) params.set('search', usage.benefit.matcher.split(',')[0].trim())
+      navigate(`/expenses?${params.toString()}`)
+    }} /></CardContent></Card> : null },
     { value: 'trend', label: t('analytics.monthlyTrend', 'Monthly Trend'), content: tab === 'trend' ? <Card><CardHeader><CardTitle>{t('analytics.monthlyTrend', 'Monthly trend')}</CardTitle><CardDescription>{t('analytics.trendDescription', 'Gentle waves make patterns easier to spot.')}</CardDescription></CardHeader><CardContent>{trend.length ? <div className="h-60 md:h-72"><ResponsiveContainer><AreaChart data={trend}><defs><linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={chartPalette[0]} stopOpacity={0.35} /><stop offset="95%" stopColor={chartPalette[0]} stopOpacity={0.02} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#F0EAE5" /><XAxis dataKey="month" /><YAxis tickFormatter={moneyTick} /><Tooltip formatter={(value: unknown) => currency.format(Number(value || 0))} /><Area type="monotone" dataKey="total" stroke={chartPalette[0]} fill="url(#trendFill)" strokeWidth={3} /></AreaChart></ResponsiveContainer></div> : <EmptyChart />}</CardContent></Card> : null },
     { value: 'year', label: t('analytics.yearCompare', 'Year Compare'), content: tab === 'year' ? <Card><CardHeader><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><CardTitle>{t('analytics.yearCompare', 'Year compare')}</CardTitle><CardDescription>{t('analytics.yearDescription', 'Month-by-month bars for two years.')}</CardDescription></div><div className="grid grid-cols-2 gap-2 md:flex"><Select value={String(safeYearA)} onChange={(event) => setYearA(Number(event.target.value))}>{yearOptionsA.map((year) => <option key={year}>{year}</option>)}</Select><Select value={String(safeYearB)} onChange={(event) => setYearB(Number(event.target.value))}>{yearOptionsB.map((year) => <option key={year}>{year}</option>)}</Select></div></div></CardHeader><CardContent><div className="h-60 md:h-72"><ResponsiveContainer><BarChart data={yearCompare}><CartesianGrid strokeDasharray="3 3" stroke="#F0EAE5" /><XAxis dataKey="month" /><YAxis tickFormatter={moneyTick} /><Tooltip formatter={(value: unknown) => currency.format(Number(value || 0))} /><Legend /><Bar dataKey={String(safeYearA)} fill={chartPalette[0]} radius={[10, 10, 0, 0]} /><Bar dataKey={String(safeYearB)} fill={chartPalette[3]} radius={[10, 10, 0, 0]} /></BarChart></ResponsiveContainer></div></CardContent></Card> : null },
   ]} /></div>
@@ -68,6 +82,63 @@ export function AnalyticsPage() {
 function EmptyChart() {
   const { t } = useLanguage()
   return <div className="grid h-60 place-items-center rounded-3xl border border-dashed bg-accent/40 p-6 text-center text-muted-foreground md:h-72">{t('expenses.empty', '🌱 Nothing here yet — add your first expense!')}</div>
+}
+
+function BenefitProgressList({ usages, tabMissing, onOpenExpenses }: { usages: BenefitUsage[]; tabMissing: boolean; onOpenExpenses: (usage: BenefitUsage) => void }) {
+  if (tabMissing) return <div className="rounded-3xl border border-dashed bg-butter/10 p-5 text-sm">
+    <p className="font-extrabold">Add a CardBenefits tab to track card credits here.</p>
+    <p className="mt-1 text-muted-foreground">Columns: Card, Benefit, Amount, Period, Category, Merchant/Tag, Start Date, End Date, Active.</p>
+  </div>
+  if (!usages.length) return <EmptyChart />
+  const totalLeft = usages.reduce((sum, usage) => sum + usage.remaining, 0)
+  const totalUsed = usages.reduce((sum, usage) => sum + usage.used, 0)
+  return <div className="space-y-4">
+    <div className="grid gap-2 sm:grid-cols-3">
+      <BenefitKpi label="Credits tracked" value={String(usages.length)} />
+      <BenefitKpi label="Used this period" value={currency.format(totalUsed)} />
+      <BenefitKpi label="Left this period" value={currency.format(totalLeft)} />
+    </div>
+    <div className="grid gap-3 lg:grid-cols-2">
+      {usages.map((usage) => {
+        const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
+        const done = usage.remaining <= 0.005
+        return <div key={usage.benefit.rowIndex} className="overflow-hidden rounded-3xl border border-border/70 bg-card shadow-sm">
+          <div className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-extrabold">{usage.benefit.benefit}</p>
+                <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">{usage.benefit.card}</p>
+              </div>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${done ? 'bg-mint/15 text-emerald-700 dark:text-mint' : 'bg-butter/25 text-amber-700 dark:text-butter'}`}>{done ? 'Used' : `${currency.format(usage.remaining)} left`}</span>
+            </div>
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-muted-foreground">
+              <span>{currency.format(usage.used)} / {currency.format(usage.benefit.amount)} · {usage.count} match{usage.count === 1 ? '' : 'es'}</span>
+              <span>{usage.start} → {usage.end}</span>
+            </div>
+            {(usage.benefit.category || usage.benefit.matcher) && <p className="mt-2 truncate text-xs text-muted-foreground">
+              {[usage.benefit.category, usage.benefit.matcher].filter(Boolean).join(' · ')}
+            </p>}
+          </div>
+          <div className="border-t border-border/60 bg-accent/25 p-3">
+            <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => onOpenExpenses(usage)}>
+              View expenses
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      })}
+    </div>
+  </div>
+}
+
+function BenefitKpi({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-3xl border border-border/70 bg-accent/35 p-4">
+    <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+    <p className="mt-1 font-display text-xl font-extrabold">{value}</p>
+  </div>
 }
 
 function DonutSector({ isActive, cx = 0, cy = 0, midAngle = 0, innerRadius = 0, outerRadius = 0, ...props }: PieSectorShapeProps) {
