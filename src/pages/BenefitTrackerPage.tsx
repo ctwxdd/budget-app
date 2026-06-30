@@ -138,10 +138,14 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
           {group.items.map((usage) => {
             const template = benefitByRow.get(usage.benefit.rowIndex) || usage.benefit
             const credit = usage.creditRows?.[0]
+            const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
             return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2">
               <div className="min-w-0">
                 <p className="truncate text-xs font-extrabold">{usage.benefit.benefit}</p>
                 <p className="truncate text-[11px] font-semibold text-muted-foreground">{currency.format(usage.used)} / {currency.format(usage.benefit.amount)} · {currency.format(usage.remaining)} left</p>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${pct}%` }} />
+                </div>
               </div>
               <div className="flex gap-1">
                 <Button type="button" variant="secondary" size="sm" className="h-8 rounded-full px-3 text-xs" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>{credit ? 'Edit' : 'Used'}</Button>
