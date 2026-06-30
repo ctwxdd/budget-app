@@ -71,12 +71,7 @@ export function AnalyticsPage() {
       navigate(`/expenses?${params.toString()}`)
     }} /> : <EmptyChart />}</CardContent></Card> : null },
     { value: 'payment', label: t('analytics.byPayment', 'By Payment'), content: tab === 'payment' ? <Card><CardHeader><CardTitle>{t('analytics.paymentTitle', 'Spending by payment method')}</CardTitle><CardDescription>{t('analytics.paymentDescription', 'See which cards or accounts carried the load.')}</CardDescription></CardHeader><CardContent>{payment.length ? <div className="h-60 md:h-72"><ResponsiveContainer><BarChart data={payment} layout="vertical" margin={{ left: 20 }}><CartesianGrid strokeDasharray="3 3" stroke="#F0EAE5" /><XAxis type="number" tickFormatter={moneyTick} /><YAxis type="category" dataKey="name" width={90} /><Tooltip formatter={(value: unknown) => currency.format(Number(value || 0))} /><Bar dataKey="total" fill={chartPalette[2]} radius={[0, 12, 12, 0]} /></BarChart></ResponsiveContainer></div> : <EmptyChart />}</CardContent></Card> : null },
-    { value: 'benefits', label: 'Benefits', content: tab === 'benefits' ? <Card><CardHeader><CardTitle>Card benefits</CardTitle><CardDescription>Track each benefit first, then see every card using it.</CardDescription></CardHeader><CardContent><BenefitProgressList usages={benefitUsages} tabMissing={cardBenefits.tabMissing} onOpenExpenses={(usage) => {
-      const params = new URLSearchParams({ payment: usage.benefit.card, preset: 'custom', start: usage.start, end: usage.end, from: 'analytics' })
-      if (usage.benefit.category) params.set('category', usage.benefit.category)
-      if (usage.benefit.matcher) params.set('search', usage.benefit.matcher.split(',')[0].trim())
-      navigate(`/expenses?${params.toString()}`)
-    }} /></CardContent></Card> : null },
+    { value: 'benefits', label: 'Benefits', content: tab === 'benefits' ? <Card><CardHeader><CardTitle>Card benefits</CardTitle><CardDescription>Track each benefit first, then see every card using it.</CardDescription></CardHeader><CardContent><BenefitProgressList usages={benefitUsages} tabMissing={cardBenefits.tabMissing} /></CardContent></Card> : null },
     { value: 'trend', label: t('analytics.monthlyTrend', 'Monthly Trend'), content: tab === 'trend' ? <Card><CardHeader><CardTitle>{t('analytics.monthlyTrend', 'Monthly trend')}</CardTitle><CardDescription>{t('analytics.trendDescription', 'Gentle waves make patterns easier to spot.')}</CardDescription></CardHeader><CardContent>{trend.length ? <div className="h-60 md:h-72"><ResponsiveContainer><AreaChart data={trend}><defs><linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={chartPalette[0]} stopOpacity={0.35} /><stop offset="95%" stopColor={chartPalette[0]} stopOpacity={0.02} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#F0EAE5" /><XAxis dataKey="month" /><YAxis tickFormatter={moneyTick} /><Tooltip formatter={(value: unknown) => currency.format(Number(value || 0))} /><Area type="monotone" dataKey="total" stroke={chartPalette[0]} fill="url(#trendFill)" strokeWidth={3} /></AreaChart></ResponsiveContainer></div> : <EmptyChart />}</CardContent></Card> : null },
     { value: 'year', label: t('analytics.yearCompare', 'Year Compare'), content: tab === 'year' ? <Card><CardHeader><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><CardTitle>{t('analytics.yearCompare', 'Year compare')}</CardTitle><CardDescription>{t('analytics.yearDescription', 'Month-by-month bars for two years.')}</CardDescription></div><div className="grid grid-cols-2 gap-2 md:flex"><Select value={String(safeYearA)} onChange={(event) => setYearA(Number(event.target.value))}>{yearOptionsA.map((year) => <option key={year}>{year}</option>)}</Select><Select value={String(safeYearB)} onChange={(event) => setYearB(Number(event.target.value))}>{yearOptionsB.map((year) => <option key={year}>{year}</option>)}</Select></div></div></CardHeader><CardContent><div className="h-60 md:h-72"><ResponsiveContainer><BarChart data={yearCompare}><CartesianGrid strokeDasharray="3 3" stroke="#F0EAE5" /><XAxis dataKey="month" /><YAxis tickFormatter={moneyTick} /><Tooltip formatter={(value: unknown) => currency.format(Number(value || 0))} /><Legend /><Bar dataKey={String(safeYearA)} fill={chartPalette[0]} radius={[10, 10, 0, 0]} /><Bar dataKey={String(safeYearB)} fill={chartPalette[3]} radius={[10, 10, 0, 0]} /></BarChart></ResponsiveContainer></div></CardContent></Card> : null },
   ]} /></div>
@@ -87,7 +82,7 @@ function EmptyChart() {
   return <div className="grid h-60 place-items-center rounded-3xl border border-dashed bg-accent/40 p-6 text-center text-muted-foreground md:h-72">{t('expenses.empty', '🌱 Nothing here yet — add your first expense!')}</div>
 }
 
-function BenefitProgressList({ usages, tabMissing, onOpenExpenses }: { usages: BenefitUsage[]; tabMissing: boolean; onOpenExpenses: (usage: BenefitUsage) => void }) {
+function BenefitProgressList({ usages, tabMissing }: { usages: BenefitUsage[]; tabMissing: boolean }) {
   if (tabMissing) return <div className="rounded-3xl border border-dashed bg-butter/10 p-5 text-sm">
     <p className="font-extrabold">Add a CardBenefits tab to track card credits here.</p>
     <p className="mt-1 text-muted-foreground">Columns: Product, Benefit, Amount, Period, Category, Merchant/Tag, Start Date, End Date, Active.</p>
@@ -134,15 +129,12 @@ function BenefitProgressList({ usages, tabMissing, onOpenExpenses }: { usages: B
             {group.items.map((usage) => {
               const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
               const done = usage.remaining <= 0.005
-              return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid gap-2 border-b border-border/60 px-3 py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,1.25fr)_minmax(10rem,0.8fr)_auto] sm:items-center sm:px-4">
+              return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid gap-2 border-b border-border/60 px-3 py-2 last:border-b-0 sm:grid-cols-[minmax(0,1.2fr)_minmax(10rem,0.8fr)] sm:items-center sm:px-4">
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
                     <p className="truncate text-sm font-extrabold">{usage.benefit.card}</p>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${done ? 'bg-mint/15 text-emerald-700 dark:text-mint' : 'bg-butter/25 text-amber-700 dark:text-butter'}`}>{done ? 'Done' : `${currency.format(usage.remaining)} left`}</span>
                   </div>
-                  {(usage.benefit.category || usage.benefit.matcher) && <p className="mt-0.5 truncate text-[11px] text-muted-foreground/85">
-                    {[usage.benefit.category, usage.benefit.matcher].filter(Boolean).join(' · ')}
-                  </p>}
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-muted-foreground">
@@ -154,10 +146,6 @@ function BenefitProgressList({ usages, tabMissing, onOpenExpenses }: { usages: B
                   </div>
                   <p className="mt-1 truncate text-[10px] font-medium text-muted-foreground">{usage.start} → {usage.end}</p>
                 </div>
-                <Button type="button" variant="secondary" size="sm" className="h-8 justify-center rounded-full px-3 text-xs sm:w-auto" onClick={() => onOpenExpenses(usage)}>
-                  View
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Button>
               </div>
             })}
           </div>

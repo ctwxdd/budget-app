@@ -98,7 +98,7 @@ export function expandCardBenefitsForCards(benefits: CardBenefit[], cards: Benef
     const benefitProduct = cardProductKey(benefit.card)
     return cards
       .filter((card) => cardProductKey(card.product || card.name) === benefitProduct)
-      .map((card) => ({ ...benefit, card: card.name, startDate: benefit.startDate || card.subStart || '' }))
+      .map((card) => ({ ...benefit, card: card.name, startDate: card.subStart || benefit.startDate || '' }))
   })
 }
 

@@ -92,16 +92,18 @@ test('groups benefit usage by normalized card name', () => {
 })
 
 test('expands product benefit templates to every matching card', () => {
-  const [template] = parseCardBenefitRows([['Amex Platinum', 'Dell Credit', '150', 'annual', '', 'Dell', '', '', 'TRUE']])
+  const [template] = parseCardBenefitRows([['Amex Platinum', 'Dell Credit', '150', 'annual', '', 'Dell', '2026-01-01', '', 'TRUE']])
   const expanded = expandCardBenefitsForCards([template], [
     { name: 'Amex Platinum (Nick) 01000', product: 'Amex Platinum', subStart: '2026-01-15' },
     { name: 'Amex Platinum (Wife) 02000', product: 'Amex Platinum', subStart: '2026-02-20' },
+    { name: 'Amex Platinum (Backup) 03000', product: 'Amex Platinum', subStart: '' },
     { name: 'Amex Gold', product: 'Amex Gold', subStart: '2026-03-01' },
   ])
 
   assert.deepEqual(expanded.map((benefit) => [benefit.card, benefit.startDate]), [
     ['Amex Platinum (Nick) 01000', '2026-01-15'],
     ['Amex Platinum (Wife) 02000', '2026-02-20'],
+    ['Amex Platinum (Backup) 03000', '2026-01-01'],
   ])
 })
 
