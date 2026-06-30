@@ -254,7 +254,7 @@ function CardsContent() {
 
     {cardBenefits.tabMissing && <Card className="rounded-2xl border-dashed bg-butter/10 p-4 text-sm">
       <p className="font-bold">Add a CardBenefits tab to track card credits.</p>
-      <p className="mt-1 text-xs text-muted-foreground">Columns: Card, Benefit, Amount, Period, Category, Merchant/Tag, Start Date, End Date, Active.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Columns: Product, Benefit, Amount, Period, Category, Merchant/Tag, Start Date, End Date, Active.</p>
     </Card>}
 
     <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-white/60 p-2 shadow-sm backdrop-blur dark:bg-card/60 sm:flex-row sm:items-center">

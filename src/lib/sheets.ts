@@ -321,7 +321,7 @@ const CARD_BENEFITS_GID = 4
 const EXPENSE_HEADERS = ['Date', 'Expense', 'Description', 'Category', 'Payment Method', 'Reimbursement', '', 'Tags']
 const GIFTCARD_HEADERS_LEFT = ['Card', 'Date', 'Paid', 'Face', 'Vendor', 'Direct', 'Pool', 'Cum Before', 'FIFO', 'Balance']
 const GIFTCARD_HEADERS_RIGHT = ['Merchant', 'Cards', 'Purchased', 'Spent', 'Balance', 'Active']
-export const cardBenefitsHeaders = ['Card', 'Benefit', 'Amount', 'Period', 'Category', 'Merchant/Tag', 'Start Date', 'End Date', 'Active']
+export const cardBenefitsHeaders = ['Product', 'Benefit', 'Amount', 'Period', 'Category', 'Merchant/Tag', 'Start Date', 'End Date', 'Active']
 
 function headerCell(text: string) {
   return {

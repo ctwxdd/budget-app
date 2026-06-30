@@ -90,7 +90,7 @@ function EmptyChart() {
 function BenefitProgressList({ usages, tabMissing, onOpenExpenses }: { usages: BenefitUsage[]; tabMissing: boolean; onOpenExpenses: (usage: BenefitUsage) => void }) {
   if (tabMissing) return <div className="rounded-3xl border border-dashed bg-butter/10 p-5 text-sm">
     <p className="font-extrabold">Add a CardBenefits tab to track card credits here.</p>
-    <p className="mt-1 text-muted-foreground">Columns: Card, Benefit, Amount, Period, Category, Merchant/Tag, Start Date, End Date, Active.</p>
+    <p className="mt-1 text-muted-foreground">Columns: Product, Benefit, Amount, Period, Category, Merchant/Tag, Start Date, End Date, Active.</p>
   </div>
   if (!usages.length) return <EmptyChart />
   const totalLeft = usages.reduce((sum, usage) => sum + usage.remaining, 0)

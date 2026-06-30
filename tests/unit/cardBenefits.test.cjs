@@ -105,6 +105,15 @@ test('expands product benefit templates to every matching card', () => {
   ])
 })
 
+test('ignores benefit templates without a matching card product', () => {
+  const [template] = parseCardBenefitRows([['Amex Gold', 'Dining Credit', '10', 'monthly', '', '', '', '', 'TRUE']])
+  const expanded = expandCardBenefitsForCards([template], [
+    { name: 'Amex Platinum (Nick) 01000', product: 'Amex Platinum', subStart: '2026-01-15' },
+  ])
+
+  assert.deepEqual(expanded, [])
+})
+
 test('normalizes card product names by removing owners and last4', () => {
   assert.equal(cardProductKey('Amex Platinum (Nick) 01000'), 'amex platinum')
 })

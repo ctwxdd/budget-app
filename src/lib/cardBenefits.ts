@@ -94,16 +94,11 @@ export function cardProductName(name: string) {
 export type BenefitCard = { name: string; product?: string; subStart?: string }
 
 export function expandCardBenefitsForCards(benefits: CardBenefit[], cards: BenefitCard[]): CardBenefit[] {
-  if (!cards.length) return benefits
   return benefits.flatMap((benefit) => {
-    const exact = cards.find((card) => card.name.trim().toLocaleLowerCase() === benefit.card.trim().toLocaleLowerCase())
-    if (exact) return [{ ...benefit, card: exact.name, startDate: benefit.startDate || exact.subStart || '' }]
-
     const benefitProduct = cardProductKey(benefit.card)
-    const matchingCards = cards.filter((card) => cardProductKey(card.product || cardProductName(card.name)) === benefitProduct)
-    return matchingCards.length
-      ? matchingCards.map((card) => ({ ...benefit, card: card.name, startDate: benefit.startDate || card.subStart || '' }))
-      : [benefit]
+    return cards
+      .filter((card) => cardProductKey(card.product || card.name) === benefitProduct)
+      .map((card) => ({ ...benefit, card: card.name, startDate: benefit.startDate || card.subStart || '' }))
   })
 }
 
