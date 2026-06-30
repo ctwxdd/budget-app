@@ -274,7 +274,10 @@ export function cardBenefitToRow(benefit: CardBenefitSheetInput): (string | bool
 }
 
 export async function addCardBenefit(sheetId: string, benefit: CardBenefitSheetInput) {
-  return appendRow(sheetId, 'CardBenefits!A:I', cardBenefitToRow(benefit))
+  const rows = (await getSheet(sheetId, 'CardBenefits!A2:I1000')).values || []
+  const emptyIndex = rows.findIndex((row) => !row.some((cell) => String(cell ?? '').trim()))
+  const rowIndex = (emptyIndex === -1 ? rows.length : emptyIndex) + 2
+  return updateRow(sheetId, `CardBenefits!A${rowIndex}:I${rowIndex}`, cardBenefitToRow(benefit))
 }
 
 // --- New spreadsheet bootstrap ----------------------------------------------

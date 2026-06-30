@@ -51,8 +51,22 @@ export function useAddCardBenefit() {
 
   return useMutation({
     mutationFn: (benefit: CardBenefitSheetInput) => addCardBenefit(sheetId, benefit),
-    onSuccess: () => {
+    onSuccess: (_result, benefit) => {
       clearLocalCache(`cardBenefits.${sheetId}`)
+      queryClient.setQueryData<CardBenefitsData>(['cardBenefits', sheetId], (old) => {
+        const nextBenefit = parseCardBenefitRows([[
+          benefit.card,
+          benefit.benefit,
+          String(benefit.amount),
+          benefit.period,
+          benefit.category,
+          benefit.matcher,
+          benefit.startDate,
+          benefit.endDate,
+          String(benefit.active),
+        ]])[0]
+        return nextBenefit ? { benefits: [...(old?.benefits || []), { ...nextBenefit, rowIndex: -Date.now() }], tabMissing: false } : old
+      })
       queryClient.invalidateQueries({ queryKey: ['cardBenefits', sheetId] })
     },
   })
