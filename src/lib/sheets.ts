@@ -273,11 +273,15 @@ export function cardBenefitToRow(benefit: CardBenefitSheetInput): (string | bool
   ]
 }
 
+export function nextCardBenefitRowIndex(rows: unknown[][]): number {
+  const lastDataIndex = rows.findLastIndex((row) => row.slice(0, 3).some((cell) => String(cell ?? '').trim()))
+  return lastDataIndex + 3
+}
+
 export async function addCardBenefit(sheetId: string, benefit: CardBenefitSheetInput) {
   const row = cardBenefitToRow(benefit)
   const rows = (await getSheet(sheetId, 'CardBenefits!A2:I')).values || []
-  const emptyIndex = rows.findIndex((row) => !row.some((cell) => String(cell ?? '').trim()))
-  const rowIndex = (emptyIndex === -1 ? rows.length : emptyIndex) + 2
+  const rowIndex = nextCardBenefitRowIndex(rows)
   try {
     await updateRow(sheetId, `CardBenefits!A${rowIndex}:I${rowIndex}`, row)
   } catch (error) {

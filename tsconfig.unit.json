@@ -21,6 +21,7 @@
     "src/lib/format.ts",
     "src/lib/giftcards.ts",
     "src/lib/returns.ts",
+    "src/lib/sheets.ts",
     "src/lib/tags.ts",
     "src/lib/types.ts"
   ]
