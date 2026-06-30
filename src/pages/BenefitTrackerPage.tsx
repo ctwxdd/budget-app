@@ -44,68 +44,38 @@ export function BenefitTrackerPage() {
       </CardContent>
     </Card>}
     <Card>
-      <CardHeader>
-        <CardTitle>Benefit tracker</CardTitle>
-        <CardDescription>Track each credit first, then see every active card using it.</CardDescription>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <CardTitle>Benefit tracker</CardTitle>
+          <CardDescription>Track each credit first, then see every active card using it.</CardDescription>
+        </div>
+        {!cardBenefits.tabMissing && <Button type="button" size="sm" onClick={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} className="rounded-full"><Plus className="h-4 w-4" />Add benefit</Button>}
       </CardHeader>
-      <CardContent className={cardBenefits.tabMissing ? '' : 'border-b border-border/60 pb-4'}><BenefitTemplateManager benefits={cardBenefits.benefits} tabMissing={cardBenefits.tabMissing} onAdd={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} onEdit={(benefit) => { setEditingBenefit(benefit); setBenefitDialogOpen(true) }} /></CardContent>
-      {!cardBenefits.tabMissing && <CardContent><BenefitProgressList usages={benefitUsages} creditsDisabled={benefitCredits.tabMissing} onEditCredit={(usage, credit) => { setCreditUsage(usage); setCreditRow(credit || null) }} /></CardContent>}
+      <CardContent><BenefitProgressList usages={benefitUsages} tabMissing={cardBenefits.tabMissing} creditsDisabled={benefitCredits.tabMissing} onAddBenefit={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} onEditBenefit={(benefit) => { setEditingBenefit(benefit); setBenefitDialogOpen(true) }} onEditCredit={(usage, credit) => { setCreditUsage(usage); setCreditRow(credit || null) }} /></CardContent>
     </Card>
     <BenefitDialog open={benefitDialogOpen} onOpenChange={(open) => { setBenefitDialogOpen(open); if (!open) setEditingBenefit(null) }} benefit={editingBenefit} productName={editingBenefit?.card || defaultProduct} />
     {creditUsage && <BenefitCreditDialog open usage={creditUsage} credit={creditRow} onOpenChange={(open) => { if (!open) { setCreditUsage(null); setCreditRow(null) } }} />}
   </div>
 }
 
-function BenefitTemplateManager({ benefits, tabMissing, onAdd, onEdit }: { benefits: CardBenefit[]; tabMissing: boolean; onAdd: () => void; onEdit: (benefit: CardBenefit) => void }) {
+function EmptyBenefits({ onAddBenefit }: { onAddBenefit: () => void }) {
+  return <div className="grid h-60 place-items-center rounded-3xl border border-dashed bg-accent/40 p-6 text-center text-muted-foreground md:h-72">
+    <div>
+      <p>No active benefits to track yet.</p>
+      <Button type="button" size="sm" className="mt-3 rounded-full" onClick={onAddBenefit}><Plus className="h-4 w-4" />Add benefit</Button>
+    </div>
+  </div>
+}
+
+function BenefitProgressList({ usages, tabMissing, creditsDisabled, onAddBenefit, onEditBenefit, onEditCredit }: { usages: BenefitUsage[]; tabMissing: boolean; creditsDisabled: boolean; onAddBenefit: () => void; onEditBenefit: (benefit: CardBenefit) => void; onEditCredit: (usage: BenefitUsage, credit?: CardBenefitCredit) => void }) {
   const deleteBenefit = useDeleteCardBenefit()
   const [confirmBenefit, setConfirmBenefit] = React.useState<CardBenefit | null>(null)
+  const [collapsed, setCollapsed] = React.useState<Set<string>>(() => new Set())
   if (tabMissing) return <div className="rounded-3xl border border-dashed bg-butter/10 p-5 text-sm">
-    <p className="font-extrabold">Add a CardBenefits tab to manage card credit templates here.</p>
+    <p className="font-extrabold">Add a CardBenefits tab to track card credits here.</p>
     <p className="mt-1 text-muted-foreground">Columns: Product, Benefit, Amount, Period, Category, Merchant/Tag, Start Date, End Date, Active.</p>
   </div>
-  return <div className="space-y-3">
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h2 className="text-sm font-extrabold">Benefit templates</h2>
-        <p className="text-xs text-muted-foreground">These define the credits each card product can use.</p>
-      </div>
-      <Button type="button" size="sm" onClick={onAdd} className="rounded-full"><Plus className="h-4 w-4" />Add benefit</Button>
-    </div>
-    {!benefits.length ? <div className="rounded-3xl border border-dashed bg-accent/30 p-4 text-sm text-muted-foreground">No benefit templates yet.</div> : <div className="overflow-hidden rounded-3xl border border-border/70">
-      {benefits.map((benefit) => <div key={benefit.rowIndex} className="grid gap-2 border-b border-border/60 px-3 py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-extrabold">{benefit.benefit}</p>
-          <p className="truncate text-[11px] font-semibold text-muted-foreground">{benefit.card} · {benefit.period}</p>
-        </div>
-        <div className="min-w-0 text-[11px] font-semibold text-muted-foreground">
-          <p className="truncate">{currency.format(benefit.amount)}{benefit.matcher ? ` · ${benefit.matcher}` : ''}</p>
-          <p className="truncate">{benefit.startDate || 'No start'} → {benefit.endDate || 'No end'}{benefit.active ? '' : ' · inactive'}</p>
-        </div>
-        <div className="flex justify-end gap-1">
-          <Button type="button" variant="ghost" size="icon" className="h-9 w-9" onClick={() => onEdit(benefit)} aria-label={`Edit ${benefit.benefit}`}><Pencil className="h-4 w-4" /></Button>
-          <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" onClick={() => setConfirmBenefit(benefit)} disabled={deleteBenefit.isPending} aria-label={`Delete ${benefit.benefit}`}><Trash2 className="h-4 w-4" /></Button>
-        </div>
-      </div>)}
-    </div>}
-    <ConfirmDialog
-      open={!!confirmBenefit}
-      onOpenChange={(open) => { if (!open) setConfirmBenefit(null) }}
-      title={`Delete ${confirmBenefit?.benefit || 'benefit'}?`}
-      description="This clears the benefit row from CardBenefits. Matching expenses and manual credits stay unchanged."
-      confirmLabel="Delete"
-      destructive
-      onConfirm={async () => { if (confirmBenefit) await deleteBenefit.mutateAsync(confirmBenefit) }}
-    />
-  </div>
-}
-
-function EmptyBenefits() {
-  return <div className="grid h-60 place-items-center rounded-3xl border border-dashed bg-accent/40 p-6 text-center text-muted-foreground md:h-72">No active benefits to track yet.</div>
-}
-
-function BenefitProgressList({ usages, creditsDisabled, onEditCredit }: { usages: BenefitUsage[]; creditsDisabled: boolean; onEditCredit: (usage: BenefitUsage, credit?: CardBenefitCredit) => void }) {
-  const [collapsed, setCollapsed] = React.useState<Set<string>>(() => new Set())
-  if (!usages.length) return <EmptyBenefits />
+  if (!usages.length) return <EmptyBenefits onAddBenefit={onAddBenefit} />
   const totalLeft = usages.reduce((sum, usage) => sum + usage.remaining, 0)
   const totalUsed = usages.reduce((sum, usage) => sum + usage.used, 0)
   const groups = Array.from(usages.reduce((map, usage) => {
@@ -176,15 +146,28 @@ function BenefitProgressList({ usages, creditsDisabled, onEditCredit }: { usages
                   </div>
                   <p className="mt-1 truncate text-[10px] font-medium text-muted-foreground">{usage.start} {'->'} {usage.end}</p>
                 </div>
-                <Button type="button" variant="secondary" size="sm" className="h-8 justify-center rounded-full px-3 text-xs sm:w-auto" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>
-                  {credit ? 'Edit' : 'Mark credit'}
-                </Button>
+                <div className="flex items-center justify-end gap-1">
+                  <Button type="button" variant="secondary" size="sm" className="h-8 justify-center rounded-full px-3 text-xs sm:w-auto" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>
+                    {credit ? 'Edit credit' : 'Mark credit'}
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditBenefit(usage.benefit)} aria-label={`Edit ${usage.benefit.benefit}`}><Pencil className="h-3.5 w-3.5" /></Button>
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setConfirmBenefit(usage.benefit)} disabled={deleteBenefit.isPending} aria-label={`Delete ${usage.benefit.benefit}`}><Trash2 className="h-3.5 w-3.5" /></Button>
+                </div>
               </div>
             })}
           </div>}
         </div>
       })}
     </div>
+    <ConfirmDialog
+      open={!!confirmBenefit}
+      onOpenChange={(open) => { if (!open) setConfirmBenefit(null) }}
+      title={`Delete ${confirmBenefit?.benefit || 'benefit'}?`}
+      description="This clears the benefit row from CardBenefits. Matching expenses and manual credits stay unchanged."
+      confirmLabel="Delete"
+      destructive
+      onConfirm={async () => { if (confirmBenefit) await deleteBenefit.mutateAsync(confirmBenefit) }}
+    />
   </div>
 }
 
