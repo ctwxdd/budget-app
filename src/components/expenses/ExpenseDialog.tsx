@@ -9,6 +9,7 @@ import { useCards } from '../../hooks/useCards'
 import type { CardRow } from '../../hooks/useCards'
 import { appendNoteToDescription, classifyPaymentMethod, composeGiftcardDescription, parseGiftcardDescription, splitDescriptionNote, type GiftcardDescriptionParts, type PaymentMethodType } from '../../lib/giftcards'
 import { currency } from '../../lib/format'
+import { findOriginalExpenseForReturn, getReturnSummary } from '../../lib/returns'
 import { cn } from '../../lib/utils'
 import { useToast } from '../ui/Toast'
 import { formatTags, parseTags } from '../../lib/tags'
@@ -866,6 +867,7 @@ function SplitPaymentEditor({
 export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { open: boolean; onOpenChange: (open: boolean) => void; original?: Expense | null; returnExpense?: Expense | null }) {
   const giftcards = useGiftcards()
   const managedCards = useCards()
+  const expenses = useExpenses()
   const addExpense = useAddExpense()
   const updateExpense = useUpdateExpense()
   const { toast } = useToast()
@@ -874,7 +876,10 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     [managedCards.cards],
   )
   const source = returnExpense || original
-  const originalAmount = Math.abs(original?.amount || 0)
+  const linkedOriginal = React.useMemo(() => original || (returnExpense ? findOriginalExpenseForReturn(returnExpense, expenses.data || []) : null), [original, returnExpense, expenses.data])
+  const originalAmount = Math.abs(linkedOriginal?.amount || 0)
+  const returnSummary = React.useMemo(() => linkedOriginal ? getReturnSummary(linkedOriginal, expenses.data || [], returnExpense?.rowIndex) : null, [linkedOriginal, expenses.data, returnExpense?.rowIndex])
+  const maxReturnAmount = returnSummary ? returnSummary.remaining : originalAmount
   const [form, setForm] = React.useState<FormState>(emptyForm)
   const [fullRefund, setFullRefund] = React.useState(true)
   const [paymentType, setPaymentType] = React.useState<PaymentMethodType>('card')
@@ -896,7 +901,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
 
   React.useEffect(() => {
     if (!open || !source) return
-    const amount = Math.abs(returnExpense?.amount ?? original?.amount ?? 0)
+    const amount = Math.abs(returnExpense?.amount ?? maxReturnAmount)
     const paymentMethod = source.paymentMethod
     const merchant = findMerchantForMethod(paymentMethod, giftcards.merchants) || ''
     const defaultStoreCreditVendor = merchant ? ensureGiftcardVendor(merchant) : ''
@@ -917,7 +922,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     setPaymentType(inferredPaymentType)
     setSelectedMerchant(merchant)
     setSelectedGiftcardCard(specificCard || 'auto')
-  }, [open, original, returnExpense, source, giftcards.merchants])
+  }, [open, original, returnExpense, source, giftcards.merchants, maxReturnAmount])
 
   if (!source) return null
 
@@ -947,7 +952,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
   const toggleFullRefund = () => {
     const next = !fullRefund
     setFullRefund(next)
-    if (next && originalAmount > 0) setForm((current) => ({ ...current, amount: originalAmount }))
+    if (next && maxReturnAmount > 0) setForm((current) => ({ ...current, amount: maxReturnAmount }))
   }
 
   const chooseGiftcardReturnMode = (mode: GiftcardReturnMode) => {
@@ -969,10 +974,10 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    const amount = fullRefund && originalAmount > 0 ? originalAmount : Math.abs(Number(form.amount))
+    const amount = fullRefund && maxReturnAmount > 0 ? maxReturnAmount : Math.abs(Number(form.amount))
     const zeroAmountReturnEdit = Boolean(returnExpense && Math.abs(Number(returnExpense.amount) || 0) < 0.005)
     if (!Number.isFinite(amount) || (amount === 0 && !zeroAmountReturnEdit)) return toast({ title: 'Return amount is required.', variant: 'destructive' })
-    if (originalAmount > 0 && amount - originalAmount > 0.005) return toast({ title: 'Return amount is more than the purchase.', description: `The original purchase was ${currency.format(originalAmount)}.`, variant: 'destructive' })
+    if (maxReturnAmount > 0 && amount - maxReturnAmount > 0.005) return toast({ title: 'Return amount is more than the remaining purchase.', description: `Only ${currency.format(maxReturnAmount)} remains after other returns.`, variant: 'destructive' })
     const creatingNewGiftcard = giftcardReturnMode === 'new' && !returnExpense
     const refundPaymentMethod = creatingNewGiftcard ? (original?.paymentMethod || form.paymentMethod) : form.paymentMethod
     const payload = { date: form.date, amount: -amount, description: form.description, category: form.category, paymentMethod: refundPaymentMethod, reimbursement: '', tags: formatTags(form.tags) }
@@ -1000,22 +1005,29 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
   }
 
   const saving = addExpense.isPending || updateExpense.isPending
+  const currentReturnAmount = fullRefund && maxReturnAmount > 0 ? maxReturnAmount : Math.abs(Number(form.amount) || 0)
+  const returnedAfterThis = (returnSummary?.returned || 0) + currentReturnAmount
+  const remainingAfterThis = Math.max(0, originalAmount - returnedAfterThis)
   return <Dialog
     open={open}
     onOpenChange={onOpenChange}
     title={returnExpense ? 'Edit return' : 'Add return'}
-    description={original ? `${original.description || original.category || 'Purchase'} · ${original.date} · ${currency.format(originalAmount)}` : 'Saved as a negative row in your Google Sheet.'}
+    description={linkedOriginal ? `${linkedOriginal.description || linkedOriginal.category || 'Purchase'} · ${linkedOriginal.date} · ${currency.format(originalAmount)}` : 'Saved as a negative row in your Google Sheet.'}
     className="overflow-x-hidden"
     mobileBottomSheet
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" form={formId} variant="gradient" disabled={saving}>{saving ? 'Saving...' : (returnExpense ? 'Save return' : 'Add return')}</Button></div>}
   >
     <form id={formId} onSubmit={submit} className="grid w-full min-w-0 max-w-full gap-x-5 gap-y-4 px-0.5 pb-0.5 sm:grid-cols-2">
-      {original && <button type="button" aria-pressed={fullRefund} onClick={toggleFullRefund} className={cn('flex items-center gap-3 rounded-3xl border p-3 text-left transition sm:col-span-2', fullRefund ? 'border-mint/40 bg-mint/10 text-emerald-700 dark:text-mint' : 'border-border bg-accent/35 text-foreground hover:bg-accent/60')}>
+      {linkedOriginal && <button type="button" aria-pressed={fullRefund} onClick={toggleFullRefund} className={cn('flex items-center gap-3 rounded-3xl border p-3 text-left transition sm:col-span-2', fullRefund ? 'border-mint/40 bg-mint/10 text-emerald-700 dark:text-mint' : 'border-border bg-accent/35 text-foreground hover:bg-accent/60')}>
         <span className={cn('grid h-6 w-6 shrink-0 place-items-center rounded-full border text-xs font-bold', fullRefund ? 'border-mint bg-mint text-white' : 'border-muted-foreground/40 text-transparent')}>✓</span>
-        <span className="min-w-0"><span className="block text-sm font-extrabold">Full refund</span><span className="block text-xs font-medium text-muted-foreground">Use the full purchase amount: {currency.format(originalAmount)}</span></span>
+        <span className="min-w-0"><span className="block text-sm font-extrabold">Full refund</span><span className="block text-xs font-medium text-muted-foreground">Use the remaining purchase amount: {currency.format(maxReturnAmount)}</span></span>
       </button>}
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Return date</span><Input className="min-w-0 max-w-full appearance-none" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /><DateQuickChips selected={form.date} onPick={(date) => setForm({ ...form, date })} /></label>
-      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Return amount</span><DecimalInput className={cn('min-w-0 max-w-full', fullRefund && 'bg-muted text-muted-foreground')} required disabled={fullRefund} value={fullRefund && originalAmount > 0 ? originalAmount : form.amount} onChange={setAmount} />{fullRefund ? <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Amount is locked for a full refund.</span> : <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Enter a positive partial refund amount.</span>}</label>
+      <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground"><span className="block">Return amount</span><DecimalInput className={cn('min-w-0 max-w-full', fullRefund && 'bg-muted text-muted-foreground')} required disabled={fullRefund} value={fullRefund && maxReturnAmount > 0 ? maxReturnAmount : form.amount} onChange={setAmount} />{fullRefund ? <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Amount is locked for the remaining refund.</span> : <span className="block px-1 text-[11px] font-medium text-muted-foreground/80">Enter a positive partial refund amount.</span>}</label>
+      {linkedOriginal && <div className="rounded-3xl border border-mint/30 bg-mint/10 p-3 text-sm sm:col-span-2">
+        <p className="font-extrabold text-emerald-700 dark:text-mint">Return balance</p>
+        <p className="mt-1 text-xs font-semibold text-muted-foreground">Original {currency.format(originalAmount)} · already returned {currency.format(returnSummary?.returned || 0)} · after this return left {currency.format(remainingAfterThis)}</p>
+      </div>}
       <label className="block min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2"><span className="block">Description</span><Input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Return: purchase description (date)" /></label>
       <div className="rounded-3xl border border-border/70 bg-accent/35 p-3 text-sm sm:col-span-2"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Category</p><p className="mt-1 font-semibold text-foreground">{form.category || 'Uncategorized'}</p></div>
       {original && !returnExpense && (originalIsGiftcard || giftcardReturnMode === 'new') && <div className="space-y-3 rounded-3xl border border-border/70 bg-accent/25 p-3 sm:col-span-2">

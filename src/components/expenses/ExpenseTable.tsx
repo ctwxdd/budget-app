@@ -4,9 +4,11 @@ import { addDays, addMonths, endOfMonth, endOfWeek, format, isBefore, isSameDay,
 import { ArrowDownUp, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Filter, LayoutGrid, List, MoreHorizontal, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import type { DatePreset, Expense } from '../../lib/types'
 import { categoryColor, categoryIcon, categoryName, currency, displayDate, sumExpenses } from '../../lib/format'
+import type { ReturnSummary } from '../../lib/returns'
+import { getReturnSummary } from '../../lib/returns'
 import { cn } from '../../lib/utils'
 import { Badge, Button, Card, Dialog, Input, Select } from '../ui'
-import { useAddExpense, useCategories, useDeleteExpense, usePaymentMethods, useSheetId, useSheetMeta, useTags } from '../../hooks/useExpenses'
+import { useAddExpense, useCategories, useDeleteExpense, useExpenses, usePaymentMethods, useSheetId, useSheetMeta, useTags } from '../../hooks/useExpenses'
 import { useToast } from '../ui/Toast'
 import { parseTags } from '../../lib/tags'
 import { useLanguage } from '../../hooks/useLanguage'
@@ -40,6 +42,13 @@ function TagChips({ value, compact = false }: { value: string; compact?: boolean
   return <div className={cn('flex min-w-0 flex-wrap gap-1.5', compact && 'gap-1')}>
     {tags.map((tag) => <span key={tag} className={cn('inline-flex max-w-full items-center truncate rounded-full border border-primary/20 bg-primary/[0.08] font-semibold text-primary', compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-0.5 text-[11px]')} title={tag}>#{tag}</span>)}
   </div>
+}
+
+function ReturnBalance({ summary, compact = false }: { summary?: ReturnSummary | null; compact?: boolean }) {
+  if (!summary?.count) return null
+  return <p className={cn('font-semibold text-emerald-700 dark:text-mint', compact ? 'mt-0.5 text-[11px]' : 'mt-1 text-xs')}>
+    Returned {currency.format(summary.returned)} · left {currency.format(summary.remaining)}
+  </p>
 }
 
 function MultiSelect({ label, values, options, onChange }: { label: string; values: string[]; options: string[]; onChange: (values: string[]) => void }) {
@@ -239,6 +248,7 @@ function ExpenseMoreMenu({ expense, onOpenSheet, canOpenSheet }: { expense: Expe
 
 type ExpenseItemProps = {
   expense: Expense
+  returnSummary?: ReturnSummary | null
   onEdit: (expense: Expense) => void
   onRemove: (expense: Expense) => void
   onDuplicate: (expense: Expense) => void
@@ -251,7 +261,7 @@ type ExpenseItemProps = {
   onEnterSelectionMode: (expense: Expense) => void
 }
 
-function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, onReturn, onOpenSheet, canOpenSheet, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: ExpenseItemProps) {
+function ExpenseCard({ expense, returnSummary, onEdit, onRemove, onDuplicate, onReturn, onOpenSheet, canOpenSheet, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: ExpenseItemProps) {
   const [open, setOpen] = React.useState(false)
   const { t } = useLanguage()
   const color = categoryColor(expense.category)
@@ -312,14 +322,14 @@ function ExpenseCard({ expense, onEdit, onRemove, onDuplicate, onReturn, onOpenS
     onTouchCancel={clearLongPress}
   >
     {selected && <span className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-coral text-white shadow-soft"><Check className="h-4 w-4" /></span>}
-    <div className="flex min-w-0 items-start justify-between gap-3 pr-7"><div className="flex min-w-0 flex-1 items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>{Icon ? <Icon className="h-5 w-5" strokeWidth={2.2} /> : (expense.category || '?').slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate font-bold">{expense.description || t('expenses.noDescription', 'No description')}</p><p className="text-sm text-muted-foreground">{displayDate(expense.date)}</p></div></div><p className="shrink-0 whitespace-nowrap font-display text-lg font-extrabold text-coral">{currency.format(expense.amount)}</p></div>
+    <div className="flex min-w-0 items-start justify-between gap-3 pr-7"><div className="flex min-w-0 flex-1 items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold" style={{ backgroundColor: color.bg, color: color.text }}>{Icon ? <Icon className="h-5 w-5" strokeWidth={2.2} /> : (expense.category || '?').slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate font-bold">{expense.description || t('expenses.noDescription', 'No description')}</p><p className="text-sm text-muted-foreground">{displayDate(expense.date)}</p><ReturnBalance summary={returnSummary} /></div></div><p className="shrink-0 whitespace-nowrap font-display text-lg font-extrabold text-coral">{currency.format(expense.amount)}</p></div>
     <div className="mt-3 flex min-w-0 flex-nowrap items-center gap-2"><div className="min-w-0 max-w-[38%] shrink"><ColorBadge value={categoryName(expense.category)} /></div><div className="min-w-0 flex-1 overflow-hidden"><ColorBadge value={expense.paymentMethod || t('expenses.unknown', 'Unknown')} variant="payment" /></div>{expense.reimbursement && <div className="shrink-0"><ReimbursementChip value={expense.reimbursement} /></div>}{!selectionMode && <div className="shrink-0"><ExpenseMoreMenu expense={expense} canOpenSheet={canOpenSheet} onOpenSheet={onOpenSheet} /></div>}</div>
     {expense.tags && <div className="mt-2"><TagChips value={expense.tags} compact /></div>}
     {open && <div className="mt-3 border-t border-border/70 pt-3" onClick={(event) => event.stopPropagation()}><ExpenseActionPanel expense={expense} onEdit={onEdit} onReturn={onReturn} onDuplicate={onDuplicate} onRemove={onRemove} onClose={() => setOpen(false)} /></div>}
   </div>
 }
 
-function ExpenseListItem({ expense, onEdit, onRemove, onDuplicate, onReturn, onOpenSheet, canOpenSheet, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: ExpenseItemProps) {
+function ExpenseListItem({ expense, returnSummary, onEdit, onRemove, onDuplicate, onReturn, onOpenSheet, canOpenSheet, selected, selectionMode, onToggleSelected, onEnterSelectionMode }: ExpenseItemProps) {
   const [open, setOpen] = React.useState(false)
   const { t } = useLanguage()
   const color = categoryColor(expense.category)
@@ -375,6 +385,7 @@ function ExpenseListItem({ expense, onEdit, onRemove, onDuplicate, onReturn, onO
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold">{expense.description || t('expenses.noDescription', 'No description')}</p>
         <p className="mt-0.5 truncate text-xs text-muted-foreground">{categoryName(expense.category)} · {expense.paymentMethod || t('expenses.unknown', 'Unknown')}{parseTags(expense.tags).length ? ` · #${parseTags(expense.tags).join(' #')}` : ''}</p>
+        <ReturnBalance summary={returnSummary} compact />
       </div>
       <div className="shrink-0 text-right">
         <p className="font-display text-sm font-extrabold tabular-nums text-coral">{currency.format(expense.amount)}</p>
@@ -400,6 +411,8 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
   const expenseSheetGid = sheetMeta.data?.sheets.find((sheet) => sheet.title === 'Expense')?.sheetId
   const { toast } = useToast()
   const { t } = useLanguage()
+  const allExpenses = useExpenses()
+  const allExpenseRows = allExpenses.data || expenses
   const sorted = React.useMemo(() => [...expenses].sort((a, b) => compareExpenses(a, b, sortKey, sortDir)), [expenses, sortKey, sortDir])
   const pageSize = 50
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
@@ -460,11 +473,12 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
         <tbody>{current.map((expense) => {
           const selected = selectedIds.has(expense.rowIndex)
           const open = openRowIndex === expense.rowIndex
+          const returnSummary = expense.amount > 0 ? getReturnSummary(expense, allExpenseRows) : null
           return <React.Fragment key={expense.rowIndex}>
             <tr className={cn('cursor-pointer border-t transition hover:bg-coral/5', selected && 'bg-coral/10', open && 'bg-accent/35')} onClick={() => selectionMode ? onToggleSelected(expense) : setOpenRowIndex((currentRow) => currentRow === expense.rowIndex ? null : expense.rowIndex)}>
               <td className="p-4" onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={`${t('common.select', 'Select')} ${expense.description || t('nav.expenses', 'expense')}`} className="h-4 w-4 rounded border-input accent-coral" checked={selected} onChange={() => onToggleSelected(expense)} /></td>
               <td className="whitespace-nowrap p-4">{displayDate(expense.date)}</td>
-              <td className="p-4 text-right font-display font-bold text-coral">{currency.format(expense.amount)}</td>
+              <td className="p-4 text-right"><p className="font-display font-bold text-coral">{currency.format(expense.amount)}</p><ReturnBalance summary={returnSummary} compact /></td>
               <td className="p-4">{expense.description || <span className="text-muted-foreground">{t('expenses.noDescription', 'No description')}</span>}</td>
               <td className="p-4"><ColorBadge value={categoryName(expense.category)} /></td>
               <td className="p-4"><ColorBadge value={expense.paymentMethod || t('expenses.unknown', 'Unknown')} variant="payment" /></td>
@@ -492,7 +506,7 @@ export function ExpenseTable({ expenses, onEdit, onDuplicate, onReturn, selected
           lastDate = expense.date
           items.push(<div key={`day-${expense.date}`} className={cn('text-[11px] font-bold uppercase tracking-wider text-muted-foreground', mobileView === 'cards' ? 'mt-2 px-1 pt-1 first:mt-0' : 'border-y border-border/60 bg-muted/30 px-3 py-1.5 first:border-t-0')}>{dayLabel(expense.date, t)}</div>)
         }
-        const sharedProps = { expense, onEdit, onRemove: remove, onDuplicate, onReturn, onOpenSheet: openInSheet, canOpenSheet, selected: selectedIds.has(expense.rowIndex), selectionMode, onToggleSelected, onEnterSelectionMode }
+        const sharedProps = { expense, returnSummary: expense.amount > 0 ? getReturnSummary(expense, allExpenseRows) : null, onEdit, onRemove: remove, onDuplicate, onReturn, onOpenSheet: openInSheet, canOpenSheet, selected: selectedIds.has(expense.rowIndex), selectionMode, onToggleSelected, onEnterSelectionMode }
         items.push(mobileView === 'cards' ? <ExpenseCard key={expense.rowIndex} {...sharedProps} /> : <ExpenseListItem key={expense.rowIndex} {...sharedProps} />)
       }
       return items
