@@ -9,8 +9,9 @@ import { SkeletonCards } from '../components/layout/Skeletons'
 import { QueryError } from '../components/layout/QueryError'
 import { useExpenses } from '../hooks/useExpenses'
 import { useCardBenefits } from '../hooks/useCardBenefits'
+import { useCards } from '../hooks/useCards'
 import { useLanguage } from '../hooks/useLanguage'
-import { calculateBenefitUsage, type BenefitUsage } from '../lib/cardBenefits'
+import { calculateBenefitUsage, expandCardBenefitsForCards, type BenefitUsage } from '../lib/cardBenefits'
 import { chartPalette, categoryColor, categoryIcon, currency, groupTotals, monthlyTotals, monthsForYear } from '../lib/format'
 import { groupTagTotals } from '../lib/tags'
 import { applyExpenseFilters, defaultFilters, type ExpenseFilters } from '../lib/expenseFilters'
@@ -24,6 +25,7 @@ export function AnalyticsPage() {
   const [searchParams] = useSearchParams()
   const { data = [], isLoading, error, refetch } = useExpenses()
   const cardBenefits = useCardBenefits()
+  const cardsQuery = useCards()
   const { t } = useLanguage()
   const requestedPreset = searchParams.get('preset') as ExpenseFilters['preset'] | null
   const initialPreset = requestedPreset && ['thisMonth', 'lastMonth', 'thisYear', 'all', 'custom'].includes(requestedPreset) ? requestedPreset : 'thisYear'
@@ -46,11 +48,12 @@ export function AnalyticsPage() {
   const trend = monthlyTotals(filtered)
   const compareA = monthsForYear(safeYearA, data)
   const compareB = monthsForYear(safeYearB, data)
-  const benefitUsages = React.useMemo(() => cardBenefits.benefits
+  const effectiveBenefits = React.useMemo(() => expandCardBenefitsForCards(cardBenefits.benefits, cardsQuery.cards), [cardBenefits.benefits, cardsQuery.cards])
+  const benefitUsages = React.useMemo(() => effectiveBenefits
     .map((benefit) => calculateBenefitUsage(benefit, data))
     .filter((usage): usage is BenefitUsage => Boolean(usage))
     .sort((a, b) => a.end.localeCompare(b.end) || b.remaining - a.remaining || a.benefit.card.localeCompare(b.benefit.card)),
-  [cardBenefits.benefits, data])
+  [effectiveBenefits, data])
   const yearCompare = compareA.map((item, index) => ({ month: item.month, [String(safeYearA)]: item.value, [String(safeYearB)]: compareB[index]?.value ?? 0 }))
   const yearOptionsA = [currentYear, ...years].filter((v, i, a) => a.indexOf(v) === i)
   const yearOptionsB = [currentYear - 1, ...years].filter((v, i, a) => a.indexOf(v) === i)
@@ -102,7 +105,7 @@ function BenefitProgressList({ usages, tabMissing, onOpenExpenses }: { usages: B
       {usages.map((usage) => {
         const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
         const done = usage.remaining <= 0.005
-        return <div key={usage.benefit.rowIndex} className="grid gap-2 border-b border-border/60 px-3 py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.8fr)_auto] sm:items-center sm:px-4">
+        return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid gap-2 border-b border-border/60 px-3 py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.8fr)_auto] sm:items-center sm:px-4">
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <p className="truncate text-sm font-extrabold">{usage.benefit.benefit}</p>

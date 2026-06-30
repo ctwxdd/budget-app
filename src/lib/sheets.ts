@@ -191,6 +191,7 @@ export async function deleteRows(sheetId: string, sheetGid: number, rowIndexes: 
 export type CardSheetRow = {
   rowIndex: number
   name: string
+  product: string
   issuer: string
   last4: string
   active: boolean
@@ -215,7 +216,7 @@ export type CardBenefitSheetInput = {
   active: boolean
 }
 
-export const cardsHeaders = ['Name', 'Issuer', 'Last4', 'Active', 'Note', 'Annual Fee', 'SUB Required', 'SUB Start', 'SUB Deadline', 'SUB Bonus']
+export const cardsHeaders = ['Name', 'Issuer', 'Last4', 'Active', 'Note', 'Annual Fee', 'SUB Required', 'SUB Start', 'SUB Deadline', 'SUB Bonus', 'Product']
 
 function moneyCell(value: number): string {
   const amount = Number(value) || 0
@@ -226,8 +227,8 @@ function moneyCell(value: number): string {
   })}`
 }
 
-// Writes touch A:J — the in-app dialog now edits the SUB fields too.
-// Columns K+ (the user's progress formulas, if any) are left untouched.
+// Writes touch A:K — the in-app dialog now edits the SUB + Product fields too.
+// Columns L+ (the user's progress formulas, if any) are left untouched.
 export function cardToRow(card: CardSheetInput | CardSheetRow): (string | number | boolean)[] {
   return [
     card.name,
@@ -240,6 +241,7 @@ export function cardToRow(card: CardSheetInput | CardSheetRow): (string | number
     card.subStart || '',
     card.subDeadline || '',
     card.subBonus || '',
+    card.product || '',
   ]
 }
 
@@ -248,11 +250,11 @@ export async function createCardsTab(sheetId: string) {
 }
 
 export async function addCard(sheetId: string, card: CardSheetInput) {
-  return appendRow(sheetId, 'Cards!A:J', cardToRow(card))
+  return appendRow(sheetId, 'Cards!A:K', cardToRow(card))
 }
 
 export async function updateCard(sheetId: string, card: CardSheetRow) {
-  return updateRow(sheetId, `Cards!A${card.rowIndex}:J${card.rowIndex}`, cardToRow(card))
+  return updateRow(sheetId, `Cards!A${card.rowIndex}:K${card.rowIndex}`, cardToRow(card))
 }
 
 export async function deleteCard(sheetId: string, sheetGid: number, rowIndex: number) {

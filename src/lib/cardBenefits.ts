@@ -79,6 +79,34 @@ function money(value: number) {
   return Math.round((Number(value) || 0) * 100) / 100
 }
 
+export function cardProductKey(name: string) {
+  return cardProductName(name).toLocaleLowerCase()
+}
+
+export function cardProductName(name: string) {
+  return String(name || '')
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
+    .replace(/[-–—]?\s*\d{4,}\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export type BenefitCard = { name: string; product?: string; subStart?: string }
+
+export function expandCardBenefitsForCards(benefits: CardBenefit[], cards: BenefitCard[]): CardBenefit[] {
+  if (!cards.length) return benefits
+  return benefits.flatMap((benefit) => {
+    const exact = cards.find((card) => card.name.trim().toLocaleLowerCase() === benefit.card.trim().toLocaleLowerCase())
+    if (exact) return [{ ...benefit, card: exact.name, startDate: benefit.startDate || exact.subStart || '' }]
+
+    const benefitProduct = cardProductKey(benefit.card)
+    const matchingCards = cards.filter((card) => cardProductKey(card.product || cardProductName(card.name)) === benefitProduct)
+    return matchingCards.length
+      ? matchingCards.map((card) => ({ ...benefit, card: card.name, startDate: benefit.startDate || card.subStart || '' }))
+      : [benefit]
+  })
+}
+
 export function parseCardBenefitRows(rows: string[][] = []): CardBenefit[] {
   return rows
     .map((row, index) => {

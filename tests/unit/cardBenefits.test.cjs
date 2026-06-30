@@ -5,6 +5,8 @@ const {
   benefitWindow,
   calculateBenefitUsage,
   calculateBenefitUsageByCard,
+  cardProductKey,
+  expandCardBenefitsForCards,
   parseCardBenefitRows,
 } = require('../../.tmp-test/src/lib/cardBenefits.js')
 
@@ -87,4 +89,22 @@ test('groups benefit usage by normalized card name', () => {
 
   assert.equal(grouped.get('amex platinum')[0].used, 44)
   assert.equal(grouped.get('amex brilliant')[0].remaining, 15)
+})
+
+test('expands product benefit templates to every matching card', () => {
+  const [template] = parseCardBenefitRows([['Amex Platinum', 'Dell Credit', '150', 'annual', '', 'Dell', '', '', 'TRUE']])
+  const expanded = expandCardBenefitsForCards([template], [
+    { name: 'Amex Platinum (Nick) 01000', product: 'Amex Platinum', subStart: '2026-01-15' },
+    { name: 'Amex Platinum (Wife) 02000', product: 'Amex Platinum', subStart: '2026-02-20' },
+    { name: 'Amex Gold', product: 'Amex Gold', subStart: '2026-03-01' },
+  ])
+
+  assert.deepEqual(expanded.map((benefit) => [benefit.card, benefit.startDate]), [
+    ['Amex Platinum (Nick) 01000', '2026-01-15'],
+    ['Amex Platinum (Wife) 02000', '2026-02-20'],
+  ])
+})
+
+test('normalizes card product names by removing owners and last4', () => {
+  assert.equal(cardProductKey('Amex Platinum (Nick) 01000'), 'amex platinum')
 })
