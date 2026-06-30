@@ -29,7 +29,7 @@ export function BenefitTrackerPage() {
   const [creditRow, setCreditRow] = React.useState<CardBenefitCredit | null>(null)
   const [benefitDialogOpen, setBenefitDialogOpen] = React.useState(false)
   const [editingBenefit, setEditingBenefit] = React.useState<CardBenefit | null>(null)
-  const productNames = React.useMemo(() => Array.from(new Set(cardsQuery.cards.map((card) => card.product || card.name).filter(Boolean))).sort(), [cardsQuery.cards])
+  const productNames = React.useMemo(() => cardsQuery.cards.filter((card) => card.active && card.name).map((card) => card.name).reverse(), [cardsQuery.cards])
   const benefitByRow = React.useMemo(() => new Map(cardBenefits.benefits.map((benefit) => [benefit.rowIndex, benefit])), [cardBenefits.benefits])
   const editBenefit = React.useCallback((benefit: CardBenefit) => {
     setEditingBenefit(benefitByRow.get(benefit.rowIndex) || benefit)
