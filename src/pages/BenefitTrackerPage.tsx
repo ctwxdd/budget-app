@@ -32,10 +32,9 @@ export function BenefitTrackerPage() {
   const [creditRow, setCreditRow] = React.useState<CardBenefitCredit | null>(null)
   const [benefitDialogOpen, setBenefitDialogOpen] = React.useState(false)
   const [editingBenefit, setEditingBenefit] = React.useState<CardBenefit | null>(null)
-  const productNames = React.useMemo(() => Array.from(new Set([
-    ...cardBenefits.benefits.map((benefit) => benefit.card),
-    ...cardsQuery.cards.map((card) => card.product),
-  ].map((name) => name.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b)), [cardBenefits.benefits, cardsQuery.cards])
+  const productNames = React.useMemo(() => Array.from(new Set(
+    cardBenefits.benefits.map((benefit) => benefit.card.trim()).filter(Boolean),
+  )).sort((a, b) => a.localeCompare(b)), [cardBenefits.benefits])
   const benefitByRow = React.useMemo(() => new Map(cardBenefits.benefits.map((benefit) => [benefit.rowIndex, benefit])), [cardBenefits.benefits])
   const editBenefit = React.useCallback((benefit: CardBenefit) => {
     setEditingBenefit(benefitByRow.get(benefit.rowIndex) || benefit)
@@ -78,21 +77,20 @@ function EmptyBenefits({ onAddBenefit }: { onAddBenefit: () => void }) {
   </div>
 }
 
-function BenefitActionsMenu({ benefit, label, disabled, onEdit, onDelete }: { benefit?: CardBenefit; label: string; disabled?: boolean; onEdit: (benefit: CardBenefit) => void; onDelete: (benefit: CardBenefit) => void }) {
+function BenefitActionsMenu({ benefit, label, open, disabled, onOpenChange, onEdit, onDelete }: { benefit?: CardBenefit; label: string; open: boolean; disabled?: boolean; onOpenChange: (open: boolean) => void; onEdit: (benefit: CardBenefit) => void; onDelete: (benefit: CardBenefit) => void }) {
   const { t } = useLanguage()
-  const [open, setOpen] = React.useState(false)
   React.useEffect(() => {
     if (!open) return
-    const close = () => setOpen(false)
+    const close = () => onOpenChange(false)
     window.addEventListener('click', close)
     return () => window.removeEventListener('click', close)
-  }, [open])
+  }, [open, onOpenChange])
   if (!benefit) return null
-  return <div className="relative" onClick={(event) => event.stopPropagation()}>
-    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" disabled={disabled} aria-label={t('benefits.actionsFor', `Actions for ${label}`)} aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal className="h-4 w-4" /></Button>
-    {open && <div className="absolute right-0 z-30 mt-1 w-36 overflow-hidden rounded-2xl border border-border bg-card p-1 shadow-xl">
-      <button type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-accent" onClick={() => { setOpen(false); onEdit(benefit) }}><Pencil className="h-4 w-4" />{t('common.edit', 'Edit')}</button>
-      <button type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-destructive hover:bg-destructive/10" onClick={() => { setOpen(false); onDelete(benefit) }}><Trash2 className="h-4 w-4" />{t('common.delete', 'Delete')}</button>
+  return <div className="relative z-50" onClick={(event) => event.stopPropagation()}>
+    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" disabled={disabled} aria-label={t('benefits.actionsFor', `Actions for ${label}`)} aria-expanded={open} onClick={() => onOpenChange(!open)}><MoreHorizontal className="h-4 w-4" /></Button>
+    {open && <div className="absolute right-0 z-[80] mt-1 w-36 overflow-hidden rounded-2xl border border-border bg-card p-1 shadow-2xl">
+      <button type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-accent" onClick={() => { onOpenChange(false); onEdit(benefit) }}><Pencil className="h-4 w-4" />{t('common.edit', 'Edit')}</button>
+      <button type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-destructive hover:bg-destructive/10" onClick={() => { onOpenChange(false); onDelete(benefit) }}><Trash2 className="h-4 w-4" />{t('common.delete', 'Delete')}</button>
     </div>}
   </div>
 }
@@ -104,6 +102,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
   const [view, setView] = React.useState<'benefit' | 'card'>('benefit')
   const [collapsed, setCollapsed] = React.useState<Set<string> | null>(null)
   const [cardSearch, setCardSearch] = React.useState('')
+  const [openActionKey, setOpenActionKey] = React.useState('')
   const visibleUsages = React.useMemo(() => {
     const query = cardSearch.trim().toLocaleLowerCase()
     if (!query) return usages
@@ -192,7 +191,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
               </div>
               <div className="flex gap-1">
                 <Button type="button" variant="secondary" size="sm" className="h-8 rounded-full px-3 text-xs" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>{credit ? t('common.edit', 'Edit') : t('benefits.usedButton', 'Used')}</Button>
-                <BenefitActionsMenu benefit={template} label={usage.benefit.benefit} disabled={deleteBenefit.isPending} onEdit={onEditBenefit} onDelete={setConfirmBenefit} />
+                <BenefitActionsMenu benefit={template} label={usage.benefit.benefit} open={openActionKey === `card-${usage.benefit.rowIndex}-${usage.benefit.card}`} disabled={deleteBenefit.isPending} onOpenChange={(open) => setOpenActionKey(open ? `card-${usage.benefit.rowIndex}-${usage.benefit.card}` : '')} onEdit={onEditBenefit} onDelete={setConfirmBenefit} />
               </div>
             </div>
           })}
@@ -203,7 +202,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
       {groups.map((group) => {
         const groupPct = group.amount > 0 ? Math.min(100, Math.round((group.used / group.amount) * 100)) : 0
         const isCollapsed = isGroupCollapsed(group.key)
-        return <div key={group.key} className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+        return <div key={group.key} className={`relative overflow-visible rounded-2xl border border-border/70 bg-card shadow-sm ${openActionKey === `benefit-${group.key}` ? 'z-50' : 'z-0'}`}>
           <div className={`border-border/60 bg-accent/20 px-3 py-2 transition sm:px-3.5 ${isCollapsed ? '' : 'border-b'}`}>
             <div className="flex items-center justify-between gap-2">
               <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => toggleGroup(group.key)} aria-expanded={!isCollapsed}>
@@ -215,7 +214,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
               </button>
               <div className="flex shrink-0 items-center gap-1">
                 <p className="hidden text-xs font-extrabold tabular-nums text-muted-foreground sm:block">{currency.format(group.used)} / {currency.format(group.amount)}</p>
-                <BenefitActionsMenu benefit={group.benefit} label={group.name} disabled={deleteBenefit.isPending} onEdit={onEditBenefit} onDelete={setConfirmBenefit} />
+                <BenefitActionsMenu benefit={group.benefit} label={group.name} open={openActionKey === `benefit-${group.key}`} disabled={deleteBenefit.isPending} onOpenChange={(open) => setOpenActionKey(open ? `benefit-${group.key}` : '')} onEdit={onEditBenefit} onDelete={setConfirmBenefit} />
               </div>
             </div>
             <button type="button" className="mt-1.5 block w-full" onClick={() => toggleGroup(group.key)} aria-label={group.name}>
