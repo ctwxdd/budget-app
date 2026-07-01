@@ -23,7 +23,6 @@ const nav = [
   { to: '/settings', label: 'Settings', labelKey: 'nav.settings', pageLabel: 'Settings', pageKey: 'nav.settings', emoji: '⚙️', icon: Settings },
 ]
 const mobileNav = nav.filter((item) => ['/', '/expenses', '/analytics', '/cards'].includes(item.to))
-const idlePreloadNav = mobileNav.filter((item) => item.to !== '/analytics')
 const routePreloaders: Record<string, () => Promise<unknown>> = {
   '/': () => import('../../pages/OverviewPage'),
   '/expenses': () => import('../../pages/ExpensesPage'),
@@ -590,10 +589,6 @@ export function AppLayout() {
   const outletContext = React.useMemo(() => ({ openExpenseDialog, setExpenseDialogTemplate }), [openExpenseDialog, setExpenseDialogTemplate])
   useBundleUpdateOnFocus()
   useKeyboardOffsetVar()
-  React.useEffect(() => {
-    const preloadBottomRoutes = () => idlePreloadNav.forEach((item) => preloadRoute(item.to))
-    return scheduleIdleTask(preloadBottomRoutes, 4000, 1200)
-  }, [])
   React.useEffect(() => {
     const template = expenseTemplateFromUrl(location.search, location.hash)
     if (!template) return

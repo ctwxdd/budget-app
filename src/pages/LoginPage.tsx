@@ -17,7 +17,7 @@ export function LoginPage() {
   const from = fromLocation ? `${fromLocation.pathname || '/'}${fromLocation.search || ''}` : ''
   const hasSheet = Boolean(localStorage.getItem(SHEET_ID_KEY))
   const successPath = from || (hasSheet ? '/' : '/setup')
-  // If a silent refresh succeeds in the background, leave the login page.
+  // Leave the login page after an explicit Google sign-in succeeds.
   useEffect(() => {
     if (isAuthenticated) navigate(successPath, { replace: true })
   }, [isAuthenticated, navigate, successPath])

@@ -42,18 +42,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(() => JSON.parse(localStorage.getItem('budget.user') || 'null'))
   const pendingLogin = useRef<(() => void) | null>(null)
   const pendingError = useRef<((error: unknown) => void) | null>(null)
-  const silentResolve = useRef<(() => void) | null>(null)
-  const silentReject = useRef<((error: unknown) => void) | null>(null)
-  const silentAttempted = useRef(false)
-  const initialFresh = Boolean(initial.token && initial.expiresAt > Date.now())
-  const initialRemembered = Boolean(
-    (JSON.parse(localStorage.getItem('budget.user') || 'null') as UserInfo | null)
-    && hasSheets(localStorage.getItem(SCOPE_KEY) || '')
-  )
-  // If we remember the account, give silent refresh a short chance before
-  // redirecting to /login. This avoids showing the login page for normal
-  // one-hour access-token expiry.
-  const [isAuthenticating, setIsAuthenticating] = useState(!initialFresh && initialRemembered)
 
   const persistToken = useCallback((accessToken: string, expiresIn = 3600, scope = '') => {
     const safeExpiresAt = Date.now() + expiresIn * 1000 - 60000
@@ -97,22 +85,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     pendingError.current = null
   }, [])
 
-  const handleSilentSuccess = useCallback((response: { access_token: string; expires_in: number; scope?: string }) => {
-    const scope = response.scope || ''
-    persistToken(response.access_token, response.expires_in, scope)
-    silentResolve.current?.()
-    silentResolve.current = null
-    silentReject.current = null
-  }, [persistToken])
-
-  const handleSilentError = useCallback((error: unknown) => {
-    // Expected when: user signed out of Google, 3p cookies blocked (Safari/Brave),
-    // or scope was revoked. Fall back to the "Continue as <name>" button on /login.
-    silentReject.current?.(error)
-    silentResolve.current = null
-    silentReject.current = null
-  }, [])
-
   const googleLogin = useGoogleLogin({
     flow: 'implicit',
     scope: `${SHEETS_SCOPE} openid email profile`,
@@ -135,31 +107,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     onSuccess: handleSuccess,
     onError: handleError,
   })
-
-  const googleSilent = useGoogleLogin({
-    flow: 'implicit',
-    scope: `${SHEETS_SCOPE} openid email profile`,
-    onSuccess: handleSilentSuccess,
-    onError: handleSilentError,
-  })
-
-  const requestSilentToken = useCallback(async () => {
-    if (!user?.email) throw new Error('No remembered Google account.')
-    setIsAuthenticating(true)
-    const timeoutId = setTimeout(() => {
-      silentReject.current?.(new Error('Silent refresh timed out'))
-    }, 2500)
-    try {
-      await new Promise<void>((resolve, reject) => {
-        silentResolve.current = resolve
-        silentReject.current = reject
-        googleSilent({ prompt: 'none', hint: user.email })
-      })
-    } finally {
-      clearTimeout(timeoutId)
-      setIsAuthenticating(false)
-    }
-  }, [googleSilent, user?.email])
 
   const login = useCallback(() => new Promise<void>((resolve, reject) => {
     pendingLogin.current = resolve
@@ -210,48 +157,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const withFreshToken = useCallback(async () => {
     const latest = readToken()
     if (latest.token && latest.expiresAt > Date.now()) return latest.token
-    if (rememberedAuthorization) {
-      try {
-        await requestSilentToken()
-        const refreshed = readToken()
-        if (refreshed.token && refreshed.expiresAt > Date.now()) return refreshed.token
-      } catch {
-        // Fall through to the user-gesture login path below.
-      }
-    }
     if (latest.token || latest.expiresAt) clearAccessToken()
     throw new Error('Google sign-in expired. Please sign in again.')
-  }, [clearAccessToken, rememberedAuthorization, requestSilentToken])
+  }, [clearAccessToken])
 
   useEffect(() => {
     setSheetsAuth({ getToken: withFreshToken, onUnauthorized: clearAccessToken })
   }, [withFreshToken, clearAccessToken])
-
-  // Attempt a background silent token refresh once on app load when we have a
-  // remembered account but no fresh access token. With prompt: 'none', Google
-  // Identity Services tries an invisible iframe-based renewal and errors out
-  // cleanly (no popup) if it would require user interaction. We no longer block
-  // route rendering on this attempt; users see the Continue button immediately.
-  useEffect(() => {
-    if (silentAttempted.current) return
-    if (initialFresh || !initialRemembered || !rememberedAuthorization) return
-    if (!user?.email) {
-      setIsAuthenticating(false)
-      return
-    }
-    silentAttempted.current = true
-    requestSilentToken()
-      .catch(() => {
-        // Expected fallback — user will see /login with "Continue as" button.
-      })
-  }, [requestSilentToken, user?.email, initialFresh, initialRemembered, rememberedAuthorization])
 
   const value = useMemo(() => ({
     token,
     expiresAt,
     user,
     isAuthenticated: Boolean(token && expiresAt > Date.now()),
-    isAuthenticating,
+    isAuthenticating: false,
     hasRememberedAccount: rememberedAuthorization,
     hasSheetsScope: hasSheets(grantedScope),
     login,
@@ -259,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     reauthorize,
     signOut,
     withFreshToken,
-  }), [token, expiresAt, user, isAuthenticating, grantedScope, rememberedAuthorization, login, switchAccount, reauthorize, signOut, withFreshToken])
+  }), [token, expiresAt, user, grantedScope, rememberedAuthorization, login, switchAccount, reauthorize, signOut, withFreshToken])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
