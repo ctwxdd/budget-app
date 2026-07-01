@@ -229,28 +229,23 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
               const done = usage.remaining <= 0.005
               const credit = usage.creditRows?.[0]
               const creditLabel = usage.creditAmount ? `${t('benefits.received', 'Received')} ${currency.format(usage.creditAmount)}` : usage.pendingCreditAmount ? `${t('benefits.pending', 'Pending')} ${currency.format(usage.pendingCreditAmount)}` : ''
-              return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid gap-2 border-b border-border/60 px-3 py-2 last:border-b-0 sm:grid-cols-[minmax(0,1.2fr)_minmax(10rem,0.8fr)_auto] sm:items-center sm:px-4">
-                <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <p className="truncate text-sm font-extrabold">{usage.benefit.card}</p>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${done ? 'bg-mint/15 text-emerald-700 dark:text-mint' : 'bg-butter/25 text-amber-700 dark:text-butter'}`}>{done ? t('benefits.done', 'Done') : `${currency.format(usage.remaining)} ${t('benefits.leftShort', 'left')}`}</span>
-                  </div>
-                  {creditLabel && <p className="mt-0.5 truncate text-[11px] font-semibold text-emerald-700 dark:text-mint">{creditLabel}</p>}
+              return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="border-b border-border/60 px-3 py-2 last:border-b-0 sm:px-4">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <p className="min-w-0 truncate text-sm font-extrabold">{usage.benefit.card}</p>
+                  <Button type="button" variant="secondary" size="sm" className="h-7 shrink-0 justify-center rounded-full px-3 text-xs sm:w-auto" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>
+                    {credit ? t('common.edit', 'Edit') : t('benefits.usedButton', 'Used')}
+                  </Button>
                 </div>
-                <div className="min-w-0">
+                <div className="mt-1 min-w-0">
+                  {creditLabel && <p className="mt-0.5 truncate text-[11px] font-semibold text-emerald-700 dark:text-mint">{creditLabel}</p>}
                   <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-muted-foreground">
                     <span className="tabular-nums">{currency.format(usage.used)} / {currency.format(usage.benefit.amount)}</span>
-                    <span className="tabular-nums">{usage.creditCount ? `${usage.creditCount} ${usage.creditCount === 1 ? t('benefits.creditSingular', 'credit') : t('benefits.creditsPlural', 'credits')}` : `${usage.count} ${usage.count === 1 ? t('benefits.matchSingular', 'match') : t('benefits.matchesPlural', 'matches')}`}</span>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${done ? 'bg-mint/15 text-emerald-700 dark:text-mint' : 'bg-butter/25 text-amber-700 dark:text-butter'}`}>{done ? t('benefits.done', 'Done') : `${currency.format(usage.remaining)} ${t('benefits.leftShort', 'left')}`}</span>
                   </div>
                   <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
                     <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${pct}%` }} />
                   </div>
                   <p className="mt-1 truncate text-[10px] font-medium text-muted-foreground">{usage.start} {'->'} {usage.end}</p>
-                </div>
-                <div className="flex items-center justify-end gap-1">
-                  <Button type="button" variant="secondary" size="sm" className="h-8 justify-center rounded-full px-3 text-xs sm:w-auto" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>
-                    {credit ? t('common.edit', 'Edit') : t('benefits.usedButton', 'Used')}
-                  </Button>
                 </div>
               </div>
             })}
