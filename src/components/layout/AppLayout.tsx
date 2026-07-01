@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/auth'
 import { useTheme } from '../../hooks/useTheme'
 import { useLanguage } from '../../hooks/useLanguage'
 import { Button } from '../ui'
-import { ExpenseDialog, type FormState } from '../expenses/ExpenseDialog'
+import type { FormState } from '../expenses/ExpenseDialog'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { LoveNoteIcon } from '../LoveNoteIcon'
 import { useSheetId } from '../../hooks/useExpenses'
@@ -23,6 +23,7 @@ const nav = [
   { to: '/settings', label: 'Settings', labelKey: 'nav.settings', pageLabel: 'Settings', pageKey: 'nav.settings', emoji: '⚙️', icon: Settings },
 ]
 const mobileNav = nav.filter((item) => ['/', '/expenses', '/analytics', '/cards'].includes(item.to))
+const idlePreloadNav = mobileNav.filter((item) => item.to !== '/analytics')
 const routePreloaders: Record<string, () => Promise<unknown>> = {
   '/': () => import('../../pages/OverviewPage'),
   '/expenses': () => import('../../pages/ExpensesPage'),
@@ -33,6 +34,7 @@ const routePreloaders: Record<string, () => Promise<unknown>> = {
   '/settings': () => import('../../pages/SettingsPage'),
 }
 const preloadedRoutes = new Set<string>()
+const ExpenseDialog = React.lazy(() => import('../expenses/ExpenseDialog').then((module) => ({ default: module.ExpenseDialog })))
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
   cancelIdleCallback?: (handle: number) => void
@@ -42,6 +44,10 @@ function preloadRoute(to: string) {
   if (preloadedRoutes.has(to)) return
   preloadedRoutes.add(to)
   void routePreloaders[to]?.()
+}
+
+function preloadExpenseDialog() {
+  void import('../expenses/ExpenseDialog')
 }
 
 function scheduleIdleTask(callback: () => void, timeout: number, fallbackDelay: number) {
@@ -239,7 +245,7 @@ function BottomNav({ onAdd }: { onAdd: () => void }) {
         <div className="h-full" aria-hidden />
         {mobileNav.slice(2).map(renderItem)}
       </div>
-      <Button aria-label={t('app.addExpense', 'Add expense')} variant="gradient" onPointerDown={() => preloadRoute('/expenses')} onClick={onAdd} className="mobile-bottom-add bottom-nav-add absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full p-0 shadow-lift ring-4 ring-background"><Plus className="h-7 w-7" /></Button>
+      <Button aria-label={t('app.addExpense', 'Add expense')} variant="gradient" onPointerDown={preloadExpenseDialog} onClick={onAdd} className="mobile-bottom-add bottom-nav-add absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full p-0 shadow-lift ring-4 ring-background"><Plus className="h-7 w-7" /></Button>
     </div>
   </nav>
 }
@@ -585,7 +591,7 @@ export function AppLayout() {
   useBundleUpdateOnFocus()
   useKeyboardOffsetVar()
   React.useEffect(() => {
-    const preloadBottomRoutes = () => mobileNav.forEach((item) => preloadRoute(item.to))
+    const preloadBottomRoutes = () => idlePreloadNav.forEach((item) => preloadRoute(item.to))
     return scheduleIdleTask(preloadBottomRoutes, 4000, 1200)
   }, [])
   React.useEffect(() => {
@@ -608,6 +614,6 @@ export function AppLayout() {
     </div>
     <MobileMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} />
     <BottomNav onAdd={() => openExpenseDialog()} />
-    {expenseOpen && <ExpenseDialog open onOpenChange={closeExpenseDialog} template={expenseTemplate} />}
+    {expenseOpen && <React.Suspense fallback={null}><ExpenseDialog open onOpenChange={closeExpenseDialog} template={expenseTemplate} /></React.Suspense>}
   </div>
 }
