@@ -1221,7 +1221,7 @@ function CardPaymentPicker({ value, onChange, cards }: { value: string; onChange
       if (!normalizedQuery) return true
       return normalizeSearch(`${card.name} ${card.issuer} ${card.last4}`).includes(normalizedQuery)
     })
-    return ranked.slice(0, 8)
+    return ranked
   }, [cards, normalizedQuery])
   const showExistingOption = Boolean(existingOption && (!normalizedQuery || normalizeSearch(existingOption).includes(normalizedQuery)))
   const optionCount = filteredCards.length + (showExistingOption ? 1 : 0)
@@ -1289,7 +1289,7 @@ function CardPaymentPicker({ value, onChange, cards }: { value: string; onChange
       >×</button>}
       {open && <FadeScroll
         outerClassName="absolute left-0 right-0 top-full z-20 mt-1.5 rounded-2xl border border-border bg-card shadow-lift"
-        className="max-h-64 overflow-auto p-1"
+        className="max-h-[min(22rem,45dvh)] overflow-auto p-1"
       >
         <div id={listId} role="listbox">
           {showExistingOption && <button
