@@ -14,11 +14,11 @@ import { cn } from '../../lib/utils'
 import { useToast } from '../ui/Toast'
 import { formatTags, parseTags } from '../../lib/tags'
 import { useLanguage } from '../../hooks/useLanguage'
+import { todayIso } from '../../lib/dates'
 
 export type FormState = Omit<Expense, 'rowIndex'>
-const emptyForm = (): FormState => ({ date: format(new Date(), 'yyyy-MM-dd'), amount: 0, description: '', category: '', paymentMethod: '', reimbursement: '', tags: '' })
+const emptyForm = (): FormState => ({ date: todayIso(), amount: 0, description: '', category: '', paymentMethod: '', reimbursement: '', tags: '' })
 const emptyGiftcardParts = (): GiftcardDescriptionParts => ({ vendor: '', face: '', source: '' })
-const todayIso = () => format(new Date(), 'yyyy-MM-dd')
 const returnDescription = (expense: Expense) => `Return: ${splitDescriptionNote(expense.description).base || expense.category || 'Purchase'} (${expense.date})`
 type GiftcardReturnMode = 'original' | 'new'
 type SplitPayment = {

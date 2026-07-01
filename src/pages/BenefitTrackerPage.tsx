@@ -9,6 +9,7 @@ import { useCardBenefits, useDeleteCardBenefit } from '../hooks/useCardBenefits'
 import { useCards } from '../hooks/useCards'
 import { useExpenses } from '../hooks/useExpenses'
 import { applyBenefitCredits, calculateBenefitUsage, expandCardBenefitsForCards, type BenefitUsage, type CardBenefit, type CardBenefitCredit } from '../lib/cardBenefits'
+import { todayIso } from '../lib/dates'
 import { currency } from '../lib/format'
 
 export function BenefitTrackerPage() {
@@ -250,11 +251,6 @@ function BenefitKpi({ label, value }: { label: string; value: string }) {
     <p className="truncate text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
     <p className="mt-0.5 truncate font-display text-base font-extrabold tabular-nums sm:text-lg">{value}</p>
   </div>
-}
-
-function todayIso() {
-  const today = new Date()
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 }
 
 function defaultCreditDate(usage: BenefitUsage) {

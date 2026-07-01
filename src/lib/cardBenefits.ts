@@ -1,5 +1,6 @@
 import type { Expense } from './types'
 import { categoryName } from './format'
+import { dateToIsoDate, localDateFromIso, normalizeDateCell, todayIso } from './dates'
 import { parseCurrency } from './giftcards'
 import { parseTags } from './tags'
 
@@ -47,11 +48,7 @@ export type CardBenefitCredit = {
 const periods = new Set<CardBenefitPeriod>(['monthly', 'quarterly', 'semiannual', 'annual'])
 
 function parseDate(value: unknown): string {
-  const text = String(value ?? '').trim()
-  if (!text) return ''
-  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10)
-  const parsed = new Date(text)
-  return Number.isNaN(parsed.getTime()) ? text : parsed.toISOString().slice(0, 10)
+  return normalizeDateCell(value)
 }
 
 function parsePeriod(value: unknown): CardBenefitPeriod {
@@ -73,14 +70,6 @@ function parseBoolean(value: unknown, fallback: boolean) {
 
 function parseCreditStatus(value: unknown): BenefitCreditStatus {
   return /^pending$/i.test(String(value ?? '').trim()) ? 'pending' : 'received'
-}
-
-function iso(date: Date) {
-  return date.toISOString().slice(0, 10)
-}
-
-function monthEnd(year: number, month: number) {
-  return new Date(Date.UTC(year, month + 1, 0))
 }
 
 function maxIso(a: string, b: string) {
@@ -159,11 +148,11 @@ export function parseBenefitCreditRows(rows: string[][] = []): CardBenefitCredit
     .filter((credit) => credit.date || credit.card || credit.benefit || credit.amount)
 }
 
-export function benefitWindow(benefit: CardBenefit, todayIso = iso(new Date())) {
-  const today = new Date(`${todayIso}T00:00:00.000Z`)
-  if (Number.isNaN(today.getTime())) return null
-  const year = today.getUTCFullYear()
-  const month = today.getUTCMonth()
+export function benefitWindow(benefit: CardBenefit, currentIso = todayIso()) {
+  const today = localDateFromIso(currentIso)
+  if (!today) return null
+  const year = today.getFullYear()
+  const month = today.getMonth()
   let startMonth = 0
   let endMonth = 11
   if (benefit.period === 'monthly') {
@@ -176,12 +165,12 @@ export function benefitWindow(benefit: CardBenefit, todayIso = iso(new Date())) 
     startMonth = month < 6 ? 0 : 6
     endMonth = startMonth + 5
   }
-  const rawStart = iso(new Date(Date.UTC(year, startMonth, 1)))
-  const rawEnd = iso(monthEnd(year, endMonth))
+  const rawStart = dateToIsoDate(new Date(year, startMonth, 1))
+  const rawEnd = dateToIsoDate(new Date(year, endMonth + 1, 0))
   const start = maxIso(rawStart, benefit.startDate)
   const end = minIso(rawEnd, benefit.endDate)
   if (start && end && start > end) return null
-  if (todayIso < start || todayIso > end) return null
+  if (currentIso < start || currentIso > end) return null
   return { start, end }
 }
 
@@ -199,9 +188,9 @@ function matchesBenefit(expense: Expense, benefit: CardBenefit, start: string, e
   return includesMatcher(expense, benefit.matcher)
 }
 
-export function calculateBenefitUsage(benefit: CardBenefit, expenses: Expense[], todayIso = iso(new Date())): BenefitUsage | null {
+export function calculateBenefitUsage(benefit: CardBenefit, expenses: Expense[], currentIso = todayIso()): BenefitUsage | null {
   if (!benefit.active || benefit.amount <= 0) return null
-  const window = benefitWindow(benefit, todayIso)
+  const window = benefitWindow(benefit, currentIso)
   if (!window) return null
   const matches = expenses.filter((expense) => matchesBenefit(expense, benefit, window.start, window.end))
   const eligibleSpend = Math.max(0, money(matches.reduce((sum, expense) => sum + expense.amount, 0)))
@@ -241,10 +230,10 @@ export function applyBenefitCredits(usage: BenefitUsage, credits: CardBenefitCre
   }
 }
 
-export function calculateBenefitUsageByCard(benefits: CardBenefit[], expenses: Expense[], todayIso = iso(new Date())) {
+export function calculateBenefitUsageByCard(benefits: CardBenefit[], expenses: Expense[], currentIso = todayIso()) {
   const map = new Map<string, BenefitUsage[]>()
   for (const benefit of benefits) {
-    const usage = calculateBenefitUsage(benefit, expenses, todayIso)
+    const usage = calculateBenefitUsage(benefit, expenses, currentIso)
     if (!usage) continue
     const key = benefit.card.trim().toLocaleLowerCase()
     map.set(key, [...(map.get(key) || []), usage])

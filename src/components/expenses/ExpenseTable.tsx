@@ -13,6 +13,7 @@ import { useToast } from '../ui/Toast'
 import { parseTags } from '../../lib/tags'
 import { useLanguage } from '../../hooks/useLanguage'
 import { NO_PAYMENT_FILTER, NO_PAYMENT_LABEL, compareExpenses, displayFilterValue, type ExpenseFilters, type ExpenseSortKey } from '../../lib/expenseFilters'
+import { dateToIsoDate, todayIso } from '../../lib/dates'
 
 type SortKey = ExpenseSortKey
 type FilterKey = keyof ExpenseFilters
@@ -61,12 +62,10 @@ function MultiSelect({ label, values, options, onChange }: { label: string; valu
 function dayLabel(iso: string, t: (key: string, fallback: string) => string) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-  if (iso === todayIso) return t('expense.today', 'Today')
+  if (iso === todayIso()) return t('expense.today', 'Today')
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)
-  const yesterdayIso = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
-  if (iso === yesterdayIso) return t('expense.yesterday', 'Yesterday')
+  if (iso === dateToIsoDate(yesterday)) return t('expense.yesterday', 'Yesterday')
   return displayDate(iso)
 }
 

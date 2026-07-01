@@ -1,10 +1,11 @@
 import { format, isValid, parse, parseISO } from 'date-fns'
 import type { Expense } from './types'
 import { formatTags } from './tags'
+import { todayIso } from './dates'
 
 function parseDateCell(value: string, rowIndex?: number): string {
   const raw = String(value || '').trim()
-  const fallback = format(new Date(), 'yyyy-MM-dd')
+  const fallback = todayIso()
   if (!raw) {
     if (import.meta.env.DEV) console.warn(`Expense row ${rowIndex ?? '?'} has an empty date; defaulting to today.`)
     return fallback

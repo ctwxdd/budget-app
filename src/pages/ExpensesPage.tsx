@@ -10,16 +10,12 @@ import { Button, ConfirmDialog } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { useBatchDeleteExpenses, useExpenses } from '../hooks/useExpenses'
 import type { Expense } from '../lib/types'
+import { todayIso } from '../lib/dates'
 import { applyExpenseFilters, defaultFilters, type ExpenseFilters } from '../lib/expenseFilters'
 
 type AppOutletContext = {
   openExpenseDialog: (template?: FormState | null) => void
   setExpenseDialogTemplate?: (factory: (() => FormState | null) | null) => void
-}
-
-const todayIso = () => {
-  const today = new Date()
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 }
 
 export function ExpensesPage() {

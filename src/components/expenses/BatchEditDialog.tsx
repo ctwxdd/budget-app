@@ -1,11 +1,11 @@
 import * as React from 'react'
-import { format } from 'date-fns'
 import { Button, Dialog, FadeScroll, Input } from '../ui'
 import { useBatchUpdateExpenses, useCategories, usePaymentMethods, useTags } from '../../hooks/useExpenses'
 import type { Expense } from '../../lib/types'
 import { useToast } from '../ui/Toast'
 import { formatTags } from '../../lib/tags'
 import { useLanguage } from '../../hooks/useLanguage'
+import { todayIso } from '../../lib/dates'
 
 type BatchEditDialogProps = {
   open: boolean
@@ -29,7 +29,7 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
   const [applyPaymentMethod, setApplyPaymentMethod] = React.useState(false)
   const [paymentMethod, setPaymentMethod] = React.useState('')
   const [applyDate, setApplyDate] = React.useState(false)
-  const [date, setDate] = React.useState(format(new Date(), 'yyyy-MM-dd'))
+  const [date, setDate] = React.useState(todayIso)
   const [applyTags, setApplyTags] = React.useState(false)
   const [tagText, setTagText] = React.useState('')
   const formId = React.useId()
@@ -40,7 +40,7 @@ export function BatchEditDialog({ open, onOpenChange, expenses, onSaved }: Batch
     setApplyPaymentMethod(false)
     setPaymentMethod('')
     setApplyDate(false)
-    setDate(format(new Date(), 'yyyy-MM-dd'))
+    setDate(todayIso())
     setApplyTags(false)
     setTagText('')
   }, [open])

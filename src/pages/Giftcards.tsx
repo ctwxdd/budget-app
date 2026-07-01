@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { format } from 'date-fns'
 import { ChevronDown, Gift, Pencil, Plus, Search, WalletCards, X } from 'lucide-react'
 import { PageErrorBoundary } from '../components/ErrorBoundary'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input } from '../components/ui'
@@ -10,6 +9,7 @@ import { useGiftcards, type GiftcardRow, type MerchantRow } from '../hooks/useGi
 import { useExpenses } from '../hooks/useExpenses'
 import { parseGiftcardDescription } from '../lib/giftcards'
 import { currency, displayDate } from '../lib/format'
+import { todayIso } from '../lib/dates'
 import type { Expense } from '../lib/types'
 import { cn } from '../lib/utils'
 
@@ -67,7 +67,7 @@ function GiftcardsContent() {
 
   const handleSpend = React.useCallback((card: GiftcardRow) => {
     setSpendTemplate({
-      date: format(new Date(), 'yyyy-MM-dd'),
+      date: todayIso(),
       amount: 0,
       description: '',
       category: '',

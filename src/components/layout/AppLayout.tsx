@@ -11,6 +11,7 @@ import { ExpenseDialog, type FormState } from '../expenses/ExpenseDialog'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { LoveNoteIcon } from '../LoveNoteIcon'
 import { useSheetId } from '../../hooks/useExpenses'
+import { todayIso } from '../../lib/dates'
 
 const nav = [
   { to: '/', label: 'Home', labelKey: 'nav.home', pageLabel: 'Overview', pageKey: 'nav.overview', emoji: '🏠', icon: Home },
@@ -63,11 +64,6 @@ function isFormStateTemplate(value: unknown): value is FormState {
     typeof candidate.paymentMethod === 'string' &&
     typeof candidate.reimbursement === 'string' &&
     typeof candidate.tags === 'string'
-}
-
-function todayIso() {
-  const today = new Date()
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 }
 
 function firstParam(params: URLSearchParams, names: string[]) {

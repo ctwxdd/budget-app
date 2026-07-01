@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { format } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ListFilter, Pencil, Plus, Search, Trash2, WalletCards, X } from 'lucide-react'
 import { PageErrorBoundary } from '../components/ErrorBoundary'
@@ -11,6 +10,7 @@ import { useCardBenefits } from '../hooks/useCardBenefits'
 import { useExpenses } from '../hooks/useExpenses'
 import { calculateBenefitUsageByCard, cardProductName, expandCardBenefitsForCards, type BenefitUsage } from '../lib/cardBenefits'
 import { currency, filterByDateRange, getPresetRange } from '../lib/format'
+import { addMonthsIso, daysBetweenIso, todayIso } from '../lib/dates'
 import { cn } from '../lib/utils'
 import { ExpenseDialog, type FormState } from '../components/expenses/ExpenseDialog'
 import { useLanguage } from '../hooks/useLanguage'
@@ -24,22 +24,9 @@ type CardsView = 'cards' | 'list'
 const VIEW_KEY = 'credit-cards-view'
 const emptyCard = (): CardForm => ({ name: '', product: '', issuer: '', last4: '', active: true, note: '', annualFee: 0, subRequired: 0, subStart: '', subPeriodMonths: 0, subBonus: '' })
 
-// Adds `months` whole months to a YYYY-MM-DD string (UTC, day-clamped).
-function addMonthsISO(iso: string, months: number): string {
-  if (!iso || !months) return ''
-  const [y, m, d] = iso.split('-').map(Number)
-  if (!y || !m || !d) return ''
-  const target = new Date(Date.UTC(y, m - 1 + months, 1))
-  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate()
-  target.setUTCDate(Math.min(d, lastDay))
-  return target.toISOString().slice(0, 10)
-}
-
 function monthsBetweenISO(start: string, end: string): number {
   if (!start || !end) return 0
-  const s = new Date(start), e = new Date(end)
-  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return 0
-  return Math.max(0, Math.round((e.getTime() - s.getTime()) / (30.4375 * 86400000)))
+  return Math.max(0, Math.round(daysBetweenIso(start, end) / 30.4375))
 }
 
 type CardSpend = { month: number; total: number; count: number }
@@ -58,18 +45,16 @@ type SubStatus = {
   emoji: string
 }
 
-const TODAY = () => new Date().toISOString().slice(0, 10)
-const daysBetween = (a: string, b: string) => Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000)
 const isAnnualFeeCategory = (category: string) => /annual\s*fee/i.test(category)
 
 function computeSubStatus(card: CardRow, spentInWindow: number): SubStatus | null {
   if (!card.subRequired || !card.subStart || !card.subDeadline) return null
   const goal = card.subRequired
-  const today = TODAY()
-  const totalDays = Math.max(1, daysBetween(card.subStart, card.subDeadline))
-  const elapsedDays = Math.max(0, Math.min(totalDays, daysBetween(card.subStart, today)))
+  const today = todayIso()
+  const totalDays = Math.max(1, daysBetweenIso(card.subStart, card.subDeadline))
+  const elapsedDays = Math.max(0, Math.min(totalDays, daysBetweenIso(card.subStart, today)))
   const remaining = Math.max(0, goal - spentInWindow)
-  const daysLeft = Math.max(0, daysBetween(today, card.subDeadline))
+  const daysLeft = Math.max(0, daysBetweenIso(today, card.subDeadline))
   const progress = Math.min(1, spentInWindow / goal)
   const paceProgress = Math.min(1, elapsedDays / totalDays)
 
@@ -112,7 +97,7 @@ function CardsContent() {
 
   const handleSpend = React.useCallback((card: CardRow) => {
     setSpendTemplate({
-      date: format(new Date(), 'yyyy-MM-dd'),
+      date: todayIso(),
       amount: 0,
       description: '',
       category: '',
@@ -478,7 +463,7 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
     if (open) setShowSub(card ? Boolean(card.subRequired || card.subDeadline || card.subBonus) : false)
   }, [open, card])
 
-  const subDeadlinePreview = form.subStart && form.subPeriodMonths > 0 ? addMonthsISO(form.subStart, form.subPeriodMonths) : ''
+  const subDeadlinePreview = form.subStart && form.subPeriodMonths > 0 ? addMonthsIso(form.subStart, form.subPeriodMonths) : ''
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -489,7 +474,7 @@ function CardDialog({ open, onOpenChange, card }: { open: boolean; onOpenChange:
     // Open date is useful even without SUB tracking; only the bonus-specific
     // fields are cleared when the SUB window is incomplete.
     const hasWindow = subRequired > 0 && subStart && subPeriodMonths > 0
-    const subDeadline = hasWindow ? addMonthsISO(subStart, subPeriodMonths) : ''
+    const subDeadline = hasWindow ? addMonthsIso(subStart, subPeriodMonths) : ''
     const payload = {
       name: form.name.trim(),
       product: form.product.trim() || cardProductName(form.name),

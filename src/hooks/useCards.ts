@@ -4,6 +4,7 @@ import { addCard, createCardsTab, deleteCard, getSheet, getSheetMeta, updateCard
 import { clearLocalCache, readLocalCache, writeLocalCache } from '../lib/localCache'
 import { useSheetId, useSheetMeta } from './useExpenses'
 import { cardProductName } from '../lib/cardBenefits'
+import { normalizeDateCell } from '../lib/dates'
 
 export type CardRow = {
   rowIndex: number
@@ -46,16 +47,7 @@ function isMissingCardsTab(error: unknown) {
 }
 
 function parseDate(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10)
-  const text = String(value).trim()
-  if (!text) return ''
-  // Already ISO?
-  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10)
-  // Try generic parse — accepts "M/D/YYYY", "Mon DD, YYYY", etc.
-  const parsed = new Date(text)
-  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10)
-  return text
+  return normalizeDateCell(value)
 }
 
 function parseCards(rows: string[][] = []): CardRow[] {
