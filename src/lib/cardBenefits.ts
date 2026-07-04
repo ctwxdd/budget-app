@@ -244,6 +244,10 @@ export function cardBenefitWalletMatcher(benefit: CardBenefit) {
   return matcher.replace(/^wallet\s*:/i, '').trim()
 }
 
+export function isCertificateBenefit(benefit: CardBenefit) {
+  return /^(certificate|cert|fnc)\s*:/i.test(benefit.matcher.trim())
+}
+
 function includesWalletMatcher(expense: Expense, matcher: string) {
   const tokens = matcher.split(',').map((part) => part.trim().toLocaleLowerCase()).filter(Boolean)
   if (!tokens.length) return true

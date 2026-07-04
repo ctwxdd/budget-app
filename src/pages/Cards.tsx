@@ -8,7 +8,7 @@ import { useToast } from '../components/ui/Toast'
 import { useAddCard, useCards, useCreateCardsTab, useDeleteCard, useUpdateCard, type CardRow } from '../hooks/useCards'
 import { useCardBenefits } from '../hooks/useCardBenefits'
 import { useExpenses } from '../hooks/useExpenses'
-import { calculateBenefitUsageByCard, cardProductName, expandCardBenefitsForCards, type BenefitUsage } from '../lib/cardBenefits'
+import { calculateBenefitUsageByCard, cardProductName, expandCardBenefitsForCards, isCertificateBenefit, type BenefitUsage } from '../lib/cardBenefits'
 import { currency, filterByDateRange, getPresetRange } from '../lib/format'
 import { addMonthsIso, daysBetweenIso, todayIso } from '../lib/dates'
 import { cn } from '../lib/utils'
@@ -316,17 +316,28 @@ function SubTracker({ card, sub }: { card: CardRow; sub: SubStatus }) {
   </div>
 }
 
+function cardCertificateLabel(value: number, t: (key: string, fallback: string) => string) {
+  const count = Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100)
+  return `${count} ${value === 1 ? t('benefits.certificateSingular', 'certificate') : t('benefits.certificatePlural', 'certificates')}`
+}
+
+function cardBenefitValueLabel(usage: BenefitUsage, value: number, t: (key: string, fallback: string) => string) {
+  return isCertificateBenefit(usage.benefit) ? cardCertificateLabel(value, t) : currency.format(value)
+}
+
 function BenefitChips({ benefits }: { benefits: BenefitUsage[] }) {
+  const { t } = useLanguage()
   if (!benefits.length) return null
   return <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
-    {benefits.slice(0, 3).map((usage) => <span key={usage.benefit.rowIndex} className="inline-flex max-w-full items-center rounded-full border border-mint/30 bg-mint/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-mint" title={`${usage.benefit.benefit}: ${currency.format(usage.used)} used, ${currency.format(usage.remaining)} left`}>
-      <span className="truncate">{usage.benefit.benefit}</span><span className="ml-1 shrink-0">{currency.format(usage.remaining)} left</span>
+    {benefits.slice(0, 3).map((usage) => <span key={usage.benefit.rowIndex} className="inline-flex max-w-full items-center rounded-full border border-mint/30 bg-mint/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-mint" title={`${usage.benefit.benefit}: ${cardBenefitValueLabel(usage, usage.used, t)} used, ${cardBenefitValueLabel(usage, usage.remaining, t)} left`}>
+      <span className="truncate">{usage.benefit.benefit}</span><span className="ml-1 shrink-0">{cardBenefitValueLabel(usage, usage.remaining, t)} left</span>
     </span>)}
     {benefits.length > 3 && <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">+{benefits.length - 3}</span>}
   </div>
 }
 
 function BenefitTracker({ benefits }: { benefits: BenefitUsage[] }) {
+  const { t } = useLanguage()
   if (!benefits.length) return null
   return <div className="mt-2 grid gap-2 md:grid-cols-2">
     {benefits.map((usage) => {
@@ -338,14 +349,14 @@ function BenefitTracker({ benefits }: { benefits: BenefitUsage[] }) {
             <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">{usage.start} → {usage.end}</p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <span className="font-bold text-foreground">{currency.format(usage.remaining)} left</span>
+            <span className="font-bold text-foreground">{cardBenefitValueLabel(usage, usage.remaining, t)} left</span>
           </div>
         </div>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-border/60">
           <div className="h-full rounded-full bg-mint" style={{ width: `${pct}%` }} />
         </div>
         <div className="mt-1.5 flex items-center justify-between tabular-nums text-muted-foreground">
-          <span>Used {currency.format(usage.used)} / {currency.format(usage.benefit.amount)}</span>
+          <span>Used {cardBenefitValueLabel(usage, usage.used, t)} / {cardBenefitValueLabel(usage, usage.benefit.amount, t)}</span>
           <span>{usage.count} match{usage.count === 1 ? '' : 'es'}</span>
         </div>
       </div>

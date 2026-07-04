@@ -9,7 +9,7 @@ import { useCardBenefits, useDeleteCardBenefit } from '../hooks/useCardBenefits'
 import { useCards } from '../hooks/useCards'
 import { useExpenses } from '../hooks/useExpenses'
 import { useLanguage } from '../hooks/useLanguage'
-import { applyBenefitCredits, calculateBenefitUsages, cardBenefitWalletMatcher, expandCardBenefitsForCards, type BenefitUsage, type CardBenefit, type CardBenefitCredit } from '../lib/cardBenefits'
+import { applyBenefitCredits, calculateBenefitUsages, cardBenefitWalletMatcher, expandCardBenefitsForCards, isCertificateBenefit, type BenefitUsage, type CardBenefit, type CardBenefitCredit } from '../lib/cardBenefits'
 import { dateToIsoDate, localDateFromIso, todayIso } from '../lib/dates'
 import { currency } from '../lib/format'
 
@@ -30,6 +30,28 @@ function shiftMonthKey(monthKey: string, delta: number) {
 function formatMonthLabel(monthKey: string) {
   const date = localDateFromIso(`${monthKey}-01`)
   return date ? date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : monthKey
+}
+
+function certificateLabel(value: number, t: (key: string, fallback: string) => string) {
+  const count = Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100)
+  return `${count} ${value === 1 ? t('benefits.certificateSingular', 'certificate') : t('benefits.certificatePlural', 'certificates')}`
+}
+
+function benefitValueLabel(benefit: CardBenefit, value: number, t: (key: string, fallback: string) => string) {
+  return isCertificateBenefit(benefit) ? certificateLabel(value, t) : currency.format(value)
+}
+
+function benefitUsageValueLabel(usage: BenefitUsage, value: number, t: (key: string, fallback: string) => string) {
+  return benefitValueLabel(usage.benefit, value, t)
+}
+
+function benefitValueSummary(usages: BenefitUsage[], select: (usage: BenefitUsage) => number, t: (key: string, fallback: string) => string) {
+  const cash = usages.filter((usage) => !isCertificateBenefit(usage.benefit)).reduce((sum, usage) => sum + select(usage), 0)
+  const certificates = usages.filter((usage) => isCertificateBenefit(usage.benefit)).reduce((sum, usage) => sum + select(usage), 0)
+  return [
+    cash ? currency.format(cash) : '',
+    certificates ? certificateLabel(certificates, t) : '',
+  ].filter(Boolean).join(' · ') || currency.format(0)
 }
 
 export function BenefitTrackerPage() {
@@ -189,8 +211,8 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
     <p className="mt-1 text-muted-foreground">{t('benefits.setupDescription', 'Columns: Product, Benefit, Amount, Period, Category, Merchant/Tag, Start Date, End Date, Active.')}</p>
   </div>
   if (!usages.length) return <EmptyBenefits onAddBenefit={onAddBenefit} />
-  const totalLeft = visibleUsages.reduce((sum, usage) => sum + usage.remaining, 0)
-  const totalUsed = visibleUsages.reduce((sum, usage) => sum + usage.used, 0)
+  const totalLeft = benefitValueSummary(visibleUsages, (usage) => usage.remaining, t)
+  const totalUsed = benefitValueSummary(visibleUsages, (usage) => usage.used, t)
   const groups = Array.from(visibleUsages.reduce((map, usage) => {
     const meta = benefitGroupMeta(usage, benefitByRow)
     map.set(meta.key, [...(map.get(meta.key) || []), usage])
@@ -236,8 +258,8 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
   return <div className="space-y-3">
     <div className="grid grid-cols-3 gap-2">
       <BenefitKpi label={t('benefits.tracked', 'Tracked')} value={String(groups.length)} />
-      <BenefitKpi label={t('benefits.usedPeriod', 'Used')} value={currency.format(totalUsed)} />
-      <BenefitKpi label={t('benefits.leftPeriod', 'Left')} value={currency.format(totalLeft)} />
+      <BenefitKpi label={t('benefits.usedPeriod', 'Used')} value={totalUsed} />
+      <BenefitKpi label={t('benefits.leftPeriod', 'Left')} value={totalLeft} />
     </div>
     <Input value={cardSearch} onChange={(event) => setCardSearch(event.target.value)} placeholder={t('benefits.searchCards', 'Search cards...')} autoComplete="off" />
     <div className="grid h-10 grid-cols-2 gap-1 rounded-full bg-accent/60 p-0.5">
@@ -252,7 +274,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
             <ChevronRight className={`h-4 w-4 shrink-0 text-muted-foreground transition ${isCollapsed ? '' : 'rotate-90'}`} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-extrabold">{group.card}</p>
-              <p className="text-[11px] font-semibold text-muted-foreground">{currency.format(group.used)} used · {currency.format(group.left)} left</p>
+              <p className="text-[11px] font-semibold text-muted-foreground">{benefitValueSummary(group.items, (usage) => usage.used, t)} used · {benefitValueSummary(group.items, (usage) => usage.remaining, t)} left</p>
             </div>
           </button>
           {!isCollapsed && <div className="divide-y divide-border/60 px-3">
@@ -264,7 +286,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
             return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2">
               <div className="min-w-0">
                 <p className="truncate text-xs font-extrabold">{usage.benefit.benefit}</p>
-                <p className="truncate text-[11px] font-semibold text-muted-foreground">{currency.format(usage.used)} / {currency.format(usage.benefit.amount)} · {currency.format(usage.remaining)} {t('benefits.leftShort', 'left')}</p>
+                <p className="truncate text-[11px] font-semibold text-muted-foreground">{benefitUsageValueLabel(usage, usage.used, t)} / {benefitUsageValueLabel(usage, usage.benefit.amount, t)} · {benefitUsageValueLabel(usage, usage.remaining, t)} {t('benefits.leftShort', 'left')}</p>
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
                   <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${pct}%` }} />
                 </div>
@@ -290,11 +312,11 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
                 <ChevronRight className={`h-4 w-4 shrink-0 text-muted-foreground transition ${isCollapsed ? '' : 'rotate-90'}`} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-extrabold">{group.name}</p>
-                  <p className="mt-0.5 truncate text-[11px] font-semibold text-muted-foreground">{group.product} · {group.items.length} {group.items.length === 1 ? t('benefits.cardSingular', 'card') : t('benefits.cardsPlural', 'cards')} · {currency.format(group.left)} {t('benefits.leftShort', 'left')}</p>
+                  <p className="mt-0.5 truncate text-[11px] font-semibold text-muted-foreground">{group.product} · {group.items.length} {group.items.length === 1 ? t('benefits.cardSingular', 'card') : t('benefits.cardsPlural', 'cards')} · {benefitValueSummary(group.items, (usage) => usage.remaining, t)} {t('benefits.leftShort', 'left')}</p>
                 </div>
               </button>
               <div className="flex shrink-0 items-center gap-1">
-                <p className="hidden text-xs font-extrabold tabular-nums text-muted-foreground sm:block">{currency.format(group.used)} / {currency.format(group.amount)}</p>
+                <p className="hidden text-xs font-extrabold tabular-nums text-muted-foreground sm:block">{benefitValueSummary(group.items, (usage) => usage.used, t)} / {benefitValueSummary(group.items, (usage) => usage.benefit.amount, t)}</p>
                 <BenefitActionsMenu benefit={group.benefit} label={group.name} open={openActionKey === `benefit-${group.key}`} disabled={deleteBenefit.isPending} onOpenChange={(open) => setOpenActionKey(open ? `benefit-${group.key}` : '')} onEdit={onEditBenefit} onDelete={setConfirmBenefit} />
               </div>
             </div>
@@ -309,7 +331,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
               const pct = row.amount > 0 ? Math.min(100, Math.round((row.used / row.amount) * 100)) : 0
               const done = row.remaining <= 0.005
               const credit = row.primary.creditRows?.[0]
-              const creditLabel = row.creditAmount ? `${t('benefits.received', 'Received')} ${currency.format(row.creditAmount)}` : row.pendingCreditAmount ? `${t('benefits.pending', 'Pending')} ${currency.format(row.pendingCreditAmount)}` : ''
+              const creditLabel = row.creditAmount ? `${t('benefits.received', 'Received')} ${benefitValueLabel(row.primary.benefit, row.creditAmount, t)}` : row.pendingCreditAmount ? `${t('benefits.pending', 'Pending')} ${benefitValueLabel(row.primary.benefit, row.pendingCreditAmount, t)}` : ''
               return <div key={row.card} className="border-b border-border/60 px-3 py-2 last:border-b-0 sm:px-4">
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <p className="min-w-0 truncate text-sm font-extrabold">{row.card}</p>
@@ -320,8 +342,8 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
                 <div className="mt-1 min-w-0">
                   {creditLabel && <p className="mt-0.5 truncate text-[11px] font-semibold text-emerald-700 dark:text-mint">{creditLabel}</p>}
                   <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-muted-foreground">
-                    <span className="tabular-nums">{currency.format(row.used)} / {currency.format(row.amount)}</span>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${done ? 'bg-mint/15 text-emerald-700 dark:text-mint' : 'bg-butter/25 text-amber-700 dark:text-butter'}`}>{done ? t('benefits.done', 'Done') : `${currency.format(row.remaining)} ${t('benefits.leftShort', 'left')}`}</span>
+                    <span className="tabular-nums">{benefitValueLabel(row.primary.benefit, row.used, t)} / {benefitValueLabel(row.primary.benefit, row.amount, t)}</span>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${done ? 'bg-mint/15 text-emerald-700 dark:text-mint' : 'bg-butter/25 text-amber-700 dark:text-butter'}`}>{done ? t('benefits.done', 'Done') : `${benefitValueLabel(row.primary.benefit, row.remaining, t)} ${t('benefits.leftShort', 'left')}`}</span>
                   </div>
                   <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
                     <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${pct}%` }} />
@@ -383,6 +405,7 @@ function BenefitCreditDialog({ open, onOpenChange, usage, credit }: { open: bool
 
   const saving = addCredit.isPending || updateCredit.isPending
   const formId = 'benefit-credit-form'
+  const certificateBenefit = isCertificateBenefit(usage.benefit)
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     const payload = {
@@ -409,7 +432,7 @@ function BenefitCreditDialog({ open, onOpenChange, usage, credit }: { open: bool
   >
     <form id={formId} onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('expense.date', 'Date')}<Input className="min-w-0 max-w-full appearance-none" type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('benefits.amount', 'Amount')}<Input inputMode="decimal" type="number" min="0" step="0.01" value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: event.target.value === '' ? 0 : Number(event.target.value) })} /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{certificateBenefit ? t('benefits.certificates', 'Certificates') : t('benefits.amount', 'Amount')}<Input inputMode={certificateBenefit ? 'numeric' : 'decimal'} type="number" min="0" step={certificateBenefit ? '1' : '0.01'} value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: event.target.value === '' ? 0 : Number(event.target.value) })} /></label>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">{t('benefits.status', 'Status')}<Select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="Received">{t('benefits.received', 'Received')}</option><option value="Pending">{t('benefits.pending', 'Pending')}</option></Select></label>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">{t('card.note', 'Note')}<Textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder={t('benefits.creditNotePlaceholder', 'Booking, statement credit, confirmation...')} /></label>
     </form>

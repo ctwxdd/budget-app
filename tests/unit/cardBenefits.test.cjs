@@ -9,6 +9,7 @@ const {
   calculateBenefitUsageByCard,
   cardProductKey,
   expandCardBenefitsForCards,
+  isCertificateBenefit,
   parseBenefitCreditRows,
   parseCardBenefitRows,
 } = require('../../.tmp-test/src/lib/cardBenefits.js')
@@ -43,6 +44,17 @@ test('parses month-only benefit dates as recurring month-day ranges', () => {
 
   assert.equal(benefit.startDate, '12-01')
   assert.equal(benefit.endDate, '12-31')
+})
+
+test('detects certificate benefits from matcher prefixes', () => {
+  const benefits = parseCardBenefitRows([
+    ['Amex Aspire', 'Free Night Certificate', '1', 'annual', '', 'certificate:Hilton Free Night', '', '', 'TRUE'],
+    ['Amex Aspire', 'Free Night Certificate', '1', 'annual', '', 'fnc:Hilton', '', '', 'TRUE'],
+    ['Amex Aspire', 'Free Night Certificate', '1', 'annual', '', 'cert:Hilton', '', '', 'TRUE'],
+    ['Amex Aspire', 'Hotel Credit', '200', 'semiannual', '', 'wallet:Hilton', '', '', 'TRUE'],
+  ])
+
+  assert.deepEqual(benefits.map(isCertificateBenefit), [true, true, true, false])
 })
 
 test('uses recurring month-day benefit windows in the current year', () => {
