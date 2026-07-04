@@ -81,10 +81,10 @@ export function BenefitTrackerPage() {
           </div>
           {!cardBenefits.tabMissing && <Button type="button" size="sm" onClick={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} className="rounded-full"><Plus className="h-4 w-4" />{t('benefits.add', 'Add benefit')}</Button>}
         </div>
-        {!cardBenefits.tabMissing && <div className="flex justify-center">
-          <div className="flex h-10 items-center rounded-full border border-border bg-card p-1 shadow-sm">
+        {!cardBenefits.tabMissing && <div className="w-full">
+          <div className="flex h-10 w-full items-center justify-between rounded-full border border-border bg-card p-1 shadow-sm">
             <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label={t('common.previous', 'Previous')} onClick={() => setSelectedMonth((month) => shiftMonthKey(month, -1))}><ChevronLeft className="h-4 w-4" /></Button>
-            <button type="button" className="min-w-28 rounded-full px-3 text-xs font-extrabold" onClick={() => setSelectedMonth(currentMonth)}>{formatMonthLabel(selectedMonth)}</button>
+            <button type="button" className="flex-1 rounded-full px-3 text-center text-xs font-extrabold" onClick={() => setSelectedMonth(currentMonth)}>{formatMonthLabel(selectedMonth)}</button>
             <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label={t('common.next', 'Next')} onClick={() => setSelectedMonth((month) => shiftMonthKey(month, 1))}><ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>}
