@@ -181,7 +181,7 @@ function includesMatcher(expense: Expense, matcher: string) {
   return tokens.some((token) => text.includes(token))
 }
 
-function walletMatcher(benefit: CardBenefit) {
+export function cardBenefitWalletMatcher(benefit: CardBenefit) {
   const matcher = benefit.matcher.trim()
   if (!/^wallet\s*:/i.test(matcher)) return ''
   return matcher.replace(/^wallet\s*:/i, '').trim()
@@ -202,7 +202,7 @@ function includesWalletMatcher(expense: Expense, matcher: string) {
 function matchesBenefit(expense: Expense, benefit: CardBenefit, start: string, end: string) {
   if (expense.date < start || expense.date > end) return false
   if (benefit.category && categoryName(expense.category).toLocaleLowerCase() !== categoryName(benefit.category).toLocaleLowerCase()) return false
-  const wallet = walletMatcher(benefit)
+  const wallet = cardBenefitWalletMatcher(benefit)
   if (wallet) return includesWalletMatcher(expense, wallet)
   if (expense.paymentMethod.trim().toLocaleLowerCase() !== benefit.card.trim().toLocaleLowerCase()) return false
   return includesMatcher(expense, benefit.matcher)
@@ -231,7 +231,7 @@ function walletGroupKey(benefit: CardBenefit) {
     benefit.benefit.trim().toLocaleLowerCase(),
     benefit.period,
     categoryName(benefit.category).toLocaleLowerCase(),
-    walletMatcher(benefit).toLocaleLowerCase(),
+    cardBenefitWalletMatcher(benefit).toLocaleLowerCase(),
   ].join('||')
 }
 
@@ -240,7 +240,7 @@ export function calculateBenefitUsages(benefits: CardBenefit[], expenses: Expens
   const walletGroups = new Map<string, Array<{ benefit: CardBenefit; start: string; end: string }>>()
   for (const benefit of benefits) {
     if (!benefit.active || benefit.amount <= 0) continue
-    if (!walletMatcher(benefit)) {
+    if (!cardBenefitWalletMatcher(benefit)) {
       const usage = calculateBenefitUsage(benefit, expenses, currentIso)
       if (usage) usages.push(usage)
       continue

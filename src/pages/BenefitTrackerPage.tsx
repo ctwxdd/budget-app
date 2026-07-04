@@ -9,7 +9,7 @@ import { useCardBenefits, useDeleteCardBenefit } from '../hooks/useCardBenefits'
 import { useCards } from '../hooks/useCards'
 import { useExpenses } from '../hooks/useExpenses'
 import { useLanguage } from '../hooks/useLanguage'
-import { applyBenefitCredits, calculateBenefitUsages, expandCardBenefitsForCards, type BenefitUsage, type CardBenefit, type CardBenefitCredit } from '../lib/cardBenefits'
+import { applyBenefitCredits, calculateBenefitUsages, cardBenefitWalletMatcher, expandCardBenefitsForCards, type BenefitUsage, type CardBenefit, type CardBenefitCredit } from '../lib/cardBenefits'
 import { todayIso } from '../lib/dates'
 import { currency } from '../lib/format'
 
@@ -93,6 +93,24 @@ function BenefitActionsMenu({ benefit, label, open, disabled, onOpenChange, onEd
   </div>
 }
 
+function benefitGroupMeta(usage: BenefitUsage, benefitByRow: Map<number, CardBenefit>) {
+  const template = benefitByRow.get(usage.benefit.rowIndex) || usage.benefit
+  const wallet = cardBenefitWalletMatcher(template)
+  const name = template.benefit || usage.benefit.benefit || 'Benefit'
+  if (wallet) return {
+    key: `wallet||${wallet.toLocaleLowerCase()}||${name.toLocaleLowerCase()}||${template.period}`,
+    name,
+    product: `Wallet: ${wallet}`,
+    benefit: template,
+  }
+  return {
+    key: `${template.card}||${name}`,
+    name,
+    product: template.card || usage.benefit.card,
+    benefit: template,
+  }
+}
+
 function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled, onAddBenefit, onEditBenefit, onEditCredit }: { usages: BenefitUsage[]; benefitByRow: Map<number, CardBenefit>; tabMissing: boolean; creditsDisabled: boolean; onAddBenefit: () => void; onEditBenefit: (benefit: CardBenefit) => void; onEditCredit: (usage: BenefitUsage, credit?: CardBenefitCredit) => void }) {
   const deleteBenefit = useDeleteCardBenefit()
   const { t } = useLanguage()
@@ -122,21 +140,23 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
   const totalLeft = visibleUsages.reduce((sum, usage) => sum + usage.remaining, 0)
   const totalUsed = visibleUsages.reduce((sum, usage) => sum + usage.used, 0)
   const groups = Array.from(visibleUsages.reduce((map, usage) => {
-    const template = benefitByRow.get(usage.benefit.rowIndex) || usage.benefit
-    const key = `${template.card}||${template.benefit || 'Benefit'}`
-    map.set(key, [...(map.get(key) || []), usage])
+    const meta = benefitGroupMeta(usage, benefitByRow)
+    map.set(meta.key, [...(map.get(meta.key) || []), usage])
     return map
   }, new Map<string, BenefitUsage[]>()).entries())
-    .map(([key, items]) => ({
-      key,
-      name: (items[0] && (benefitByRow.get(items[0].benefit.rowIndex)?.benefit || items[0].benefit.benefit)) || 'Benefit',
-      product: (items[0] && (benefitByRow.get(items[0].benefit.rowIndex)?.card || items[0].benefit.card)) || '',
-      items: items.sort((a, b) => a.benefit.card.localeCompare(b.benefit.card)),
-      benefit: items[0] ? benefitByRow.get(items[0].benefit.rowIndex) || items[0].benefit : undefined,
-      used: items.reduce((sum, usage) => sum + usage.used, 0),
-      left: items.reduce((sum, usage) => sum + usage.remaining, 0),
-      amount: items.reduce((sum, usage) => sum + usage.benefit.amount, 0),
-    }))
+    .map(([key, items]) => {
+      const meta = items[0] ? benefitGroupMeta(items[0], benefitByRow) : { name: 'Benefit', product: '', benefit: undefined }
+      return {
+        key,
+        name: meta.name,
+        product: meta.product,
+        items: items.sort((a, b) => a.benefit.card.localeCompare(b.benefit.card)),
+        benefit: meta.benefit,
+        used: items.reduce((sum, usage) => sum + usage.used, 0),
+        left: items.reduce((sum, usage) => sum + usage.remaining, 0),
+        amount: items.reduce((sum, usage) => sum + usage.benefit.amount, 0),
+      }
+    })
     .sort((a, b) => b.left - a.left || a.product.localeCompare(b.product) || a.name.localeCompare(b.name))
   const cardGroups = Array.from(visibleUsages.reduce((map, usage) => {
     map.set(usage.benefit.card, [...(map.get(usage.benefit.card) || []), usage])
