@@ -9,7 +9,7 @@ import { useCardBenefits, useDeleteCardBenefit } from '../hooks/useCardBenefits'
 import { useCards } from '../hooks/useCards'
 import { useExpenses } from '../hooks/useExpenses'
 import { useLanguage } from '../hooks/useLanguage'
-import { applyBenefitCredits, calculateBenefitUsage, expandCardBenefitsForCards, type BenefitUsage, type CardBenefit, type CardBenefitCredit } from '../lib/cardBenefits'
+import { applyBenefitCredits, calculateBenefitUsages, expandCardBenefitsForCards, type BenefitUsage, type CardBenefit, type CardBenefitCredit } from '../lib/cardBenefits'
 import { todayIso } from '../lib/dates'
 import { currency } from '../lib/format'
 
@@ -22,9 +22,7 @@ export function BenefitTrackerPage() {
   const { t } = useLanguage()
   const activeCards = React.useMemo(() => cardsQuery.cards.filter((card) => card.active), [cardsQuery.cards])
   const effectiveBenefits = React.useMemo(() => expandCardBenefitsForCards(cardBenefits.benefits, activeCards), [cardBenefits.benefits, activeCards])
-  const benefitUsages = React.useMemo(() => effectiveBenefits
-    .map((benefit) => calculateBenefitUsage(benefit, data))
-    .filter((usage): usage is BenefitUsage => Boolean(usage))
+  const benefitUsages = React.useMemo(() => calculateBenefitUsages(effectiveBenefits, data)
     .map((usage) => applyBenefitCredits(usage, benefitCredits.credits))
     .sort((a, b) => a.end.localeCompare(b.end) || b.remaining - a.remaining || a.benefit.card.localeCompare(b.benefit.card)),
   [effectiveBenefits, data, benefitCredits.credits])

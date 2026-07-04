@@ -5,6 +5,7 @@ const {
   benefitWindow,
   applyBenefitCredits,
   calculateBenefitUsage,
+  calculateBenefitUsages,
   calculateBenefitUsageByCard,
   cardProductKey,
   expandCardBenefitsForCards,
@@ -84,6 +85,24 @@ test('wallet benefits match merchant spend without requiring the source card pay
   assert.equal(usage.remaining, 0)
   assert.equal(usage.eligibleSpend, 28)
   assert.equal(usage.count, 2)
+})
+
+test('wallet benefits share one spend pool across multiple cards', () => {
+  const benefits = parseCardBenefitRows([
+    ['Amex Platinum', 'Uber Credit', '15', 'monthly', '', 'wallet:Uber', '2026-01-01', '', 'TRUE'],
+    ['Amex Platinum', 'Uber Credit', '15', 'monthly', '', 'wallet:Uber', '2026-01-01', '', 'TRUE'],
+    ['Amex Platinum', 'Uber Credit', '15', 'monthly', '', 'wallet:Uber', '2026-01-01', '', 'TRUE'],
+  ]).map((benefit, index) => ({ ...benefit, rowIndex: 10, card: `Amex Platinum ${index + 1}` }))
+  const rows = [
+    expense({ rowIndex: 1, paymentMethod: 'Apple Pay', date: '2026-06-05', amount: 8, description: 'Uber Eats' }),
+    expense({ rowIndex: 2, paymentMethod: 'Amex Gold', date: '2026-06-20', amount: 12, description: 'Uber ride' }),
+  ]
+
+  const usages = calculateBenefitUsages(benefits, rows, '2026-06-30')
+
+  assert.equal(usages.reduce((sum, usage) => sum + usage.used, 0), 20)
+  assert.deepEqual(usages.map((usage) => usage.used), [15, 5, 0])
+  assert.equal(usages.reduce((sum, usage) => sum + usage.remaining, 0), 25)
 })
 
 test('regular benefits still require matching payment method', () => {

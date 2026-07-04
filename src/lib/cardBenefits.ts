@@ -225,6 +225,70 @@ export function calculateBenefitUsage(benefit: CardBenefit, expenses: Expense[],
   }
 }
 
+function walletGroupKey(benefit: CardBenefit) {
+  return [
+    benefit.rowIndex,
+    benefit.benefit.trim().toLocaleLowerCase(),
+    benefit.period,
+    categoryName(benefit.category).toLocaleLowerCase(),
+    walletMatcher(benefit).toLocaleLowerCase(),
+  ].join('||')
+}
+
+export function calculateBenefitUsages(benefits: CardBenefit[], expenses: Expense[], currentIso = todayIso()): BenefitUsage[] {
+  const usages: BenefitUsage[] = []
+  const walletGroups = new Map<string, Array<{ benefit: CardBenefit; start: string; end: string }>>()
+  for (const benefit of benefits) {
+    if (!benefit.active || benefit.amount <= 0) continue
+    if (!walletMatcher(benefit)) {
+      const usage = calculateBenefitUsage(benefit, expenses, currentIso)
+      if (usage) usages.push(usage)
+      continue
+    }
+    const window = benefitWindow(benefit, currentIso)
+    if (!window) continue
+    const key = walletGroupKey(benefit)
+    walletGroups.set(key, [...(walletGroups.get(key) || []), { benefit, ...window }])
+  }
+
+  for (const group of walletGroups.values()) {
+    const remainingSpend = new Map<number, number>()
+    expenses.forEach((expense, index) => {
+      remainingSpend.set(index, Math.max(0, expense.amount))
+    })
+    const ordered = [...group].sort((a, b) =>
+      a.start.localeCompare(b.start) ||
+      a.end.localeCompare(b.end) ||
+      a.benefit.card.localeCompare(b.benefit.card))
+    for (const item of ordered) {
+      const matches = expenses
+        .map((expense, index) => ({ expense, index }))
+        .filter(({ expense }) => matchesBenefit(expense, item.benefit, item.start, item.end))
+        .sort((a, b) => a.expense.date.localeCompare(b.expense.date) || a.index - b.index)
+      const eligibleSpend = money(matches.reduce((sum, { index }) => sum + (remainingSpend.get(index) || 0), 0))
+      const used = money(Math.min(item.benefit.amount, eligibleSpend))
+      let remainingUsed = used
+      for (const { index } of matches) {
+        if (remainingUsed <= 0) break
+        const remaining = remainingSpend.get(index) || 0
+        const consumed = Math.min(remaining, remainingUsed)
+        remainingSpend.set(index, money(remaining - consumed))
+        remainingUsed = money(remainingUsed - consumed)
+      }
+      usages.push({
+        benefit: item.benefit,
+        start: item.start,
+        end: item.end,
+        eligibleSpend,
+        used,
+        remaining: money(Math.max(0, item.benefit.amount - used)),
+        count: matches.filter(({ index }) => (remainingSpend.get(index) || 0) > 0 || used > 0).length,
+      })
+    }
+  }
+  return usages
+}
+
 function sameText(a: string, b: string) {
   return a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase()
 }
@@ -252,9 +316,8 @@ export function applyBenefitCredits(usage: BenefitUsage, credits: CardBenefitCre
 
 export function calculateBenefitUsageByCard(benefits: CardBenefit[], expenses: Expense[], currentIso = todayIso()) {
   const map = new Map<string, BenefitUsage[]>()
-  for (const benefit of benefits) {
-    const usage = calculateBenefitUsage(benefit, expenses, currentIso)
-    if (!usage) continue
+  for (const usage of calculateBenefitUsages(benefits, expenses, currentIso)) {
+    const benefit = usage.benefit
     const key = benefit.card.trim().toLocaleLowerCase()
     map.set(key, [...(map.get(key) || []), usage])
   }
