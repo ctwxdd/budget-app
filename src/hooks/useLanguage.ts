@@ -168,6 +168,8 @@ const zh: Record<string, string> = {
   'benefits.matcher': '商家／標籤',
   'benefits.startDate': '開始日期',
   'benefits.endDate': '結束日期',
+  'benefits.dateExact': '指定日期',
+  'benefits.dateAnnual': '每年',
   'benefits.productRequired': '請選擇產品。',
   'benefits.nameRequired': '請輸入權益名稱。',
   'benefits.amountRequired': '權益金額必須大於 0。',

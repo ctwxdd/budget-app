@@ -6,6 +6,20 @@ import { useLanguage } from '../../hooks/useLanguage'
 import { type CardBenefit, type CardBenefitPeriod } from '../../lib/cardBenefits'
 
 const benefitPeriods: CardBenefitPeriod[] = ['monthly', 'quarterly', 'semiannual', 'annual']
+const monthOptions = [
+  ['01', 'Jan'],
+  ['02', 'Feb'],
+  ['03', 'Mar'],
+  ['04', 'Apr'],
+  ['05', 'May'],
+  ['06', 'Jun'],
+  ['07', 'Jul'],
+  ['08', 'Aug'],
+  ['09', 'Sep'],
+  ['10', 'Oct'],
+  ['11', 'Nov'],
+  ['12', 'Dec'],
+]
 
 type BenefitForm = {
   benefit: string
@@ -24,6 +38,63 @@ function emptyBenefit(startDate?: string): BenefitForm {
 
 function benefitFormFromRow(benefit: CardBenefit): BenefitForm {
   return { benefit: benefit.benefit, amount: benefit.amount, period: benefit.period, category: benefit.category, matcher: benefit.matcher, startDate: benefit.startDate, endDate: benefit.endDate, active: benefit.active }
+}
+
+function isMonthDay(value: string) {
+  return /^\d{2}-\d{2}$/.test(value)
+}
+
+function isIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+function daysInMonth(month: string) {
+  return new Date(2024, Number(month || '1'), 0).getDate()
+}
+
+function monthDayFromValue(value: string) {
+  if (isMonthDay(value)) return { month: value.slice(0, 2), day: value.slice(3, 5) }
+  if (isIsoDate(value)) return { month: value.slice(5, 7), day: value.slice(8, 10) }
+  return { month: '', day: '' }
+}
+
+function BenefitDateField({ label, value, boundary, onChange }: { label: string; value: string; boundary: 'start' | 'end'; onChange: (value: string) => void }) {
+  const { t } = useLanguage()
+  const mode = isMonthDay(value) ? 'annual' : 'exact'
+  const { month, day } = monthDayFromValue(value)
+  const dayCount = month ? daysInMonth(month) : 31
+  const dayOptions = Array.from({ length: dayCount }, (_, index) => String(index + 1).padStart(2, '0'))
+  const setAnnualPart = (nextMonth: string, nextDay: string) => {
+    const safeMonth = nextMonth || '01'
+    const fallbackDay = boundary === 'start' ? '01' : String(daysInMonth(safeMonth)).padStart(2, '0')
+    const safeDay = String(Math.min(Number(nextDay || fallbackDay), daysInMonth(safeMonth))).padStart(2, '0')
+    onChange(`${safeMonth}-${safeDay}`)
+  }
+  return <div className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">
+    <div className="flex items-center justify-between gap-2">
+      <span>{label}</span>
+      {value && <button type="button" className="text-xs font-bold text-coral" onClick={() => onChange('')}>{t('common.clear', 'Clear')}</button>}
+    </div>
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-2">
+      <Select value={mode} onChange={(event) => {
+        if (event.target.value === 'annual') setAnnualPart(month, day)
+        else onChange(isIsoDate(value) ? value : '')
+      }}>
+        <option value="exact">{t('benefits.dateExact', 'Exact')}</option>
+        <option value="annual">{t('benefits.dateAnnual', 'Every year')}</option>
+      </Select>
+      {mode === 'exact'
+        ? <Input className="min-w-0 max-w-full appearance-none" type="date" value={isIsoDate(value) ? value : ''} onChange={(event) => onChange(event.target.value)} />
+        : <div className="grid min-w-0 grid-cols-2 gap-2">
+          <Select value={month || '01'} onChange={(event) => setAnnualPart(event.target.value, day)}>
+            {monthOptions.map(([option, name]) => <option key={option} value={option}>{name}</option>)}
+          </Select>
+          <Select value={day || (boundary === 'start' ? '01' : String(dayCount).padStart(2, '0'))} onChange={(event) => setAnnualPart(month, event.target.value)}>
+            {dayOptions.map((option) => <option key={option} value={option}>{Number(option)}</option>)}
+          </Select>
+        </div>}
+    </div>
+  </div>
 }
 
 export function BenefitDialog({ open, onOpenChange, benefit, productName, productOptions = [], startDate }: { open: boolean; onOpenChange: (open: boolean) => void; benefit: CardBenefit | null; productName: string; productOptions?: string[]; startDate?: string }) {
@@ -95,8 +166,8 @@ export function BenefitDialog({ open, onOpenChange, benefit, productName, produc
         </Select>
       </label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('benefits.matcher', 'Merchant / tag')}<Input value={form.matcher} onChange={(event) => setForm({ ...form, matcher: event.target.value })} placeholder="Resy, hotel, wallet:Uber" /></label>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('benefits.startDate', 'Start date')}<Input className="min-w-0 max-w-full" inputMode="numeric" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} placeholder="YYYY-MM-DD or 12-01" /></label>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('benefits.endDate', 'End date')}<Input className="min-w-0 max-w-full" inputMode="numeric" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} placeholder="YYYY-MM-DD or 12-31" /></label>
+      <BenefitDateField label={t('benefits.startDate', 'Start date')} value={form.startDate} boundary="start" onChange={(startDate) => setForm({ ...form, startDate })} />
+      <BenefitDateField label={t('benefits.endDate', 'End date')} value={form.endDate} boundary="end" onChange={(endDate) => setForm({ ...form, endDate })} />
       <label className="flex items-center gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 text-sm font-semibold text-muted-foreground dark:bg-card/70 sm:col-span-2"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4 accent-coral" />{t('card.active', 'Active')}</label>
     </form>
   </Dialog>
