@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronRight, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { BenefitDialog } from '../components/benefits/BenefitDialog'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ConfirmDialog, Dialog, Input, Select, Textarea, useToast } from '../components/ui'
 import { QueryError } from '../components/layout/QueryError'
@@ -10,8 +10,27 @@ import { useCards } from '../hooks/useCards'
 import { useExpenses } from '../hooks/useExpenses'
 import { useLanguage } from '../hooks/useLanguage'
 import { applyBenefitCredits, calculateBenefitUsages, cardBenefitWalletMatcher, expandCardBenefitsForCards, type BenefitUsage, type CardBenefit, type CardBenefitCredit } from '../lib/cardBenefits'
-import { todayIso } from '../lib/dates'
+import { dateToIsoDate, localDateFromIso, todayIso } from '../lib/dates'
 import { currency } from '../lib/format'
+
+function monthKeyFromIso(iso: string) {
+  return iso.slice(0, 7)
+}
+
+function monthEndIso(monthKey: string) {
+  const [year, month] = monthKey.split('-').map(Number)
+  return dateToIsoDate(new Date(year, month, 0))
+}
+
+function shiftMonthKey(monthKey: string, delta: number) {
+  const [year, month] = monthKey.split('-').map(Number)
+  return dateToIsoDate(new Date(year, month - 1 + delta, 1)).slice(0, 7)
+}
+
+function formatMonthLabel(monthKey: string) {
+  const date = localDateFromIso(`${monthKey}-01`)
+  return date ? date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : monthKey
+}
 
 export function BenefitTrackerPage() {
   const { data = [], isLoading, error, refetch } = useExpenses()
@@ -20,12 +39,15 @@ export function BenefitTrackerPage() {
   const createCreditsTab = useCreateBenefitCreditsTab()
   const cardsQuery = useCards()
   const { t } = useLanguage()
+  const currentMonth = React.useMemo(() => monthKeyFromIso(todayIso()), [])
+  const [selectedMonth, setSelectedMonth] = React.useState(currentMonth)
+  const selectedIso = React.useMemo(() => monthEndIso(selectedMonth), [selectedMonth])
   const activeCards = React.useMemo(() => cardsQuery.cards.filter((card) => card.active), [cardsQuery.cards])
   const effectiveBenefits = React.useMemo(() => expandCardBenefitsForCards(cardBenefits.benefits, activeCards), [cardBenefits.benefits, activeCards])
-  const benefitUsages = React.useMemo(() => calculateBenefitUsages(effectiveBenefits, data)
+  const benefitUsages = React.useMemo(() => calculateBenefitUsages(effectiveBenefits, data, selectedIso)
     .map((usage) => applyBenefitCredits(usage, benefitCredits.credits))
     .sort((a, b) => a.end.localeCompare(b.end) || b.remaining - a.remaining || a.benefit.card.localeCompare(b.benefit.card)),
-  [effectiveBenefits, data, benefitCredits.credits])
+  [effectiveBenefits, data, selectedIso, benefitCredits.credits])
   const [creditUsage, setCreditUsage] = React.useState<BenefitUsage | null>(null)
   const [creditRow, setCreditRow] = React.useState<CardBenefitCredit | null>(null)
   const [benefitDialogOpen, setBenefitDialogOpen] = React.useState(false)
@@ -56,7 +78,14 @@ export function BenefitTrackerPage() {
           <CardTitle>{t('benefits.title', 'Benefit tracker')}</CardTitle>
           <CardDescription>{t('benefits.description', 'Track credits by product, then see every active card using it.')}</CardDescription>
         </div>
-        {!cardBenefits.tabMissing && <Button type="button" size="sm" onClick={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} className="rounded-full"><Plus className="h-4 w-4" />{t('benefits.add', 'Add benefit')}</Button>}
+        {!cardBenefits.tabMissing && <div className="flex flex-col gap-2 sm:items-end">
+          <Button type="button" size="sm" onClick={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} className="rounded-full"><Plus className="h-4 w-4" />{t('benefits.add', 'Add benefit')}</Button>
+          <div className="flex h-10 items-center rounded-full border border-border bg-card p-1 shadow-sm">
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label={t('common.previous', 'Previous')} onClick={() => setSelectedMonth((month) => shiftMonthKey(month, -1))}><ChevronLeft className="h-4 w-4" /></Button>
+            <button type="button" className="min-w-28 rounded-full px-3 text-xs font-extrabold" onClick={() => setSelectedMonth(currentMonth)}>{formatMonthLabel(selectedMonth)}</button>
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label={t('common.next', 'Next')} onClick={() => setSelectedMonth((month) => shiftMonthKey(month, 1))}><ChevronRight className="h-4 w-4" /></Button>
+          </div>
+        </div>}
       </CardHeader>
       <CardContent><BenefitProgressList usages={benefitUsages} benefitByRow={benefitByRow} tabMissing={cardBenefits.tabMissing} creditsDisabled={benefitCredits.tabMissing} onAddBenefit={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} onEditBenefit={editBenefit} onEditCredit={(usage, credit) => { setCreditUsage(usage); setCreditRow(credit || null) }} /></CardContent>
     </Card>
