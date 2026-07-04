@@ -47,6 +47,52 @@ export type CardBenefitCredit = {
 
 const periods = new Set<CardBenefitPeriod>(['monthly', 'quarterly', 'semiannual', 'annual'])
 
+const monthNameMap: Record<string, string> = {
+  jan: '01',
+  january: '01',
+  feb: '02',
+  february: '02',
+  mar: '03',
+  march: '03',
+  apr: '04',
+  april: '04',
+  may: '05',
+  jun: '06',
+  june: '06',
+  jul: '07',
+  july: '07',
+  aug: '08',
+  august: '08',
+  sep: '09',
+  sept: '09',
+  september: '09',
+  oct: '10',
+  october: '10',
+  nov: '11',
+  november: '11',
+  dec: '12',
+  december: '12',
+}
+
+function lastDayOfMonth(month: string) {
+  return String(new Date(2024, Number(month), 0).getDate()).padStart(2, '0')
+}
+
+function isRecurringMonthDay(value: string) {
+  return /^\d{2}-\d{2}$/.test(value)
+}
+
+function parseBenefitDate(value: unknown, boundary: 'start' | 'end'): string {
+  if (value === null || value === undefined) return ''
+  if (value instanceof Date) return dateToIsoDate(value)
+  const text = String(value).trim()
+  if (!text) return ''
+  if (isRecurringMonthDay(text)) return text
+  const month = monthNameMap[text.toLocaleLowerCase()]
+  if (month) return `${month}-${boundary === 'start' ? '01' : lastDayOfMonth(month)}`
+  return normalizeDateCell(value)
+}
+
 function parseDate(value: unknown): string {
   return normalizeDateCell(value)
 }
@@ -84,6 +130,11 @@ function minIso(a: string, b: string) {
   return a < b ? a : b
 }
 
+function resolveBenefitDate(value: string, year: number) {
+  if (isRecurringMonthDay(value)) return `${year}-${value}`
+  return value
+}
+
 function money(value: number) {
   return Math.round((Number(value) || 0) * 100) / 100
 }
@@ -107,7 +158,7 @@ export function expandCardBenefitsForCards(benefits: CardBenefit[], cards: Benef
     const benefitProduct = cardProductKey(benefit.card)
     return cards
       .filter((card) => cardProductKey(card.product || card.name) === benefitProduct)
-      .map((card) => ({ ...benefit, card: card.name, startDate: card.subStart || benefit.startDate || '' }))
+      .map((card) => ({ ...benefit, card: card.name, startDate: isRecurringMonthDay(benefit.startDate) ? benefit.startDate : card.subStart || benefit.startDate || '' }))
   })
 }
 
@@ -123,8 +174,8 @@ export function parseCardBenefitRows(rows: string[][] = []): CardBenefit[] {
         period: parsePeriod(period),
         category: String(category || '').trim(),
         matcher: String(matcher || '').trim(),
-        startDate: parseDate(startDate),
-        endDate: parseDate(endDate),
+        startDate: parseBenefitDate(startDate, 'start'),
+        endDate: parseBenefitDate(endDate, 'end'),
         active: parseBoolean(active, true),
       }
     })
@@ -167,8 +218,8 @@ export function benefitWindow(benefit: CardBenefit, currentIso = todayIso()) {
   }
   const rawStart = dateToIsoDate(new Date(year, startMonth, 1))
   const rawEnd = dateToIsoDate(new Date(year, endMonth + 1, 0))
-  const start = maxIso(rawStart, benefit.startDate)
-  const end = minIso(rawEnd, benefit.endDate)
+  const start = maxIso(rawStart, resolveBenefitDate(benefit.startDate, year))
+  const end = minIso(rawEnd, resolveBenefitDate(benefit.endDate, year))
   if (start && end && start > end) return null
   if (currentIso < start || currentIso > end) return null
   return { start, end }
