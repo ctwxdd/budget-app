@@ -140,6 +140,26 @@ function benefitGroupMeta(usage: BenefitUsage, benefitByRow: Map<number, CardBen
   }
 }
 
+function benefitCardRows(items: BenefitUsage[]) {
+  return Array.from(items.reduce((map, usage) => {
+    map.set(usage.benefit.card, [...(map.get(usage.benefit.card) || []), usage])
+    return map
+  }, new Map<string, BenefitUsage[]>()).entries())
+    .map(([card, usages]) => ({
+      card,
+      usages,
+      primary: usages.find((usage) => usage.creditRows?.length) || usages[0],
+      used: usages.reduce((sum, usage) => sum + usage.used, 0),
+      amount: usages.reduce((sum, usage) => sum + usage.benefit.amount, 0),
+      remaining: usages.reduce((sum, usage) => sum + usage.remaining, 0),
+      creditAmount: usages.reduce((sum, usage) => sum + (usage.creditAmount || 0), 0),
+      pendingCreditAmount: usages.reduce((sum, usage) => sum + (usage.pendingCreditAmount || 0), 0),
+      start: usages.reduce((min, usage) => usage.start < min ? usage.start : min, usages[0]?.start || ''),
+      end: usages.reduce((max, usage) => usage.end > max ? usage.end : max, usages[0]?.end || ''),
+    }))
+    .sort((a, b) => a.card.localeCompare(b.card))
+}
+
 function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled, onAddBenefit, onEditBenefit, onEditCredit }: { usages: BenefitUsage[]; benefitByRow: Map<number, CardBenefit>; tabMissing: boolean; creditsDisabled: boolean; onAddBenefit: () => void; onEditBenefit: (benefit: CardBenefit) => void; onEditCredit: (usage: BenefitUsage, credit?: CardBenefitCredit) => void }) {
   const deleteBenefit = useDeleteCardBenefit()
   const { t } = useLanguage()
@@ -271,28 +291,28 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
             </button>
           </div>
           {!isCollapsed && <div>
-            {group.items.map((usage) => {
-              const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
-              const done = usage.remaining <= 0.005
-              const credit = usage.creditRows?.[0]
-              const creditLabel = usage.creditAmount ? `${t('benefits.received', 'Received')} ${currency.format(usage.creditAmount)}` : usage.pendingCreditAmount ? `${t('benefits.pending', 'Pending')} ${currency.format(usage.pendingCreditAmount)}` : ''
-              return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="border-b border-border/60 px-3 py-2 last:border-b-0 sm:px-4">
+            {benefitCardRows(group.items).map((row) => {
+              const pct = row.amount > 0 ? Math.min(100, Math.round((row.used / row.amount) * 100)) : 0
+              const done = row.remaining <= 0.005
+              const credit = row.primary.creditRows?.[0]
+              const creditLabel = row.creditAmount ? `${t('benefits.received', 'Received')} ${currency.format(row.creditAmount)}` : row.pendingCreditAmount ? `${t('benefits.pending', 'Pending')} ${currency.format(row.pendingCreditAmount)}` : ''
+              return <div key={row.card} className="border-b border-border/60 px-3 py-2 last:border-b-0 sm:px-4">
                 <div className="flex min-w-0 items-center justify-between gap-2">
-                  <p className="min-w-0 truncate text-sm font-extrabold">{usage.benefit.card}</p>
-                  <Button type="button" variant="secondary" size="sm" className="h-7 shrink-0 justify-center rounded-full px-3 text-xs sm:w-auto" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>
+                  <p className="min-w-0 truncate text-sm font-extrabold">{row.card}</p>
+                  <Button type="button" variant="secondary" size="sm" className="h-7 shrink-0 justify-center rounded-full px-3 text-xs sm:w-auto" disabled={creditsDisabled} onClick={() => onEditCredit(row.primary, credit)}>
                     {credit ? t('common.edit', 'Edit') : t('benefits.usedButton', 'Used')}
                   </Button>
                 </div>
                 <div className="mt-1 min-w-0">
                   {creditLabel && <p className="mt-0.5 truncate text-[11px] font-semibold text-emerald-700 dark:text-mint">{creditLabel}</p>}
                   <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-muted-foreground">
-                    <span className="tabular-nums">{currency.format(usage.used)} / {currency.format(usage.benefit.amount)}</span>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${done ? 'bg-mint/15 text-emerald-700 dark:text-mint' : 'bg-butter/25 text-amber-700 dark:text-butter'}`}>{done ? t('benefits.done', 'Done') : `${currency.format(usage.remaining)} ${t('benefits.leftShort', 'left')}`}</span>
+                    <span className="tabular-nums">{currency.format(row.used)} / {currency.format(row.amount)}</span>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${done ? 'bg-mint/15 text-emerald-700 dark:text-mint' : 'bg-butter/25 text-amber-700 dark:text-butter'}`}>{done ? t('benefits.done', 'Done') : `${currency.format(row.remaining)} ${t('benefits.leftShort', 'left')}`}</span>
                   </div>
                   <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
                     <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${pct}%` }} />
                   </div>
-                  <p className="mt-1 truncate text-[10px] font-medium text-muted-foreground">{usage.start} {'->'} {usage.end}</p>
+                  <p className="mt-1 truncate text-[10px] font-medium text-muted-foreground">{row.start} {'->'} {row.end}{row.usages.length > 1 ? ` · ${row.usages.length} rules` : ''}</p>
                 </div>
               </div>
             })}
