@@ -227,7 +227,6 @@ export function calculateBenefitUsage(benefit: CardBenefit, expenses: Expense[],
 
 function walletGroupKey(benefit: CardBenefit) {
   return [
-    benefit.rowIndex,
     benefit.benefit.trim().toLocaleLowerCase(),
     benefit.period,
     categoryName(benefit.category).toLocaleLowerCase(),
