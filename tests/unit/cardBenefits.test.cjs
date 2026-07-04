@@ -215,6 +215,17 @@ test('keeps recurring benefit start dates when expanding to cards', () => {
   assert.equal(expanded[0].startDate, '12-01')
 })
 
+test('keeps explicit benefit date ranges when expanding to cards', () => {
+  const [template] = parseCardBenefitRows([['Amex Platinum', 'Uber December Credit', '35', 'monthly', '', 'wallet:Uber', '2026-12-01', '2026-12-31', 'TRUE']])
+  const [expanded] = expandCardBenefitsForCards([template], [
+    { name: 'Amex Platinum (Nick) 01000', product: 'Amex Platinum', subStart: '2026-01-15' },
+  ])
+
+  assert.equal(expanded.startDate, '2026-12-01')
+  assert.equal(calculateBenefitUsage(expanded, [expense({ date: '2026-11-10', amount: 50, description: 'Uber ride' })], '2026-11-30'), null)
+  assert.equal(calculateBenefitUsage(expanded, [expense({ date: '2026-12-10', amount: 50, description: 'Uber ride' })], '2026-12-31').used, 35)
+})
+
 test('ignores benefit templates without a matching card product', () => {
   const [template] = parseCardBenefitRows([['Amex Gold', 'Dining Credit', '10', 'monthly', '', '', '', '', 'TRUE']])
   const expanded = expandCardBenefitsForCards([template], [

@@ -153,12 +153,18 @@ export function cardProductName(name: string) {
 
 export type BenefitCard = { name: string; product?: string; subStart?: string }
 
+function expandedBenefitStartDate(benefit: CardBenefit, card: BenefitCard) {
+  if (!benefit.startDate) return card.subStart || ''
+  if (benefit.endDate) return benefit.startDate
+  return isRecurringMonthDay(benefit.startDate) ? benefit.startDate : card.subStart || benefit.startDate
+}
+
 export function expandCardBenefitsForCards(benefits: CardBenefit[], cards: BenefitCard[]): CardBenefit[] {
   return benefits.flatMap((benefit) => {
     const benefitProduct = cardProductKey(benefit.card)
     return cards
       .filter((card) => cardProductKey(card.product || card.name) === benefitProduct)
-      .map((card) => ({ ...benefit, card: card.name, startDate: isRecurringMonthDay(benefit.startDate) ? benefit.startDate : card.subStart || benefit.startDate || '' }))
+      .map((card) => ({ ...benefit, card: card.name, startDate: expandedBenefitStartDate(benefit, card) }))
   })
 }
 
