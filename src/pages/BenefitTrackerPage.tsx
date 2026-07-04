@@ -73,13 +73,15 @@ export function BenefitTrackerPage() {
       </CardContent>
     </Card>}
     <Card>
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <CardTitle>{t('benefits.title', 'Benefit tracker')}</CardTitle>
-          <CardDescription>{t('benefits.description', 'Track credits by product, then see every active card using it.')}</CardDescription>
+      <CardHeader className="space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle>{t('benefits.title', 'Benefit tracker')}</CardTitle>
+            <CardDescription>{t('benefits.description', 'Track credits by product, then see every active card using it.')}</CardDescription>
+          </div>
+          {!cardBenefits.tabMissing && <Button type="button" size="sm" onClick={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} className="rounded-full"><Plus className="h-4 w-4" />{t('benefits.add', 'Add benefit')}</Button>}
         </div>
-        {!cardBenefits.tabMissing && <div className="flex flex-col gap-2 sm:items-end">
-          <Button type="button" size="sm" onClick={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} className="rounded-full"><Plus className="h-4 w-4" />{t('benefits.add', 'Add benefit')}</Button>
+        {!cardBenefits.tabMissing && <div className="flex justify-center">
           <div className="flex h-10 items-center rounded-full border border-border bg-card p-1 shadow-sm">
             <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label={t('common.previous', 'Previous')} onClick={() => setSelectedMonth((month) => shiftMonthKey(month, -1))}><ChevronLeft className="h-4 w-4" /></Button>
             <button type="button" className="min-w-28 rounded-full px-3 text-xs font-extrabold" onClick={() => setSelectedMonth(currentMonth)}>{formatMonthLabel(selectedMonth)}</button>
@@ -248,6 +250,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
             const template = benefitByRow.get(usage.benefit.rowIndex) || usage.benefit
             const credit = usage.creditRows?.[0]
             const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
+            const done = usage.remaining <= 0.005
             return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2">
               <div className="min-w-0">
                 <p className="truncate text-xs font-extrabold">{usage.benefit.benefit}</p>
@@ -257,7 +260,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
                 </div>
               </div>
               <div className="flex gap-1">
-                <Button type="button" variant="secondary" size="sm" className="h-8 rounded-full px-3 text-xs" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>{credit ? t('common.edit', 'Edit') : t('benefits.usedButton', 'Used')}</Button>
+                {(!done || credit) && <Button type="button" variant="secondary" size="sm" className="h-8 rounded-full px-3 text-xs" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>{credit ? t('common.edit', 'Edit') : t('benefits.usedButton', 'Used')}</Button>}
                 <BenefitActionsMenu benefit={template} label={usage.benefit.benefit} open={openActionKey === `card-${usage.benefit.rowIndex}-${usage.benefit.card}`} disabled={deleteBenefit.isPending} onOpenChange={(open) => setOpenActionKey(open ? `card-${usage.benefit.rowIndex}-${usage.benefit.card}` : '')} onEdit={onEditBenefit} onDelete={setConfirmBenefit} />
               </div>
             </div>
@@ -299,9 +302,9 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
               return <div key={row.card} className="border-b border-border/60 px-3 py-2 last:border-b-0 sm:px-4">
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <p className="min-w-0 truncate text-sm font-extrabold">{row.card}</p>
-                  <Button type="button" variant="secondary" size="sm" className="h-7 shrink-0 justify-center rounded-full px-3 text-xs sm:w-auto" disabled={creditsDisabled} onClick={() => onEditCredit(row.primary, credit)}>
+                  {(!done || credit) && <Button type="button" variant="secondary" size="sm" className="h-7 shrink-0 justify-center rounded-full px-3 text-xs sm:w-auto" disabled={creditsDisabled} onClick={() => onEditCredit(row.primary, credit)}>
                     {credit ? t('common.edit', 'Edit') : t('benefits.usedButton', 'Used')}
-                  </Button>
+                  </Button>}
                 </div>
                 <div className="mt-1 min-w-0">
                   {creditLabel && <p className="mt-0.5 truncate text-[11px] font-semibold text-emerald-700 dark:text-mint">{creditLabel}</p>}
