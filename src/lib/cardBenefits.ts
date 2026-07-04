@@ -135,6 +135,10 @@ function resolveBenefitDate(value: string, year: number) {
   return value
 }
 
+function isIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
 function money(value: number) {
   return Math.round((Number(value) || 0) * 100) / 100
 }
@@ -206,6 +210,11 @@ export function parseBenefitCreditRows(rows: string[][] = []): CardBenefitCredit
 }
 
 export function benefitWindow(benefit: CardBenefit, currentIso = todayIso()) {
+  if (isIsoDate(benefit.startDate) && isIsoDate(benefit.endDate)) {
+    if (benefit.startDate > benefit.endDate) return null
+    if (currentIso < benefit.startDate || currentIso > benefit.endDate) return null
+    return { start: benefit.startDate, end: benefit.endDate }
+  }
   const today = localDateFromIso(currentIso)
   if (!today) return null
   const year = today.getFullYear()

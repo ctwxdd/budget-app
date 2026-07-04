@@ -65,6 +65,15 @@ test('uses recurring month-day benefit windows in the current year', () => {
   assert.deepEqual(benefitWindow(benefit, '2027-12-15'), { start: '2027-12-01', end: '2027-12-31' })
 })
 
+test('uses exact full date ranges without calendar period clipping', () => {
+  const [benefit] = parseCardBenefitRows([['Amex Aspire', 'Free Night Certificate', '1', 'annual', '', 'certificate:Hilton Free Night', '2026-06-15', '2027-06-14', 'TRUE']])
+
+  assert.equal(benefitWindow(benefit, '2026-06-14'), null)
+  assert.deepEqual(benefitWindow(benefit, '2026-12-31'), { start: '2026-06-15', end: '2027-06-14' })
+  assert.deepEqual(benefitWindow(benefit, '2027-01-01'), { start: '2026-06-15', end: '2027-06-14' })
+  assert.equal(benefitWindow(benefit, '2027-06-15'), null)
+})
+
 test('calculates monthly credit usage by card and category', () => {
   const [benefit] = parseCardBenefitRows([['Amex Brilliant', 'Dining Credit', '25', 'monthly', '外食', '', '2026-01-01', '', 'TRUE']])
   const rows = [
