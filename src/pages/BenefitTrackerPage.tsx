@@ -168,6 +168,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
   const [confirmBenefit, setConfirmBenefit] = React.useState<CardBenefit | null>(null)
   const [view, setView] = React.useState<'benefit' | 'card'>('benefit')
   const [collapsed, setCollapsed] = React.useState<Set<string> | null>(null)
+  const [collapsedCards, setCollapsedCards] = React.useState<Set<string> | null>(null)
   const [cardSearch, setCardSearch] = React.useState('')
   const [openActionKey, setOpenActionKey] = React.useState('')
   const visibleUsages = React.useMemo(() => {
@@ -226,6 +227,12 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
     return next
   })
   const isGroupCollapsed = (key: string) => collapsed?.has(key) ?? true
+  const toggleCard = (card: string) => setCollapsedCards((current) => {
+    const next = new Set(current ?? cardGroups.map((group) => group.card))
+    next.has(card) ? next.delete(card) : next.add(card)
+    return next
+  })
+  const isCardCollapsed = (card: string) => collapsedCards?.has(card) ?? true
   return <div className="space-y-3">
     <div className="grid grid-cols-3 gap-2">
       <BenefitKpi label={t('benefits.tracked', 'Tracked')} value={String(groups.length)} />
@@ -238,14 +245,17 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
     </div>
     {!visibleUsages.length && <div className="rounded-3xl border border-dashed bg-accent/35 p-5 text-center text-sm font-semibold text-muted-foreground">{t('benefits.noMatches', 'No matching cards.')}</div>}
     {visibleUsages.length > 0 && view === 'card' && <div className="grid gap-3 md:grid-cols-2">
-      {cardGroups.map((group) => <div key={group.card} className="rounded-3xl border border-border/70 bg-card p-3 shadow-sm">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-extrabold">{group.card}</p>
-            <p className="text-[11px] font-semibold text-muted-foreground">{currency.format(group.used)} used · {currency.format(group.left)} left</p>
-          </div>
-        </div>
-        <div className="mt-2 divide-y divide-border/60">
+      {cardGroups.map((group) => {
+        const isCollapsed = isCardCollapsed(group.card)
+        return <div key={group.card} className="rounded-3xl border border-border/70 bg-card shadow-sm">
+          <button type="button" className={`flex w-full items-center justify-between gap-2 px-3 py-3 text-left ${isCollapsed ? '' : 'border-b border-border/60'}`} onClick={() => toggleCard(group.card)} aria-expanded={!isCollapsed}>
+            <ChevronRight className={`h-4 w-4 shrink-0 text-muted-foreground transition ${isCollapsed ? '' : 'rotate-90'}`} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-extrabold">{group.card}</p>
+              <p className="text-[11px] font-semibold text-muted-foreground">{currency.format(group.used)} used · {currency.format(group.left)} left</p>
+            </div>
+          </button>
+          {!isCollapsed && <div className="divide-y divide-border/60 px-3">
           {group.items.map((usage) => {
             const template = benefitByRow.get(usage.benefit.rowIndex) || usage.benefit
             const credit = usage.creditRows?.[0]
@@ -265,8 +275,9 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
               </div>
             </div>
           })}
+          </div>}
         </div>
-      </div>)}
+      })}
     </div>}
     {visibleUsages.length > 0 && view === 'benefit' && <div className="space-y-3">
       {groups.map((group) => {
