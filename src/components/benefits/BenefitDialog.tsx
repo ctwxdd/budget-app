@@ -58,17 +58,25 @@ function monthDayFromValue(value: string) {
   return { month: '', day: '' }
 }
 
-function BenefitDateField({ label, value, boundary, onChange }: { label: string; value: string; boundary: 'start' | 'end'; onChange: (value: string) => void }) {
+function BenefitDateField({ label, value, boundary, defaultMonth = '', onChange }: { label: string; value: string; boundary: 'start' | 'end'; defaultMonth?: string; onChange: (value: string) => void }) {
   const { t } = useLanguage()
   const mode = isMonthDay(value) ? 'annual' : 'exact'
   const { month, day } = monthDayFromValue(value)
-  const dayCount = month ? daysInMonth(month) : 31
+  const selectedMonth = month || defaultMonth || '01'
+  const selectedDay = day || (boundary === 'start' ? '01' : String(daysInMonth(selectedMonth)).padStart(2, '0'))
+  const dayCount = daysInMonth(selectedMonth)
   const dayOptions = Array.from({ length: dayCount }, (_, index) => String(index + 1).padStart(2, '0'))
   const setAnnualPart = (nextMonth: string, nextDay: string) => {
-    const safeMonth = nextMonth || '01'
+    const safeMonth = nextMonth || defaultMonth || month || '01'
     const fallbackDay = boundary === 'start' ? '01' : String(daysInMonth(safeMonth)).padStart(2, '0')
     const safeDay = String(Math.min(Number(nextDay || fallbackDay), daysInMonth(safeMonth))).padStart(2, '0')
     onChange(`${safeMonth}-${safeDay}`)
+  }
+  const setAnnualMonth = (nextMonth: string) => {
+    const currentLastDay = String(daysInMonth(selectedMonth)).padStart(2, '0')
+    const nextLastDay = String(daysInMonth(nextMonth)).padStart(2, '0')
+    const nextDay = boundary === 'end' && selectedDay === currentLastDay ? nextLastDay : selectedDay
+    setAnnualPart(nextMonth, nextDay)
   }
   return <div className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">
     <div className="flex items-center justify-between gap-2">
@@ -86,10 +94,10 @@ function BenefitDateField({ label, value, boundary, onChange }: { label: string;
       {mode === 'exact'
         ? <Input className="min-w-0 max-w-full appearance-none" type="date" value={isIsoDate(value) ? value : ''} onChange={(event) => onChange(event.target.value)} />
         : <div className="grid min-w-0 grid-cols-2 gap-2">
-          <Select value={month || '01'} onChange={(event) => setAnnualPart(event.target.value, day)}>
+          <Select value={selectedMonth} onChange={(event) => setAnnualMonth(event.target.value)}>
             {monthOptions.map(([option, name]) => <option key={option} value={option}>{name}</option>)}
           </Select>
-          <Select value={day || (boundary === 'start' ? '01' : String(dayCount).padStart(2, '0'))} onChange={(event) => setAnnualPart(month, event.target.value)}>
+          <Select value={selectedDay} onChange={(event) => setAnnualPart(selectedMonth, event.target.value)}>
             {dayOptions.map((option) => <option key={option} value={option}>{Number(option)}</option>)}
           </Select>
         </div>}
@@ -167,7 +175,7 @@ export function BenefitDialog({ open, onOpenChange, benefit, productName, produc
       </label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('benefits.matcher', 'Merchant / tag')}<Input value={form.matcher} onChange={(event) => setForm({ ...form, matcher: event.target.value })} placeholder="Resy, hotel, wallet:Uber" /></label>
       <BenefitDateField label={t('benefits.startDate', 'Start date')} value={form.startDate} boundary="start" onChange={(startDate) => setForm({ ...form, startDate })} />
-      <BenefitDateField label={t('benefits.endDate', 'End date')} value={form.endDate} boundary="end" onChange={(endDate) => setForm({ ...form, endDate })} />
+      <BenefitDateField label={t('benefits.endDate', 'End date')} value={form.endDate} boundary="end" defaultMonth={monthDayFromValue(form.startDate).month} onChange={(endDate) => setForm({ ...form, endDate })} />
       <label className="flex items-center gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 text-sm font-semibold text-muted-foreground dark:bg-card/70 sm:col-span-2"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4 accent-coral" />{t('card.active', 'Active')}</label>
     </form>
   </Dialog>
