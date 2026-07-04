@@ -181,10 +181,30 @@ function includesMatcher(expense: Expense, matcher: string) {
   return tokens.some((token) => text.includes(token))
 }
 
+function walletMatcher(benefit: CardBenefit) {
+  const matcher = benefit.matcher.trim()
+  if (!/^wallet\s*:/i.test(matcher)) return ''
+  return matcher.replace(/^wallet\s*:/i, '').trim()
+}
+
+function includesWalletMatcher(expense: Expense, matcher: string) {
+  const tokens = matcher.split(',').map((part) => part.trim().toLocaleLowerCase()).filter(Boolean)
+  if (!tokens.length) return true
+  const text = [
+    expense.description,
+    expense.paymentMethod,
+    categoryName(expense.category),
+    parseTags(expense.tags).join(' '),
+  ].join(' ').toLocaleLowerCase()
+  return tokens.some((token) => text.includes(token))
+}
+
 function matchesBenefit(expense: Expense, benefit: CardBenefit, start: string, end: string) {
   if (expense.date < start || expense.date > end) return false
-  if (expense.paymentMethod.trim().toLocaleLowerCase() !== benefit.card.trim().toLocaleLowerCase()) return false
   if (benefit.category && categoryName(expense.category).toLocaleLowerCase() !== categoryName(benefit.category).toLocaleLowerCase()) return false
+  const wallet = walletMatcher(benefit)
+  if (wallet) return includesWalletMatcher(expense, wallet)
+  if (expense.paymentMethod.trim().toLocaleLowerCase() !== benefit.card.trim().toLocaleLowerCase()) return false
   return includesMatcher(expense, benefit.matcher)
 }
 

@@ -70,6 +70,36 @@ test('uses calendar quarters and merchant or tag matching', () => {
   assert.equal(usage.count, 2)
 })
 
+test('wallet benefits match merchant spend without requiring the source card payment method', () => {
+  const [benefit] = parseCardBenefitRows([['Amex Platinum', 'Uber Credit', '15', 'monthly', '', 'wallet:Uber', '2026-01-01', '', 'TRUE']])
+  const rows = [
+    expense({ rowIndex: 1, paymentMethod: 'Apple Pay', date: '2026-06-05', amount: 8, description: 'Uber Eats' }),
+    expense({ rowIndex: 2, paymentMethod: 'Amex Gold', date: '2026-06-20', amount: 20, description: 'Uber ride' }),
+    expense({ rowIndex: 3, paymentMethod: 'Amex Platinum', date: '2026-06-25', amount: 30, description: 'Lyft ride' }),
+  ]
+
+  const usage = calculateBenefitUsage(benefit, rows, '2026-06-30')
+
+  assert.equal(usage.used, 15)
+  assert.equal(usage.remaining, 0)
+  assert.equal(usage.eligibleSpend, 28)
+  assert.equal(usage.count, 2)
+})
+
+test('regular benefits still require matching payment method', () => {
+  const [benefit] = parseCardBenefitRows([['Amex Platinum', 'Uber Credit', '15', 'monthly', '', 'Uber', '2026-01-01', '', 'TRUE']])
+  const rows = [
+    expense({ rowIndex: 1, paymentMethod: 'Apple Pay', date: '2026-06-05', amount: 8, description: 'Uber Eats' }),
+    expense({ rowIndex: 2, paymentMethod: 'Amex Platinum', date: '2026-06-20', amount: 9, description: 'Uber ride' }),
+  ]
+
+  const usage = calculateBenefitUsage(benefit, rows, '2026-06-30')
+
+  assert.equal(usage.used, 9)
+  assert.equal(usage.eligibleSpend, 9)
+  assert.equal(usage.count, 1)
+})
+
 test('uses calendar half years for semiannual credits', () => {
   const [benefit] = parseCardBenefitRows([['Amex Platinum', 'Hotel Credit', '300', 'semiannual', 'Travel', 'hotel', '2026-01-01', '', 'TRUE']])
 
