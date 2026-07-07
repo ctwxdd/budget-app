@@ -104,8 +104,11 @@ export function BenefitTrackerPage() {
   const [benefitDialogOpen, setBenefitDialogOpen] = React.useState(false)
   const [editingBenefit, setEditingBenefit] = React.useState<CardBenefit | null>(null)
   const productNames = React.useMemo(() => Array.from(new Set(
-    cardBenefits.benefits.map((benefit) => benefit.card.trim()).filter(Boolean),
-  )).sort((a, b) => a.localeCompare(b)), [cardBenefits.benefits])
+    [
+      ...activeCards.map((card) => (card.product || card.name).trim()),
+      ...cardBenefits.benefits.map((benefit) => benefit.card.trim()),
+    ].filter(Boolean),
+  )).sort((a, b) => a.localeCompare(b)), [activeCards, cardBenefits.benefits])
   const benefitByRow = React.useMemo(() => new Map(cardBenefits.benefits.map((benefit) => [benefit.rowIndex, benefit])), [cardBenefits.benefits])
   const editBenefit = React.useCallback((benefit: CardBenefit) => {
     setEditingBenefit(benefitByRow.get(benefit.rowIndex) || benefit)
