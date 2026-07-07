@@ -113,6 +113,10 @@ export function BenefitTrackerPage() {
       ...cardBenefits.benefits.map((benefit) => benefit.card.trim()),
     ].filter(Boolean),
   )).sort((a, b) => a.localeCompare(b)), [activeCards, cardBenefits.benefits])
+  const cardProductByName = React.useMemo(() => new Map(activeCards.map((card) => [
+    card.name.trim().toLocaleLowerCase(),
+    (card.product || card.name).trim(),
+  ])), [activeCards])
   const benefitByRow = React.useMemo(() => new Map(cardBenefits.benefits.map((benefit) => [benefit.rowIndex, benefit])), [cardBenefits.benefits])
   const editBenefit = React.useCallback((benefit: CardBenefit) => {
     setEditingBenefit(benefitByRow.get(benefit.rowIndex) || benefit)
@@ -147,7 +151,7 @@ export function BenefitTrackerPage() {
           </div>
         </div>}
       </CardHeader>
-      <CardContent><BenefitProgressList usages={benefitUsages} benefitByRow={benefitByRow} tabMissing={cardBenefits.tabMissing} creditsDisabled={benefitCredits.tabMissing} onAddBenefit={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} onEditBenefit={editBenefit} onEditCredit={(usage, credit) => { setCreditUsage(usage); setCreditRow(credit || null) }} /></CardContent>
+      <CardContent><BenefitProgressList usages={benefitUsages} benefitByRow={benefitByRow} cardProductByName={cardProductByName} tabMissing={cardBenefits.tabMissing} creditsDisabled={benefitCredits.tabMissing} onAddBenefit={() => { setEditingBenefit(null); setBenefitDialogOpen(true) }} onEditBenefit={editBenefit} onEditCredit={(usage, credit) => { setCreditUsage(usage); setCreditRow(credit || null) }} /></CardContent>
     </Card>
     <BenefitDialog open={benefitDialogOpen} onOpenChange={(open) => { setBenefitDialogOpen(open); if (!open) setEditingBenefit(null) }} benefit={editingBenefit} productName={editingBenefit?.card || ''} productOptions={productNames} />
     {creditUsage && <BenefitCreditDialog open usage={creditUsage} credit={creditRow} onOpenChange={(open) => { if (!open) { setCreditUsage(null); setCreditRow(null) } }} />}
@@ -220,7 +224,7 @@ function benefitCardRows(items: BenefitUsage[]) {
     .sort((a, b) => a.card.localeCompare(b.card))
 }
 
-function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled, onAddBenefit, onEditBenefit, onEditCredit }: { usages: BenefitUsage[]; benefitByRow: Map<number, CardBenefit>; tabMissing: boolean; creditsDisabled: boolean; onAddBenefit: () => void; onEditBenefit: (benefit: CardBenefit) => void; onEditCredit: (usage: BenefitUsage, credit?: CardBenefitCredit) => void }) {
+function BenefitProgressList({ usages, benefitByRow, cardProductByName, tabMissing, creditsDisabled, onAddBenefit, onEditBenefit, onEditCredit }: { usages: BenefitUsage[]; benefitByRow: Map<number, CardBenefit>; cardProductByName: Map<string, string>; tabMissing: boolean; creditsDisabled: boolean; onAddBenefit: () => void; onEditBenefit: (benefit: CardBenefit) => void; onEditCredit: (usage: BenefitUsage, credit?: CardBenefitCredit) => void }) {
   const deleteBenefit = useDeleteCardBenefit()
   const { t } = useLanguage()
   const [confirmBenefit, setConfirmBenefit] = React.useState<CardBenefit | null>(null)
@@ -279,6 +283,19 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
       left: items.reduce((sum, usage) => sum + usage.remaining, 0),
     }))
     .sort((a, b) => b.left - a.left || a.card.localeCompare(b.card))
+  const cardProductGroups = Array.from(cardGroups.reduce((map, group) => {
+    const product = cardProductByName.get(group.card.trim().toLocaleLowerCase()) || group.card
+    map.set(product, [...(map.get(product) || []), group])
+    return map
+  }, new Map<string, typeof cardGroups>()).entries())
+    .map(([product, cards]) => ({
+      product,
+      cards,
+      items: cards.flatMap((group) => group.items),
+      used: cards.reduce((sum, group) => sum + group.used, 0),
+      left: cards.reduce((sum, group) => sum + group.left, 0),
+    }))
+    .sort((a, b) => b.left - a.left || a.product.localeCompare(b.product))
   const toggleGroup = (key: string) => setCollapsed((current) => {
     const next = new Set(current ?? groups.map((group) => group.key))
     next.has(key) ? next.delete(key) : next.add(key)
@@ -302,42 +319,56 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
       {(['benefit', 'card'] as const).map((mode) => <button key={mode} type="button" className={`rounded-full px-3 text-xs font-extrabold capitalize transition ${view === mode ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:bg-card/70'}`} onClick={() => setView(mode)}>{mode === 'benefit' ? t('benefits.benefitView', 'Benefit view') : t('benefits.cardView', 'Card view')}</button>)}
     </div>
     {!visibleUsages.length && <div className="rounded-3xl border border-dashed bg-accent/35 p-5 text-center text-sm font-semibold text-muted-foreground">{t('benefits.noMatches', 'No matching cards.')}</div>}
-    {visibleUsages.length > 0 && view === 'card' && <div className="grid gap-3 md:grid-cols-2">
-      {cardGroups.map((group) => {
-        const isCollapsed = isCardCollapsed(group.card)
-        const status = groupStatus(group.items, t)
-        return <div key={group.card} className="rounded-3xl border border-border/70 bg-card shadow-sm">
-          <button type="button" className={`flex w-full items-center justify-between gap-2 px-3 py-3 text-left ${isCollapsed ? '' : 'border-b border-border/60'}`} onClick={() => toggleCard(group.card)} aria-expanded={!isCollapsed}>
-            <ChevronRight className={`h-4 w-4 shrink-0 text-muted-foreground transition ${isCollapsed ? '' : 'rotate-90'}`} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-extrabold">{group.card}</p>
-              <p className="text-[11px] font-semibold text-muted-foreground">{benefitValueSummary(group.items, (usage) => usage.used, t)} used · {benefitValueSummary(group.items, (usage) => usage.remaining, t)} left</p>
+    {visibleUsages.length > 0 && view === 'card' && <div className="space-y-4">
+      {cardProductGroups.map((productGroup) => {
+        const productStatus = groupStatus(productGroup.items, t)
+        return <section key={productGroup.product} className="space-y-2">
+          <div className="flex items-center justify-between gap-2 px-1">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-extrabold uppercase tracking-wide text-muted-foreground">{productGroup.product}</p>
+              <p className="truncate text-[11px] font-semibold text-muted-foreground">{productGroup.cards.length} {productGroup.cards.length === 1 ? t('benefits.cardSingular', 'card') : t('benefits.cardsPlural', 'cards')} · {benefitValueSummary(productGroup.items, (usage) => usage.used, t)} used · {benefitValueSummary(productGroup.items, (usage) => usage.remaining, t)} left</p>
             </div>
-            <BenefitStatusPill status={status} />
-          </button>
-          {!isCollapsed && <div className="divide-y divide-border/60 px-3">
-          {group.items.map((usage) => {
-            const template = benefitByRow.get(usage.benefit.rowIndex) || usage.benefit
-            const credit = usage.creditRows?.[0]
-            const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
-            const done = usage.remaining <= 0.005
-            const status = benefitStatus(usage, t)
-            return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2">
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-2"><p className="truncate text-xs font-extrabold">{usage.benefit.benefit}</p><AttentionStatusPill status={status} /></div>
-                <p className="truncate text-[11px] font-semibold text-muted-foreground">{benefitUsageValueLabel(usage, usage.used, t)} / {benefitUsageValueLabel(usage, usage.benefit.amount, t)} · {benefitUsageValueLabel(usage, usage.remaining, t)} {t('benefits.leftShort', 'left')}</p>
-                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${pct}%` }} />
-                </div>
+            <BenefitStatusPill status={productStatus} />
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {productGroup.cards.map((group) => {
+              const isCollapsed = isCardCollapsed(group.card)
+              const status = groupStatus(group.items, t)
+              return <div key={group.card} className="rounded-3xl border border-border/70 bg-card shadow-sm">
+                <button type="button" className={`flex w-full items-center justify-between gap-2 px-3 py-3 text-left ${isCollapsed ? '' : 'border-b border-border/60'}`} onClick={() => toggleCard(group.card)} aria-expanded={!isCollapsed}>
+                  <ChevronRight className={`h-4 w-4 shrink-0 text-muted-foreground transition ${isCollapsed ? '' : 'rotate-90'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-extrabold">{group.card}</p>
+                    <p className="text-[11px] font-semibold text-muted-foreground">{benefitValueSummary(group.items, (usage) => usage.used, t)} used · {benefitValueSummary(group.items, (usage) => usage.remaining, t)} left</p>
+                  </div>
+                  <BenefitStatusPill status={status} />
+                </button>
+                {!isCollapsed && <div className="divide-y divide-border/60 px-3">
+                {group.items.map((usage) => {
+                  const template = benefitByRow.get(usage.benefit.rowIndex) || usage.benefit
+                  const credit = usage.creditRows?.[0]
+                  const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
+                  const done = usage.remaining <= 0.005
+                  const status = benefitStatus(usage, t)
+                  return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2">
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-2"><p className="truncate text-xs font-extrabold">{usage.benefit.benefit}</p><AttentionStatusPill status={status} /></div>
+                      <p className="truncate text-[11px] font-semibold text-muted-foreground">{benefitUsageValueLabel(usage, usage.used, t)} / {benefitUsageValueLabel(usage, usage.benefit.amount, t)} · {benefitUsageValueLabel(usage, usage.remaining, t)} {t('benefits.leftShort', 'left')}</p>
+                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      {(!done || credit) && <Button type="button" variant="secondary" size="sm" className="h-8 rounded-full px-3 text-xs" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>{credit ? t('common.edit', 'Edit') : t('benefits.usedButton', 'Used')}</Button>}
+                      <BenefitActionsMenu benefit={template} label={usage.benefit.benefit} open={openActionKey === `card-${usage.benefit.rowIndex}-${usage.benefit.card}`} disabled={deleteBenefit.isPending} onOpenChange={(open) => setOpenActionKey(open ? `card-${usage.benefit.rowIndex}-${usage.benefit.card}` : '')} onEdit={onEditBenefit} onDelete={setConfirmBenefit} />
+                    </div>
+                  </div>
+                })}
+                </div>}
               </div>
-              <div className="flex gap-1">
-                {(!done || credit) && <Button type="button" variant="secondary" size="sm" className="h-8 rounded-full px-3 text-xs" disabled={creditsDisabled} onClick={() => onEditCredit(usage, credit)}>{credit ? t('common.edit', 'Edit') : t('benefits.usedButton', 'Used')}</Button>}
-                <BenefitActionsMenu benefit={template} label={usage.benefit.benefit} open={openActionKey === `card-${usage.benefit.rowIndex}-${usage.benefit.card}`} disabled={deleteBenefit.isPending} onOpenChange={(open) => setOpenActionKey(open ? `card-${usage.benefit.rowIndex}-${usage.benefit.card}` : '')} onEdit={onEditBenefit} onDelete={setConfirmBenefit} />
-              </div>
-            </div>
-          })}
-          </div>}
-        </div>
+            })}
+          </div>
+        </section>
       })}
     </div>}
     {visibleUsages.length > 0 && view === 'benefit' && <div className="space-y-3">
