@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronLeft, ChevronRight, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock3, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { BenefitDialog } from '../components/benefits/BenefitDialog'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ConfirmDialog, Dialog, Input, Select, Textarea, useToast } from '../components/ui'
 import { QueryError } from '../components/layout/QueryError'
@@ -52,6 +52,35 @@ function benefitValueSummary(usages: BenefitUsage[], select: (usage: BenefitUsag
     cash ? currency.format(cash) : '',
     certificates ? certificateLabel(certificates, t) : '',
   ].filter(Boolean).join(' · ') || currency.format(0)
+}
+
+function daysUntil(end: string) {
+  const endDate = localDateFromIso(end)
+  const today = localDateFromIso(todayIso())
+  if (!endDate || !today) return Number.POSITIVE_INFINITY
+  return Math.ceil((endDate.getTime() - today.getTime()) / 86400000)
+}
+
+function benefitStatus(usage: BenefitUsage, t: (key: string, fallback: string) => string) {
+  if ((usage.pendingCreditAmount || 0) > 0) return { key: 'pending', label: t('benefits.pending', 'Pending'), className: 'bg-sky/20 text-blue-700 dark:text-sky', Icon: Clock3 }
+  if (usage.remaining <= 0.005) return { key: 'done', label: t('benefits.done', 'Done'), className: 'bg-mint/15 text-emerald-700 dark:text-mint', Icon: CheckCircle2 }
+  if (daysUntil(usage.end) <= 30) return { key: 'expiring', label: t('benefits.expiringSoon', 'Expiring'), className: 'bg-butter/30 text-amber-700 dark:text-butter', Icon: AlertTriangle }
+  return { key: 'open', label: t('benefits.open', 'Open'), className: 'bg-accent text-muted-foreground', Icon: Clock3 }
+}
+
+function groupStatus(usages: BenefitUsage[], t: (key: string, fallback: string) => string) {
+  const statuses = usages.map((usage) => benefitStatus(usage, t))
+  return statuses.find((status) => status.key === 'pending') ||
+    statuses.find((status) => status.key === 'expiring') ||
+    (statuses.every((status) => status.key === 'done') ? statuses[0] : statuses.find((status) => status.key === 'open')) ||
+    statuses[0]
+}
+
+function BenefitStatusPill({ status }: { status: ReturnType<typeof benefitStatus> }) {
+  const Icon = status.Icon
+  return <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${status.className}`}>
+    <Icon className="h-3 w-3" />{status.label}
+  </span>
 }
 
 export function BenefitTrackerPage() {
@@ -269,6 +298,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
     {visibleUsages.length > 0 && view === 'card' && <div className="grid gap-3 md:grid-cols-2">
       {cardGroups.map((group) => {
         const isCollapsed = isCardCollapsed(group.card)
+        const status = groupStatus(group.items, t)
         return <div key={group.card} className="rounded-3xl border border-border/70 bg-card shadow-sm">
           <button type="button" className={`flex w-full items-center justify-between gap-2 px-3 py-3 text-left ${isCollapsed ? '' : 'border-b border-border/60'}`} onClick={() => toggleCard(group.card)} aria-expanded={!isCollapsed}>
             <ChevronRight className={`h-4 w-4 shrink-0 text-muted-foreground transition ${isCollapsed ? '' : 'rotate-90'}`} />
@@ -276,6 +306,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
               <p className="truncate text-sm font-extrabold">{group.card}</p>
               <p className="text-[11px] font-semibold text-muted-foreground">{benefitValueSummary(group.items, (usage) => usage.used, t)} used · {benefitValueSummary(group.items, (usage) => usage.remaining, t)} left</p>
             </div>
+            <BenefitStatusPill status={status} />
           </button>
           {!isCollapsed && <div className="divide-y divide-border/60 px-3">
           {group.items.map((usage) => {
@@ -283,9 +314,10 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
             const credit = usage.creditRows?.[0]
             const pct = usage.benefit.amount > 0 ? Math.min(100, Math.round((usage.used / usage.benefit.amount) * 100)) : 0
             const done = usage.remaining <= 0.005
+            const status = benefitStatus(usage, t)
             return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2">
               <div className="min-w-0">
-                <p className="truncate text-xs font-extrabold">{usage.benefit.benefit}</p>
+                <div className="flex min-w-0 items-center gap-2"><p className="truncate text-xs font-extrabold">{usage.benefit.benefit}</p><BenefitStatusPill status={status} /></div>
                 <p className="truncate text-[11px] font-semibold text-muted-foreground">{benefitUsageValueLabel(usage, usage.used, t)} / {benefitUsageValueLabel(usage, usage.benefit.amount, t)} · {benefitUsageValueLabel(usage, usage.remaining, t)} {t('benefits.leftShort', 'left')}</p>
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
                   <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${pct}%` }} />
@@ -305,6 +337,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
       {groups.map((group) => {
         const groupPct = group.amount > 0 ? Math.min(100, Math.round((group.used / group.amount) * 100)) : 0
         const isCollapsed = isGroupCollapsed(group.key)
+        const status = groupStatus(group.items, t)
         return <div key={group.key} className={`relative overflow-visible rounded-2xl border border-border/70 bg-card shadow-sm ${openActionKey === `benefit-${group.key}` ? 'z-50' : 'z-0'}`}>
           <div className={`border-border/60 bg-accent/20 px-3 py-2 transition sm:px-3.5 ${isCollapsed ? '' : 'border-b'}`}>
             <div className="flex items-center justify-between gap-2">
@@ -316,6 +349,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
                 </div>
               </button>
               <div className="flex shrink-0 items-center gap-1">
+                <BenefitStatusPill status={status} />
                 <p className="hidden text-xs font-extrabold tabular-nums text-muted-foreground sm:block">{benefitValueSummary(group.items, (usage) => usage.used, t)} / {benefitValueSummary(group.items, (usage) => usage.benefit.amount, t)}</p>
                 <BenefitActionsMenu benefit={group.benefit} label={group.name} open={openActionKey === `benefit-${group.key}`} disabled={deleteBenefit.isPending} onOpenChange={(open) => setOpenActionKey(open ? `benefit-${group.key}` : '')} onEdit={onEditBenefit} onDelete={setConfirmBenefit} />
               </div>
@@ -332,9 +366,10 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
               const done = row.remaining <= 0.005
               const credit = row.primary.creditRows?.[0]
               const creditLabel = row.creditAmount ? `${t('benefits.received', 'Received')} ${benefitValueLabel(row.primary.benefit, row.creditAmount, t)}` : row.pendingCreditAmount ? `${t('benefits.pending', 'Pending')} ${benefitValueLabel(row.primary.benefit, row.pendingCreditAmount, t)}` : ''
+              const status = groupStatus(row.usages, t)
               return <div key={row.card} className="border-b border-border/60 px-3 py-2 last:border-b-0 sm:px-4">
                 <div className="flex min-w-0 items-center justify-between gap-2">
-                  <p className="min-w-0 truncate text-sm font-extrabold">{row.card}</p>
+                  <div className="flex min-w-0 items-center gap-2"><p className="min-w-0 truncate text-sm font-extrabold">{row.card}</p><BenefitStatusPill status={status} /></div>
                   {(!done || credit) && <Button type="button" variant="secondary" size="sm" className="h-7 shrink-0 justify-center rounded-full px-3 text-xs sm:w-auto" disabled={creditsDisabled} onClick={() => onEditCredit(row.primary, credit)}>
                     {credit ? t('common.edit', 'Edit') : t('benefits.usedButton', 'Used')}
                   </Button>}

@@ -3,9 +3,10 @@ import { Button, Dialog, Input, Select, Textarea, useToast } from '../ui'
 import { useAddCardBenefit, useUpdateCardBenefit } from '../../hooks/useCardBenefits'
 import { useCategories } from '../../hooks/useExpenses'
 import { useLanguage } from '../../hooks/useLanguage'
-import { type CardBenefit, type CardBenefitPeriod } from '../../lib/cardBenefits'
+import { isCertificateBenefit, type CardBenefit, type CardBenefitPeriod } from '../../lib/cardBenefits'
 
 const benefitPeriods: CardBenefitPeriod[] = ['monthly', 'quarterly', 'semiannual', 'annual']
+type BenefitKind = 'statement' | 'wallet' | 'certificate'
 const monthOptions = [
   ['01', 'Jan'],
   ['02', 'Feb'],
@@ -38,6 +39,18 @@ function emptyBenefit(startDate?: string): BenefitForm {
 
 function benefitFormFromRow(benefit: CardBenefit): BenefitForm {
   return { benefit: benefit.benefit, amount: benefit.amount, period: benefit.period, category: benefit.category, matcher: benefit.matcher, startDate: benefit.startDate, endDate: benefit.endDate, active: benefit.active }
+}
+
+function benefitKind(form: BenefitForm): BenefitKind {
+  if (/^wallet\s*:/i.test(form.matcher)) return 'wallet'
+  if (/^(certificate|cert|fnc)\s*:/i.test(form.matcher)) return 'certificate'
+  return 'statement'
+}
+
+function applyBenefitKind(form: BenefitForm, kind: BenefitKind): BenefitForm {
+  if (kind === 'wallet') return { ...form, matcher: /^wallet\s*:/i.test(form.matcher) ? form.matcher : 'wallet:' }
+  if (kind === 'certificate') return { ...form, amount: form.amount || 1, matcher: /^(certificate|cert|fnc)\s*:/i.test(form.matcher) ? form.matcher : 'certificate:' }
+  return { ...form, matcher: /^(wallet|certificate|cert|fnc)\s*:/i.test(form.matcher) ? '' : form.matcher }
 }
 
 function isMonthDay(value: string) {
@@ -150,6 +163,8 @@ export function BenefitDialog({ open, onOpenChange, benefit, productName, produc
   const formId = 'benefit-form'
   const productChoices = React.useMemo(() => Array.from(new Set([product, ...productOptions].map((value) => value.trim()).filter(Boolean))), [product, productOptions])
   const saving = addBenefit.isPending || updateBenefit.isPending
+  const kind = benefitKind(form)
+  const amountLabel = isCertificateBenefit({ matcher: form.matcher } as CardBenefit) ? t('benefits.certificates', 'Certificates') : t('benefits.amount', 'Amount')
   return <Dialog open={open} onOpenChange={onOpenChange} title={isEditing ? t('benefits.editTitle', 'Edit benefit') : t('benefits.addTitle', 'Add benefit')} description={t('benefits.dialogDescription', 'Save a card credit template to the CardBenefits tab in Google Sheets.')} mobileBottomSheet
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('expense.cancel', 'Cancel')}</Button><Button type="submit" form={formId} disabled={saving}>{saving ? t('expense.saving', 'Saving...') : (isEditing ? t('expense.saveChanges', 'Save changes') : t('benefits.add', 'Add benefit'))}</Button></div>}
   >
@@ -160,8 +175,14 @@ export function BenefitDialog({ open, onOpenChange, benefit, productName, produc
           {productChoices.map((option) => <option key={option} value={option}>{option}</option>)}
         </Select>
       </label>
+      <div className="space-y-1.5 sm:col-span-2">
+        <p className="text-sm font-semibold text-muted-foreground">{t('benefits.kind', 'Benefit type')}</p>
+        <div className="grid grid-cols-3 gap-2">
+          {(['statement', 'wallet', 'certificate'] as BenefitKind[]).map((option) => <button key={option} type="button" className={`rounded-2xl border px-2 py-2 text-xs font-extrabold transition ${kind === option ? 'border-coral bg-coral/10 text-coral shadow-sm' : 'border-border bg-card text-muted-foreground hover:bg-accent'}`} onClick={() => setForm(applyBenefitKind(form, option))}>{t(`benefits.kind.${option}`, option)}</button>)}
+        </div>
+      </div>
       <label className="space-y-1.5 text-sm font-semibold text-muted-foreground sm:col-span-2">{t('benefits.name', 'Benefit name')}<Input required value={form.benefit} onChange={(event) => setForm({ ...form, benefit: event.target.value })} placeholder="Dining Credit" /></label>
-      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('benefits.amount', 'Amount')}<Input required inputMode="decimal" type="number" min="0" step="0.01" value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder="25" /></label>
+      <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{amountLabel}<Input required inputMode={kind === 'certificate' ? 'numeric' : 'decimal'} type="number" min="0" step={kind === 'certificate' ? '1' : '0.01'} value={form.amount || ''} onChange={(event) => setForm({ ...form, amount: event.target.value === '' ? 0 : Number(event.target.value) })} placeholder={kind === 'certificate' ? '1' : '25'} /></label>
       <label className="min-w-0 space-y-1.5 text-sm font-semibold text-muted-foreground">{t('benefits.period', 'Period')}
         <Select value={form.period} onChange={(event) => setForm({ ...form, period: event.target.value as CardBenefitPeriod })}>
           {benefitPeriods.map((period) => <option key={period} value={period}>{t(`benefits.period.${period}`, period)}</option>)}
