@@ -83,6 +83,10 @@ function BenefitStatusPill({ status }: { status: ReturnType<typeof benefitStatus
   </span>
 }
 
+function AttentionStatusPill({ status }: { status: ReturnType<typeof benefitStatus> }) {
+  return status.key === 'pending' || status.key === 'expiring' ? <BenefitStatusPill status={status} /> : null
+}
+
 export function BenefitTrackerPage() {
   const { data = [], isLoading, error, refetch } = useExpenses()
   const cardBenefits = useCardBenefits()
@@ -320,7 +324,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
             const status = benefitStatus(usage, t)
             return <div key={`${usage.benefit.rowIndex}-${usage.benefit.card}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2">
               <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-2"><p className="truncate text-xs font-extrabold">{usage.benefit.benefit}</p><BenefitStatusPill status={status} /></div>
+                <div className="flex min-w-0 items-center gap-2"><p className="truncate text-xs font-extrabold">{usage.benefit.benefit}</p><AttentionStatusPill status={status} /></div>
                 <p className="truncate text-[11px] font-semibold text-muted-foreground">{benefitUsageValueLabel(usage, usage.used, t)} / {benefitUsageValueLabel(usage, usage.benefit.amount, t)} · {benefitUsageValueLabel(usage, usage.remaining, t)} {t('benefits.leftShort', 'left')}</p>
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
                   <div className="h-full rounded-full bg-gradient-to-r from-mint to-sage" style={{ width: `${pct}%` }} />
@@ -372,7 +376,7 @@ function BenefitProgressList({ usages, benefitByRow, tabMissing, creditsDisabled
               const status = groupStatus(row.usages, t)
               return <div key={row.card} className="border-b border-border/60 px-3 py-2 last:border-b-0 sm:px-4">
                 <div className="flex min-w-0 items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2"><p className="min-w-0 truncate text-sm font-extrabold">{row.card}</p><BenefitStatusPill status={status} /></div>
+                  <div className="flex min-w-0 items-center gap-2"><p className="min-w-0 truncate text-sm font-extrabold">{row.card}</p><AttentionStatusPill status={status} /></div>
                   {(!done || credit) && <Button type="button" variant="secondary" size="sm" className="h-7 shrink-0 justify-center rounded-full px-3 text-xs sm:w-auto" disabled={creditsDisabled} onClick={() => onEditCredit(row.primary, credit)}>
                     {credit ? t('common.edit', 'Edit') : t('benefits.usedButton', 'Used')}
                   </Button>}
