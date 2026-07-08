@@ -118,23 +118,20 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
   const options = useTags()
   const { t } = useLanguage()
   const [draft, setDraft] = React.useState('')
-  const [focused, setFocused] = React.useState(false)
+  const [dropdownOpen, setDropdownOpen] = React.useState(false)
   const [highlight, setHighlight] = React.useState(0)
-  const blurTimerRef = React.useRef<number | null>(null)
   const tagPointerRef = React.useRef<{ x: number; y: number } | null>(null)
   const selected = React.useMemo(() => parseTags(value), [value])
   const selectedKeys = React.useMemo(() => new Set(selected.map((tag) => tag.toLocaleLowerCase())), [selected])
   const query = draft.trim().toLocaleLowerCase()
   const suggestions = React.useMemo(() => options
     .filter((tag) => !selectedKeys.has(tag.toLocaleLowerCase()))
-    .filter((tag) => !query || tag.toLocaleLowerCase().includes(query))
-    .slice(0, 5), [options, query, selectedKeys])
+    .filter((tag) => !query || tag.toLocaleLowerCase().includes(query)), [options, query, selectedKeys])
   const exactDraft = Boolean(draft.trim() && selectedKeys.has(draft.trim().toLocaleLowerCase()))
   const canAddDraft = Boolean(draft.trim() && !exactDraft)
-  const open = focused && (suggestions.length > 0 || canAddDraft)
+  const open = dropdownOpen && (suggestions.length > 0 || canAddDraft || !options.length)
 
-  React.useEffect(() => { setHighlight(0) }, [draft, focused])
-  React.useEffect(() => () => { if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current) }, [])
+  React.useEffect(() => { setHighlight(0) }, [draft, dropdownOpen])
 
   const setSelected = (tags: string[]) => onChange(formatTags(tags.join(', ')))
   const addTags = (raw: string) => {
@@ -142,6 +139,7 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
     if (!next.length) return
     setSelected([...selected, ...next])
     setDraft('')
+    setDropdownOpen(false)
   }
   const removeTag = (tag: string) => setSelected(selected.filter((item) => item !== tag))
   const onDraftChange = (next: string) => {
@@ -175,8 +173,12 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
       event.preventDefault()
       const count = Math.max(1, suggestions.length + (canAddDraft ? 1 : 0))
       setHighlight((current) => (current <= 0 ? count - 1 : current - 1))
+    } else if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !open) {
+      setDropdownOpen(true)
     } else if (event.key === 'Backspace' && !draft && selected.length) {
       removeTag(selected[selected.length - 1])
+    } else if (event.key === 'Escape') {
+      setDropdownOpen(false)
     }
   }
 
@@ -187,37 +189,42 @@ function TagsInput({ value, onChange }: { value: string; onChange: (value: strin
         <button type="button" aria-label={`Remove ${tag} tag`} className="grid h-6 w-6 place-items-center rounded-full text-primary/65 transition hover:bg-primary/15 hover:text-primary" onClick={() => removeTag(tag)}>×</button>
       </span>)}
     </div>}
-    <Input
-      value={draft}
-      onChange={(event) => onDraftChange(event.target.value)}
-      onFocus={() => { if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current); setFocused(true) }}
-      onBlur={() => { blurTimerRef.current = window.setTimeout(() => setFocused(false), 180) }}
-      onKeyDown={onKeyDown}
-      placeholder={selected.length ? t('expense.tagAnotherPlaceholder', 'Add another tag...') : t('expense.tagPlaceholder', 'Travel, House, Project...')}
-      autoComplete="off"
-    />
-    {open && <div className="rounded-2xl border border-border/70 bg-card/80 p-2 shadow-sm">
-      <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex gap-2">
+      <Input
+        value={draft}
+        onChange={(event) => { onDraftChange(event.target.value); setDropdownOpen(true) }}
+        onFocus={() => setDropdownOpen(true)}
+        onKeyDown={onKeyDown}
+        placeholder={selected.length ? t('expense.tagAnotherPlaceholder', 'Add another tag...') : t('expense.tagPlaceholder', 'Travel, House, Project...')}
+        autoComplete="off"
+      />
+      <Button type="button" variant="outline" className="h-12 shrink-0 rounded-full px-4 text-xs" onClick={() => setDropdownOpen((current) => !current)}>
+        {t('expense.allTags', 'All tags')}
+      </Button>
+    </div>
+    {open && <div className="rounded-2xl border border-border/70 bg-card/95 p-2 shadow-sm">
+      <FadeScroll className="grid max-h-44 gap-1 overflow-auto pr-1 sm:grid-cols-2">
         {suggestions.map((tag, index) => <button
           key={tag}
           type="button"
-          className={cn('inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-bold transition', index === highlight ? 'border-primary/30 bg-primary/[0.12] text-primary' : 'border-border bg-background/80 text-foreground hover:bg-accent/70')}
+          className={cn('flex min-h-10 w-full items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm font-bold transition', index === highlight ? 'border-primary/30 bg-primary/[0.12] text-primary' : 'border-border bg-background/80 text-foreground hover:bg-accent/70')}
           onMouseDown={(event) => event.preventDefault()}
           onPointerDown={rememberTagPointer}
           onPointerUp={(event) => { if (isTagTap(event)) pick(tag) }}
         >
-          <span className="text-primary">#</span><span className="max-w-36 truncate">{tag}</span>
+          <span className="text-primary">#</span><span className="min-w-0 truncate">{tag}</span>
         </button>)}
         {canAddDraft && <button
           type="button"
-          className={cn('inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-bold transition', highlight === suggestions.length ? 'border-primary/30 bg-primary/[0.12] text-primary' : 'border-dashed border-primary/35 bg-primary/[0.06] text-primary hover:bg-primary/10')}
+          className={cn('flex min-h-10 w-full items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm font-bold transition sm:col-span-2', highlight === suggestions.length ? 'border-primary/30 bg-primary/[0.12] text-primary' : 'border-dashed border-primary/35 bg-primary/[0.06] text-primary hover:bg-primary/10')}
           onMouseDown={(event) => event.preventDefault()}
           onPointerDown={rememberTagPointer}
           onPointerUp={(event) => { if (isTagTap(event)) addTags(draft) }}
         >
-          <span>+</span><span className="max-w-40 truncate">{t('expense.addTag', 'Add')} “{draft.trim()}”</span>
+          <span>+</span><span className="min-w-0 truncate">{t('expense.addTag', 'Add')} “{draft.trim()}”</span>
         </button>}
-      </div>
+        {!suggestions.length && !canAddDraft && <div className="px-3 py-2 text-sm font-semibold text-muted-foreground">{t('expense.noTags', 'No tags yet')}</div>}
+      </FadeScroll>
     </div>}
     <p className="px-1 text-[11px] font-medium text-muted-foreground/80">{t('expense.tagHelp', 'Pick an existing tag or type a new one. Commas add multiple tags.')}</p>
   </div>

@@ -74,6 +74,8 @@ const zh: Record<string, string> = {
   'expense.tags': '標籤',
   'expense.tagPlaceholder': '旅行、房子、專案...',
   'expense.tagAnotherPlaceholder': '再新增一個標籤...',
+  'expense.allTags': '所有標籤',
+  'expense.noTags': '還沒有標籤',
   'expense.addTag': '新增',
   'expense.tagHelp': '選擇既有標籤或輸入新的標籤。逗號可一次新增多個。',
   'expense.cancel': '取消',
