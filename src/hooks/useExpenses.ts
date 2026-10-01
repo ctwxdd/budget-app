@@ -41,7 +41,7 @@ export function useSheetMeta() {
   return query
 }
 
-export function useExpenses() {
+export function useExpenses(options: { requireFresh?: boolean } = {}) {
   const sheetId = useSheetId()
   const cached = React.useMemo(() => readLocalCache<Expense[]>(expensesCacheKey(sheetId), LOCAL_CACHE_AGE), [sheetId])
   return useQuery({
@@ -55,6 +55,7 @@ export function useExpenses() {
     initialData: cached?.data,
     initialDataUpdatedAt: cached?.savedAt,
     staleTime: LOCAL_CACHE_AGE,
+    refetchOnMount: options.requireFresh ? 'always' : undefined,
     refetchOnWindowFocus: false,
     retry: (failureCount, error) => isRateLimitError(error) ? failureCount < 2 : failureCount < 1,
     retryDelay: (attempt, error) => isRateLimitError(error) ? Math.min(4000, 1200 * (attempt + 1)) : 1000,

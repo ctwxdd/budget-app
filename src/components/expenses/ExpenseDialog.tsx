@@ -1190,8 +1190,8 @@ function GiftcardPaymentPicker({ merchants, cards, selectedMerchant, selectedCar
       </Select>
     </label>
     {!merchants.length && <p className="rounded-2xl bg-accent/50 p-3 text-xs font-medium md:col-span-2">No active giftcards found.</p>}
-    {Boolean(error) && <p role="alert" className="rounded-2xl bg-destructive/10 p-3 text-xs font-medium text-destructive md:col-span-2">Could not load giftcard identities: {error instanceof Error ? error.message : String(error)}</p>}
-    {orderedCards.some((card) => !card.id && orderedCards.filter((item) => sameGiftcardName(item.vendor, card.vendor) && normalizeDateCell(item.date) === normalizeDateCell(card.date)).length > 1) && <p role="alert" className="rounded-2xl bg-destructive/10 p-3 text-xs font-medium text-destructive md:col-span-2">Some same-day cards could not be linked to their purchase rows, so separate-card tracking is unavailable. Check the Giftcard purchase description, date, paid amount, and face value.</p>}
+    {Boolean(error) && <p role="alert" className="rounded-2xl bg-destructive/10 p-3 text-xs font-medium text-destructive md:col-span-2">Could not load giftcards: {error instanceof Error ? error.message : String(error)}</p>}
+    {orderedCards.some((card) => !card.id && orderedCards.filter((item) => sameGiftcardName(item.vendor, card.vendor) && normalizeDateCell(item.date) === normalizeDateCell(card.date)).length > 1) && <p role="alert" className="rounded-2xl bg-destructive/10 p-3 text-xs font-medium text-destructive md:col-span-2">Could not distinguish same-day giftcards. Refresh the page, then try again.</p>}
     {selectedMerchant && <label className="block min-w-0 space-y-1.5 transition-all duration-200 ease-out">
       <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Card</span>
       <Select value={selectedCard} onChange={(event) => onCardSelect(event.target.value as 'auto' | string)}>
@@ -1204,7 +1204,7 @@ function GiftcardPaymentPicker({ merchants, cards, selectedMerchant, selectedCar
           const duplicateNumber = samePurchaseDay.findIndex((item) => item.id === card.id && item.rowIndex === card.rowIndex) + 1
           const duplicateLabel = samePurchaseDay.length > 1 ? ` · Card ${duplicateNumber} of ${samePurchaseDay.length}` : ''
           const cannotLinkDuplicate = !card.id && samePurchaseDay.length > 1
-          return <option key={`${method}-${card.date}-${card.paid}-${index}`} value={method} disabled={cannotLinkDuplicate || (depleted && selectedCard !== method)}>{card.date} — Paid {currency.format(card.paid)} / Face {currency.format(card.face)} — {currency.format(card.balance)} left{duplicateLabel}{cannotLinkDuplicate ? ' · Link purchase row' : ''}</option>
+          return <option key={`${method}-${card.date}-${card.paid}-${index}`} value={method} disabled={cannotLinkDuplicate || (depleted && selectedCard !== method)}>{card.date} — Paid {currency.format(card.paid)} / Face {currency.format(card.face)} — {currency.format(card.balance)} left{duplicateLabel}{cannotLinkDuplicate ? ' · Unavailable' : ''}</option>
         })}
       </Select>
     </label>}

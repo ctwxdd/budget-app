@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import * as React from 'react'
 import { addRowDeveloperMetadata, getRowDeveloperMetadata, getSheet, getSheets, getSheetMeta, isRateLimitError, rowDeveloperMetadataByRow } from '../lib/sheets'
-import { allocateGiftcardLedger, giftcardActiveColumnIsComputed, giftcardRowsMissingMetadata, giftcardSourcePurchaseRowIndexes, matchGiftcardSourcePurchases, newGiftcardPurchaseId, parseCurrency } from '../lib/giftcards'
+import { allocateGiftcardLedger, giftcardActiveColumnIsComputed, giftcardRowsAreGrouped, giftcardRowsMissingMetadata, matchGiftcardSourcePurchases, newGiftcardPurchaseId, parseCurrency } from '../lib/giftcards'
 import { useExpenses, useSheetId } from './useExpenses'
 
 export type GiftcardRow = {
@@ -75,30 +75,35 @@ function parseMerchants(rows: string[][] = [], activeFormulas: string[][] = []):
 
 export function useGiftcards() {
   const spreadsheetId = useSheetId()
-  const expensesQuery = useExpenses()
+  const expensesQuery = useExpenses({ requireFresh: true })
   const expenses = expensesQuery.data || []
-  const purchaseRows = React.useMemo(() => giftcardSourcePurchaseRowIndexes(expenses), [expenses])
-  const purchaseSignature = React.useMemo(() => JSON.stringify(expenses.filter((expense) => purchaseRows.includes(expense.rowIndex)).map(({ rowIndex, date, amount, description }) => [rowIndex, date, amount, description])), [expenses, purchaseRows])
+  const purchaseSignature = React.useMemo(() => JSON.stringify(expenses
+    .filter(({ description, category }) => category.trim().toLocaleLowerCase() === 'giftcard' || /\bgc\b|gift\s*card/i.test(description))
+    .map(({ rowIndex, date, amount, description, category }) => [rowIndex, date, amount, description, category])), [expenses])
   const query = useQuery<GiftcardsData>({
     queryKey: ['giftcards', spreadsheetId, purchaseSignature],
     queryFn: async () => {
       try {
-        const [[cards = {}, merchants = {}], meta, activeFormulas] = await Promise.all([
+        const [[cards = {}, merchants = {}], meta, activeFormulas, cardFormula] = await Promise.all([
           getSheets(spreadsheetId, ['Giftcard!A2:J1000', 'Giftcard!L2:Q1000']),
           getSheetMeta(spreadsheetId),
           getSheet(spreadsheetId, 'Giftcard!Q2:Q1000', 'FORMULA'),
+          getSheet(spreadsheetId, 'Giftcard!A2:A2', 'FORMULA'),
         ])
         const rawCards = parseCards(cards.values || [])
+        const groupedRows = giftcardRowsAreGrouped(cardFormula.values || [])
         const sheetGid = meta.sheets.find((sheet) => sheet.title === 'Expense')?.sheetId
         if (sheetGid === undefined) throw new Error('Could not find an Expense tab in this spreadsheet.')
         let metadata = await getRowDeveloperMetadata(spreadsheetId, sheetGid, 'cgc')
         const idsByExpenseRow = rowDeveloperMetadataByRow(metadata)
-        const missingRows = giftcardRowsMissingMetadata(purchaseRows, idsByExpenseRow)
+        const sourceRows = matchGiftcardSourcePurchases(rawCards, expenses, new Map(), groupedRows)
+          .flatMap((card) => card.sourceRowIndex === undefined ? [] : [card.sourceRowIndex])
+        const missingRows = giftcardRowsMissingMetadata(sourceRows, idsByExpenseRow)
         if (missingRows.length) {
           await addRowDeveloperMetadata(spreadsheetId, missingRows.map((rowIndex) => ({ sheetGid, rowIndex, key: 'cgc', value: newGiftcardPurchaseId() })))
           metadata = await getRowDeveloperMetadata(spreadsheetId, sheetGid, 'cgc')
         }
-        const sourcedCards = matchGiftcardSourcePurchases(rawCards, expenses, rowDeveloperMetadataByRow(metadata))
+        const sourcedCards = matchGiftcardSourcePurchases(rawCards, expenses, rowDeveloperMetadataByRow(metadata), groupedRows)
         const data = { cards: sourcedCards, merchants: parseMerchants(merchants.values || [], activeFormulas.values || []), tabMissing: false }
         return data
       } catch (error) {
@@ -106,7 +111,8 @@ export function useGiftcards() {
         throw error
       }
     },
-    enabled: Boolean(spreadsheetId) && expensesQuery.data !== undefined,
+    enabled: Boolean(spreadsheetId) && expensesQuery.isFetchedAfterMount,
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === spreadsheetId ? previous : undefined,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: (failureCount, error) => isRateLimitError(error) ? failureCount < 2 : failureCount < 1,
@@ -129,11 +135,12 @@ export function useGiftcards() {
       return { ...merchant, active: existing?.manualActive ?? merchant.balance > 0.005 }
     })
   }, [cards, query.data?.merchants])
+  const waitingForFreshExpenses = Boolean(spreadsheetId) && !expensesQuery.isFetchedAfterMount && !expensesQuery.error
   return {
-    cards,
-    merchants: calculatedMerchants.length ? calculatedMerchants : query.data?.merchants || emptyMerchants,
-    tabMissing: query.data?.tabMissing || false,
-    isLoading: query.isLoading || expensesQuery.isLoading,
+    cards: waitingForFreshExpenses ? emptyCards : cards,
+    merchants: waitingForFreshExpenses ? emptyMerchants : calculatedMerchants.length ? calculatedMerchants : query.data?.merchants || emptyMerchants,
+    tabMissing: waitingForFreshExpenses ? false : query.data?.tabMissing || false,
+    isLoading: query.isLoading || expensesQuery.isLoading || waitingForFreshExpenses,
     error: query.error || expensesQuery.error,
   }
 }

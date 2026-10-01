@@ -58,6 +58,13 @@ export function resolveGiftcardMethod(method: string, cards: readonly GiftcardId
 function cents(value: number) { return Math.round((Number(value) || 0) * 100) }
 function dollars(value: number) { return value / 100 }
 function vendorKey(value: string) { return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase() }
+function sameGiftcardDescriptor(a: string, b: string) {
+  if (sameGiftcardName(a, b)) return true
+  const first = parseGiftcardDescription(a)
+  const second = parseGiftcardDescription(b)
+  return Boolean(first && second && (!first.source || !second.source || sameGiftcardName(first.source, second.source)) &&
+    vendorKey(first.vendor) === vendorKey(second.vendor) && first.face && second.face && cents(parseCurrency(first.face)) === cents(parseCurrency(second.face)))
+}
 
 export function allocateGiftcardLedger<T extends GiftcardIdentity>(cards: readonly T[], expenses: readonly Expense[]) {
   const sortedCards = cards.map((card, index) => ({ card, index, remaining: cents(card.face || 0), direct: 0, fifo: 0, poolUsed: 0 }))
@@ -183,32 +190,46 @@ export function giftcardActiveColumnIsComputed(formulas: readonly string[][]) {
   return formulas.some((row) => /^\s*=/.test(row[0] || '') && /\b(?:MAP|ARRAYFORMULA|BYROW)\s*\(/i.test(row[0] || ''))
 }
 
+export function giftcardRowsAreGrouped(formulas: readonly string[][]) {
+  return formulas.some((row) => /^\s*=\s*QUERY\s*\(/i.test(row[0] || '') && /\bgroup\s+by\s+c\s*,\s*a\b/i.test(row[0] || ''))
+}
+
 export function giftcardRowsMissingMetadata(purchaseRows: readonly number[], idsByRow: ReadonlyMap<number, readonly string[]>) {
   return [...new Set(purchaseRows)].filter((rowIndex) => !idsByRow.get(rowIndex)?.length)
 }
 
-export function matchGiftcardSourcePurchases<T extends GiftcardIdentity & { paid: number; face: number; rowIndex: number }>(cards: readonly T[], expenses: readonly Expense[], idsByExpenseRow: ReadonlyMap<number, readonly string[]>) {
-  const purchases = new Map<string, Expense[]>()
-  for (const expense of expenses) {
-    if (expense.rowIndex < 1 || expense.amount < 0 || expense.category.trim().toLocaleLowerCase() !== 'giftcard') continue
-    const key = purchaseKey(expense.date, expense.amount)
-    const rows = purchases.get(key) || []
-    rows.push(expense)
-    purchases.set(key, rows)
-  }
-  for (const rows of purchases.values()) rows.sort((a, b) => a.rowIndex - b.rowIndex)
-  return [...cards].sort((a, b) => a.rowIndex - b.rowIndex).map((card) => {
-    const key = purchaseKey(card.date, card.paid)
-    const rows = purchases.get(key) || []
-    let sourceIndex = rows.findIndex((expense) => sameGiftcardName(expense.description.trim(), card.card.trim()))
-    if (sourceIndex < 0) sourceIndex = rows.findIndex((expense) => {
+export function matchGiftcardSourcePurchases<T extends GiftcardIdentity & { paid: number; face: number; rowIndex: number }>(cards: readonly T[], expenses: readonly Expense[], idsByExpenseRow: ReadonlyMap<number, readonly string[]>, groupedRows = false) {
+  const available = [...expenses].filter((expense) => expense.rowIndex > 0 && expense.amount >= 0).sort((a, b) => a.rowIndex - b.rowIndex)
+  const used = new Set<number>()
+  const orderedCards = [...cards].sort((a, b) => a.rowIndex - b.rowIndex)
+  return orderedCards.flatMap((card) => {
+    const cardDate = normalizeDateCell(card.date)
+    const sameRawCardCount = orderedCards.filter((item) => item.card === card.card && normalizeDateCell(item.date) === cardDate).length
+    const groupedSources = available.filter((expense) => !used.has(expense.rowIndex) &&
+      expense.category.trim().toLocaleLowerCase() === 'giftcard' && expense.description === card.card && normalizeDateCell(expense.date) === cardDate)
+    if (groupedRows && sameRawCardCount === 1 && groupedSources.length > 1 &&
+      cents(groupedSources.reduce((sum, expense) => sum + expense.amount, 0)) === cents(card.paid)) {
+      const parsedFace = parseGiftcardDescription(card.card)?.face
+      return groupedSources.map((source) => {
+        used.add(source.rowIndex)
+        const aliases = [...new Set(idsByExpenseRow.get(source.rowIndex) || [])].sort()
+        return { ...card, paid: source.amount, face: parsedFace ? parseCurrency(parsedFace) : source.amount,
+          sourceRowIndex: source.rowIndex, id: aliases[0], aliases }
+      })
+    }
+    // Exact descriptor plus date is the stable identity for legacy return-funded rows.
+    let source = available.find((expense) => !used.has(expense.rowIndex) && sameGiftcardName(expense.description, card.card) && normalizeDateCell(expense.date) === cardDate)
+    if (!source) source = available.find((expense) => !used.has(expense.rowIndex) &&
+      sameGiftcardDescriptor(expense.description, card.card) && normalizeDateCell(expense.date) === cardDate)
+    if (!source) source = available.find((expense) => {
+      if (used.has(expense.rowIndex) || expense.category.trim().toLocaleLowerCase() !== 'giftcard' || purchaseKey(expense.date, expense.amount) !== purchaseKey(card.date, card.paid)) return false
       const parsed = parseGiftcardDescription(expense.description)
       if (parsed) return vendorKey(parsed.vendor) === vendorKey(card.vendor) && (!parsed.face || cents(parseCurrency(parsed.face)) === cents(card.face))
       return vendorKey(expense.description).startsWith(vendorKey(card.vendor))
     })
-    const source = sourceIndex >= 0 ? rows.splice(sourceIndex, 1)[0] : undefined
+    if (source) used.add(source.rowIndex)
     const aliases = source ? [...new Set(idsByExpenseRow.get(source.rowIndex) || [])].sort() : []
-    return { ...card, sourceRowIndex: source?.rowIndex, id: aliases[0], aliases }
+    return [{ ...card, sourceRowIndex: source?.rowIndex, id: aliases[0], aliases }]
   })
 }
 

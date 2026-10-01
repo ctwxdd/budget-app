@@ -6,6 +6,7 @@ const {
   cardForGiftcardMethod,
   classifyGiftcardPaymentMethod,
   giftcardActiveColumnIsComputed,
+  giftcardRowsAreGrouped,
   giftcardMethodForCard,
   giftcardRowsMissingMetadata,
   giftcardSourcePurchaseRowIndexes,
@@ -123,6 +124,71 @@ test('links exact Target purchase names without requiring a GC/Gift marker', () 
   const [linked] = matchGiftcardSourcePurchases([targetCard], [purchase], new Map([[32, ['target-id']]]))
   assert.equal(linked.sourceRowIndex, 32)
   assert.equal(linked.id, 'target-id')
+})
+
+test('links legacy return-funded zero-paid cards by exact name and date, independent of category or amount', () => {
+  const expenses = [
+    expense(21, 11.47, 'H&M store credit', { date: '8/2/2026', category: 'Shopping', description: 'H&M GC $11.47' }),
+    expense(22, 20.90, 'H&M store credit', { date: '2026-08-02', category: 'Giftcard', description: 'H&M GC $20.90' }),
+  ]
+  const cards = [
+    { card: 'H&M GC $11.47', vendor: 'H&M GC', date: '2026-08-02', paid: 0, face: 11.47, rowIndex: 2 },
+    { card: 'H&M GC $20.90', vendor: 'H&M GC', date: '8/2/2026', paid: 0, face: 20.90, rowIndex: 3 },
+  ]
+  const sourced = matchGiftcardSourcePurchases(cards, expenses, new Map([[21, ['legacy-one']], [22, ['legacy-two']]]))
+  assert.deepEqual(sourced.map(({ sourceRowIndex, id }) => [sourceRowIndex, id]), [[21, 'legacy-one'], [22, 'legacy-two']])
+  assert.deepEqual(giftcardRowsMissingMetadata(sourced.flatMap(({ sourceRowIndex }) => sourceRowIndex ? [sourceRowIndex] : []), new Map()), [21, 22])
+})
+
+test('matches return-annotated source rows with equivalent face-value formatting', () => {
+  const expenses = [
+    expense(3365, 0, 'H&M GC', { date: '8/2/2026', category: 'Giftcard', description: 'H&M GC $20.9 (Return: H&M (2026-07-02))' }),
+    expense(3366, 0, 'H&M GC', { date: '8/2/2026', category: 'Giftcard', description: 'H&M GC $11.47 (Return: H&M (2026-07-02))' }),
+  ]
+  const cards = [
+    { card: 'H&M GC $11.47', vendor: 'H&M GC', date: '2026-08-02', paid: 0, face: 11.47, rowIndex: 97 },
+    { card: 'H&M GC $20.90', vendor: 'H&M GC', date: '2026-08-02', paid: 0, face: 20.90, rowIndex: 98 },
+  ]
+  const sourced = matchGiftcardSourcePurchases(cards, expenses, new Map([[3365, ['gc-20']], [3366, ['gc-11']]]))
+  assert.deepEqual(sourced.map(({ sourceRowIndex, id }) => [sourceRowIndex, id]), [[3366, 'gc-11'], [3365, 'gc-20']])
+})
+
+test('tracks actual return-issued same-day cards and the 23.14 legacy spend', () => {
+  const expenses = [
+    expense(3365, 0, 'H&M GC', { date: '8/2/2026', category: 'Giftcard', description: 'H&M GC $20.9 (Return: H&M (2026-07-02))' }),
+    expense(3366, 0, 'H&M GC', { date: '8/2/2026', category: 'Giftcard', description: 'H&M GC $11.47 (Return: H&M (2026-07-02))' }),
+    expense(3395, 0, 'H&M GC', { date: '8/19/2026', category: 'Giftcard', description: 'H&M GC $23.14 (Return: H&M (2026-07-03))' }),
+    expense(3456, 23.14, 'H&M GC (2026-08-19)', { date: '9/30/2026' }),
+  ]
+  const cards = [
+    { card: 'H&M GC $11.47 (Return: H&M (2026-07-02))', vendor: 'H&M GC', date: '2026-08-02', paid: 0, face: 11.47, rowIndex: 97 },
+    { card: 'H&M GC $20.9 (Return: H&M (2026-07-02))', vendor: 'H&M GC', date: '2026-08-02', paid: 0, face: 20.9, rowIndex: 98 },
+    { card: 'H&M GC $23.14 (Return: H&M (2026-07-03))', vendor: 'H&M GC', date: '8/19/2026', paid: 0, face: 23.14, rowIndex: 101 },
+  ]
+  const sourced = matchGiftcardSourcePurchases(cards, expenses, new Map([[3365, ['gc-20']], [3366, ['gc-11']], [3395, ['gc-23']]]))
+  assert.deepEqual(sourced.map(({ sourceRowIndex }) => sourceRowIndex), [3366, 3365, 3395])
+  assert.equal(allocateGiftcardLedger(sourced, expenses).find(({ sourceRowIndex }) => sourceRowIndex === 3395).balance, 0)
+})
+
+test('expands identical purchases collapsed into one Giftcard query row', () => {
+  const source = (rowIndex) => expense(rowIndex, 80, 'Visa', { date: '2026-08-19', category: 'Giftcard', description: 'H&M GC $100' })
+  const groupedCard = { card: 'H&M GC $100', vendor: 'H&M GC', date: '2026-08-19', paid: 160, face: 100, rowIndex: 2 }
+  const sourced = matchGiftcardSourcePurchases([groupedCard], [source(20), source(21)], new Map([[20, ['first']], [21, ['second']]]), true)
+  assert.deepEqual(sourced.map(({ sourceRowIndex, paid, face, id }) => [sourceRowIndex, paid, face, id]), [[20, 80, 100, 'first'], [21, 80, 100, 'second']])
+  const ledger = allocateGiftcardLedger(sourced, [expense(30, 10, giftcardMethodForCard(sourced[1]))])
+  assert.deepEqual(ledger.map(({ balance }) => balance), [100, 90])
+})
+
+test('expands grouped face-optional cards using each source amount as face value', () => {
+  const source = (rowIndex, amount) => expense(rowIndex, amount, 'Visa', { date: '2026-08-19', category: 'Giftcard', description: 'Costco' })
+  const groupedCard = { card: 'Costco', vendor: 'Costco', date: '2026-08-19', paid: 150, face: 150, rowIndex: 2 }
+  const sourced = matchGiftcardSourcePurchases([groupedCard], [source(20, 50), source(21, 100)], new Map(), true)
+  assert.deepEqual(sourced.map(({ paid, face }) => [paid, face]), [[50, 50], [100, 100]])
+})
+
+test('detects the existing grouped Giftcard query before expanding cards', () => {
+  assert.equal(giftcardRowsAreGrouped([['=QUERY(Expense!A2:E, "select C, A, sum(B) group by C, A", 0)']]), true)
+  assert.equal(giftcardRowsAreGrouped([['manual card rows']]), false)
 })
 
 test('keeps purchase IDs attached to identical source rows after insert, reorder, and delete', () => {

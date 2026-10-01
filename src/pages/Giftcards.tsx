@@ -45,7 +45,7 @@ export function GiftcardsPage() {
 
 function GiftcardsContent() {
   const { cards, merchants, tabMissing, isLoading, error } = useGiftcards()
-  const { data: expenses = [] } = useExpenses()
+  const { data: expenses = [] } = useExpenses({ requireFresh: true })
   const { toast } = useToast()
   const [expanded, setExpanded] = React.useState<string[]>([])
   const [showInactive, setShowInactive] = React.useState(false)
