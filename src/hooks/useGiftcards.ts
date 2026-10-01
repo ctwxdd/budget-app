@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import * as React from 'react'
-import { addRowDeveloperMetadata, getRowDeveloperMetadata, getSheet, getSheets, getSheetMeta, isRateLimitError, rowDeveloperMetadataByRow } from '../lib/sheets'
+import { addRowDeveloperMetadata, filterRowDeveloperMetadata, getRowDeveloperMetadata, getSheet, getSheets, getSheetMeta, isRateLimitError, rowDeveloperMetadataByRow } from '../lib/sheets'
 import { allocateGiftcardLedger, giftcardActiveColumnIsComputed, giftcardRowsAreGrouped, giftcardRowsMissingMetadata, matchGiftcardSourcePurchases, newGiftcardPurchaseId, parseCurrency } from '../lib/giftcards'
 import { normalizeDateCell } from '../lib/dates'
 import { useExpenses, useSheetId } from './useExpenses'
@@ -85,26 +85,28 @@ export function useGiftcards() {
     queryKey: ['giftcards', spreadsheetId, purchaseSignature],
     queryFn: async () => {
       try {
-        const [[cards = {}, merchants = {}], meta, activeFormulas, cardFormula] = await Promise.all([
+        const [[cards = {}, merchants = {}], meta, activeFormulas, cardFormula, allMetadata] = await Promise.all([
           getSheets(spreadsheetId, ['Giftcard!A2:J1000', 'Giftcard!L2:Q1000']),
           getSheetMeta(spreadsheetId),
           getSheet(spreadsheetId, 'Giftcard!Q2:Q1000', 'FORMULA'),
           getSheet(spreadsheetId, 'Giftcard!A2:A2', 'FORMULA'),
+          getRowDeveloperMetadata(spreadsheetId, undefined, 'cgc'),
         ])
         const rawCards = parseCards(cards.values || [])
         const groupedRows = giftcardRowsAreGrouped(cardFormula.values || [])
         const sheetGid = meta.sheets.find((sheet) => sheet.title === 'Expense')?.sheetId
         if (sheetGid === undefined) throw new Error('Could not find an Expense tab in this spreadsheet.')
-        let metadata = await getRowDeveloperMetadata(spreadsheetId, sheetGid, 'cgc')
+        const metadata = filterRowDeveloperMetadata(allMetadata, sheetGid, 'cgc')
         const idsByExpenseRow = rowDeveloperMetadataByRow(metadata)
         const sourceRows = matchGiftcardSourcePurchases(rawCards, expenses, new Map(), groupedRows)
           .flatMap((card) => card.sourceRowIndex === undefined ? [] : [card.sourceRowIndex])
         const missingRows = giftcardRowsMissingMetadata(sourceRows, idsByExpenseRow)
         if (missingRows.length) {
-          await addRowDeveloperMetadata(spreadsheetId, missingRows.map((rowIndex) => ({ sheetGid, rowIndex, key: 'cgc', value: newGiftcardPurchaseId() })))
-          metadata = await getRowDeveloperMetadata(spreadsheetId, sheetGid, 'cgc')
+          const created = missingRows.map((rowIndex) => ({ sheetGid, rowIndex, key: 'cgc', value: newGiftcardPurchaseId() }))
+          await addRowDeveloperMetadata(spreadsheetId, created)
+          for (const { rowIndex, value } of created) idsByExpenseRow.set(rowIndex, [value])
         }
-        const sourcedCards = matchGiftcardSourcePurchases(rawCards, expenses, rowDeveloperMetadataByRow(metadata), groupedRows)
+        const sourcedCards = matchGiftcardSourcePurchases(rawCards, expenses, idsByExpenseRow, groupedRows)
         const data = { cards: sourcedCards, merchants: parseMerchants(merchants.values || [], activeFormulas.values || []), tabMissing: false }
         return data
       } catch (error) {

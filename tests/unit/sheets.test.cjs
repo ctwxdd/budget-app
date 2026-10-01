@@ -2,7 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 
 const { nextBenefitCreditRowIndex, nextCardBenefitRowIndex } = require('../../.tmp-test/src/lib/sheets.js')
-const { addRowDeveloperMetadata, getRowDeveloperMetadata, setSheetsAuth } = require('../../.tmp-test/src/lib/sheets.js')
+const { addRowDeveloperMetadata, filterRowDeveloperMetadata, getRowDeveloperMetadata, setSheetsAuth } = require('../../.tmp-test/src/lib/sheets.js')
 
 test('places new card benefits after the last real benefit row', () => {
   const rows = [
@@ -63,6 +63,24 @@ test('accepts omitted default sheetId 0 but rejects missing or mismatched nonzer
   try {
     assert.deepEqual((await getRowDeveloperMetadata('sheet-id', 0, 'cgc')).map((item) => item.metadataValue), ['default'])
     assert.deepEqual(await getRowDeveloperMetadata('sheet-id', 7, 'cgc'), [])
+  } finally {
+    global.fetch = originalFetch
+  }
+})
+
+test('reads row metadata across sheets in parallel, then filters by sheet including default sheet 0', async () => {
+  const originalFetch = global.fetch
+  setSheetsAuth({ getToken: async () => 'test-token' })
+  global.fetch = async () => new Response(JSON.stringify({ matchedDeveloperMetadata: [
+    { developerMetadata: { metadataId: 1, metadataKey: 'cgc', metadataValue: 'default', location: { dimensionRange: { dimension: 'ROWS', startIndex: 0 } } } },
+    { developerMetadata: { metadataId: 2, metadataKey: 'cgc', metadataValue: 'sheet-8', location: { dimensionRange: { sheetId: 8, dimension: 'ROWS', startIndex: 1 } } } },
+    { developerMetadata: { metadataId: 3, metadataKey: 'cgc', metadataValue: 'sheet-9', location: { dimensionRange: { sheetId: 9, dimension: 'ROWS', startIndex: 2 } } } },
+  ] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  try {
+    const metadata = await getRowDeveloperMetadata('sheet-id', undefined, 'cgc')
+    assert.deepEqual(metadata.map(({ metadataValue }) => metadataValue), ['default', 'sheet-8', 'sheet-9'])
+    assert.deepEqual(filterRowDeveloperMetadata(metadata, 0, 'cgc').map(({ metadataValue }) => metadataValue), ['default'])
+    assert.deepEqual(filterRowDeveloperMetadata(metadata, 8, 'cgc').map(({ metadataValue }) => metadataValue), ['sheet-8'])
   } finally {
     global.fetch = originalFetch
   }

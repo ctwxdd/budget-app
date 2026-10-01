@@ -175,6 +175,14 @@ export type RowDeveloperMetadata = {
   location?: { dimensionRange?: { sheetId?: number; startIndex?: number; endIndex?: number; dimension?: string } }
 }
 
+export function filterRowDeveloperMetadata(metadata: readonly RowDeveloperMetadata[], sheetGid: number | undefined, metadataKey: string) {
+  return metadata.filter((item) => {
+    const range = item.location?.dimensionRange
+    return item.metadataKey === metadataKey && range?.dimension === 'ROWS' &&
+      (sheetGid === undefined || range.sheetId === sheetGid || (sheetGid === 0 && range.sheetId === undefined)) && Number.isInteger(range.startIndex)
+  })
+}
+
 export function rowDeveloperMetadataByRow(metadata: readonly RowDeveloperMetadata[]) {
   const rows = new Map<number, string[]>()
   for (const item of metadata) {
@@ -186,15 +194,12 @@ export function rowDeveloperMetadataByRow(metadata: readonly RowDeveloperMetadat
   return rows
 }
 
-export async function getRowDeveloperMetadata(sheetId: string, sheetGid: number, metadataKey: string): Promise<RowDeveloperMetadata[]> {
+export async function getRowDeveloperMetadata(sheetId: string, sheetGid: number | undefined, metadataKey: string): Promise<RowDeveloperMetadata[]> {
   const response = await sheetsFetch<{ matchedDeveloperMetadata?: Array<{ developerMetadata?: RowDeveloperMetadata }> }>(`${base(sheetId)}/developerMetadata:search`, {
     method: 'POST',
     body: JSON.stringify({ dataFilters: [{ developerMetadataLookup: { metadataKey, visibility: 'DOCUMENT' } }] }),
   })
-  return (response.matchedDeveloperMetadata || []).flatMap((match) => match.developerMetadata ? [match.developerMetadata] : []).filter((item) => {
-    const range = item.location?.dimensionRange
-    return item.metadataKey === metadataKey && range?.dimension === 'ROWS' && (range.sheetId === sheetGid || (sheetGid === 0 && range.sheetId === undefined)) && Number.isInteger(range.startIndex)
-  })
+  return filterRowDeveloperMetadata((response.matchedDeveloperMetadata || []).flatMap((match) => match.developerMetadata ? [match.developerMetadata] : []), sheetGid, metadataKey)
 }
 
 export async function addRowDeveloperMetadata(sheetId: string, rows: Array<{ sheetGid: number; rowIndex: number; key: string; value: string }>): Promise<void> {
