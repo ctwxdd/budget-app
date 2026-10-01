@@ -157,6 +157,29 @@ test('regular benefits still require matching payment method', () => {
   assert.equal(usage.count, 1)
 })
 
+test('blank benefit filters are manual-only and credits stay on the exact Platinum card', () => {
+  const [template] = parseCardBenefitRows([['Amex Platinum', 'Flight credit', '200', 'annual', '', '', '2026-01-01', '', 'TRUE']])
+  const cards = [
+    { name: 'AMEX Platinum (31003)-2', product: 'Amex Platinum' },
+    { name: 'AMEX Platinum (81003)', product: 'Amex Platinum' },
+    { name: 'Amex Morgan Stanley Platinum Card', product: 'Amex Platinum' },
+    { name: 'Amex Platinum (81001)', product: 'Amex Platinum' },
+  ]
+  const expenses = [
+    expense({ rowIndex: 3446, date: '2026-09-28', paymentMethod: cards[3].name, amount: 113.72, category: 'Medical', description: 'Overlake bill' }),
+    expense({ rowIndex: 3447, date: '2026-09-29', paymentMethod: cards[3].name, amount: 39.5, category: 'Giftcard', description: 'Gap gc $50 (Card depot)' }),
+    expense({ rowIndex: 3453, date: '2026-09-30', paymentMethod: cards[3].name, amount: 40.06, category: 'Shopping', description: 'H&M' }),
+    ...cards.slice(0, 3).map((card, index) => expense({ rowIndex: index + 3, paymentMethod: card.name, amount: 500, category: 'Shopping', description: 'Ordinary purchase' })),
+  ]
+  const expanded = expandCardBenefitsForCards([template], cards)
+  const usages = calculateBenefitUsages(expanded, expenses, '2026-09-30')
+  assert.deepEqual(usages.map((usage) => usage.used), [0, 0, 0, 0])
+
+  const credit = parseBenefitCreditRows([['2026-09-30', cards[3].name, 'Flight credit', '193.28', 'Received', '']])[0]
+  const credited = usages.map((usage) => applyBenefitCredits(usage, [credit]))
+  assert.deepEqual(credited.map((usage) => [usage.used, usage.remaining]), [[0, 200], [0, 200], [0, 200], [193.28, 6.72]])
+})
+
 test('uses calendar half years for semiannual credits', () => {
   const [benefit] = parseCardBenefitRows([['Amex Platinum', 'Hotel Credit', '300', 'semiannual', 'Travel', 'hotel', '2026-01-01', '', 'TRUE']])
 

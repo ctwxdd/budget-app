@@ -271,6 +271,7 @@ function includesWalletMatcher(expense: Expense, matcher: string) {
 
 function matchesBenefit(expense: Expense, benefit: CardBenefit, start: string, end: string) {
   if (expense.date < start || expense.date > end) return false
+  if (!benefit.category.trim() && !benefit.matcher.trim()) return false
   if (benefit.category && categoryName(expense.category).toLocaleLowerCase() !== categoryName(benefit.category).toLocaleLowerCase()) return false
   const wallet = cardBenefitWalletMatcher(benefit)
   if (wallet) return includesWalletMatcher(expense, wallet)
