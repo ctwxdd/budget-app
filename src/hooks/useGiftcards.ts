@@ -78,11 +78,10 @@ export function useGiftcards() {
   const spreadsheetId = useSheetId()
   const expensesQuery = useExpenses({ requireFresh: true })
   const expenses = expensesQuery.data || []
-  const purchaseSignature = React.useMemo(() => JSON.stringify(expenses
-    .filter(({ description, category }) => category.trim().toLocaleLowerCase() === 'giftcard' || /\bgc\b|gift\s*card/i.test(description))
-    .map(({ rowIndex, date, amount, description, category }) => [rowIndex, date, amount, description, category])), [expenses])
+  const expenseSignature = React.useMemo(() => JSON.stringify(expenses
+    .map(({ rowIndex, date, amount, description, category, paymentMethod }) => [rowIndex, date, amount, description, category, paymentMethod])), [expenses])
   const query = useQuery<GiftcardsData>({
-    queryKey: ['giftcards', spreadsheetId, purchaseSignature],
+    queryKey: ['giftcards', spreadsheetId, expenseSignature],
     queryFn: async () => {
       try {
         const [[cards = {}, merchants = {}], meta, activeFormulas, cardFormula, allMetadata] = await Promise.all([
@@ -107,7 +106,7 @@ export function useGiftcards() {
           for (const { rowIndex, value } of created) idsByExpenseRow.set(rowIndex, [value])
         }
         const sourcedCards = matchGiftcardSourcePurchases(rawCards, expenses, idsByExpenseRow, groupedRows)
-        const data = { cards: sourcedCards, merchants: parseMerchants(merchants.values || [], activeFormulas.values || []), tabMissing: false }
+        const data = { cards: allocateGiftcardLedger(sourcedCards, expenses), merchants: parseMerchants(merchants.values || [], activeFormulas.values || []), tabMissing: false }
         return data
       } catch (error) {
         if (isMissingGiftcardTab(error)) return { cards: [], merchants: [], tabMissing: true }
@@ -121,7 +120,9 @@ export function useGiftcards() {
     retry: (failureCount, error) => isRateLimitError(error) ? failureCount < 2 : failureCount < 1,
   })
 
-  const cards = React.useMemo(() => allocateGiftcardLedger(query.data?.cards || emptyCards, expenses), [query.data?.cards, expenses])
+  const waitingForFreshExpenses = Boolean(spreadsheetId) && (!expensesQuery.isFetched || expensesQuery.isError || expensesQuery.isFetching)
+  const ready = Boolean(query.data) && !query.isPlaceholderData && !waitingForFreshExpenses
+  const cards = ready ? query.data!.cards : emptyCards
   const calculatedMerchants = React.useMemo(() => {
     const totals = new Map<string, MerchantRow>()
     for (const card of cards) {
@@ -138,12 +139,11 @@ export function useGiftcards() {
       return { ...merchant, active: existing?.manualActive ?? merchant.balance > 0.005 }
     })
   }, [cards, query.data?.merchants])
-  const waitingForFreshExpenses = Boolean(spreadsheetId) && (!expensesQuery.isFetched || expensesQuery.isError || expensesQuery.isFetching)
   return {
-    cards: waitingForFreshExpenses && !query.data ? emptyCards : cards,
-    merchants: waitingForFreshExpenses && !query.data ? emptyMerchants : calculatedMerchants.length ? calculatedMerchants : query.data?.merchants || emptyMerchants,
-    tabMissing: waitingForFreshExpenses ? false : query.data?.tabMissing || false,
-    isLoading: (query.isLoading || expensesQuery.isLoading || waitingForFreshExpenses) && !query.data,
+    cards,
+    merchants: ready ? calculatedMerchants.length ? calculatedMerchants : query.data?.merchants || emptyMerchants : emptyMerchants,
+    tabMissing: ready ? query.data?.tabMissing || false : false,
+    isLoading: !ready && !query.error && !expensesQuery.error,
     error: query.error || expensesQuery.error,
   }
 }

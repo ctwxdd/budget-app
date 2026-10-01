@@ -7,7 +7,7 @@ import { useAddExpense, useCategories, useExpenses, useTags, useUpdateExpense } 
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../../hooks/useGiftcards'
 import { useCards } from '../../hooks/useCards'
 import type { CardRow } from '../../hooks/useCards'
-import { appendNoteToDescription, cardForGiftcardMethod, classifyGiftcardPaymentMethod, classifyPaymentMethod, composeGiftcardDescription, giftcardMethodForCard, parseGiftcardDescription, resolveGiftcardMethod, sameGiftcardName, splitDescriptionNote, type GiftcardDescriptionParts, type PaymentMethodType } from '../../lib/giftcards'
+import { appendNoteToDescription, cardForGiftcardMethod, classifyGiftcardPaymentMethod, classifyPaymentMethod, composeGiftcardDescription, giftcardMethodForCard, parseGiftcardDescription, resolveGiftcardMethod, sameGiftcardName, savedGiftcardMerchant, splitDescriptionNote, type GiftcardDescriptionParts, type PaymentMethodType } from '../../lib/giftcards'
 import { currency } from '../../lib/format'
 import { normalizeDateCell } from '../../lib/dates'
 import { findOriginalExpenseForReturn, getReturnSummary } from '../../lib/returns'
@@ -514,14 +514,17 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const addExpense = useAddExpense()
   const updateExpense = useUpdateExpense()
   const { toast } = useToast()
+  const initialPaymentMethod = expense?.paymentMethod || template?.paymentMethod || ''
+  const initialGiftcard = classifyPaymentMethod(initialPaymentMethod) === 'giftcard'
+  const initialGiftcardMerchant = initialGiftcard ? savedGiftcardMerchant(initialPaymentMethod) : ''
   const [form, setForm] = React.useState<FormState>(emptyForm)
   const [note, setNote] = React.useState('')
   const [noteOpen, setNoteOpen] = React.useState(false)
   const [giftcardParts, setGiftcardParts] = React.useState<GiftcardDescriptionParts>(emptyGiftcardParts)
   const [giftcardStructured, setGiftcardStructured] = React.useState(true)
-  const [paymentType, setPaymentType] = React.useState<PaymentMethodType>('card')
-  const [selectedMerchant, setSelectedMerchant] = React.useState('')
-  const [selectedGiftcardCard, setSelectedGiftcardCard] = React.useState<'auto' | string>('auto')
+  const [paymentType, setPaymentType] = React.useState<PaymentMethodType>(() => classifyPaymentMethod(initialPaymentMethod))
+  const [selectedMerchant, setSelectedMerchant] = React.useState(initialGiftcardMerchant)
+  const [selectedGiftcardCard, setSelectedGiftcardCard] = React.useState<'auto' | string>(() => initialGiftcard && !sameGiftcardName(initialPaymentMethod, initialGiftcardMerchant) ? initialPaymentMethod : 'auto')
   const [splitPayments, setSplitPayments] = React.useState<SplitPayment[]>([])
   const initializedForRef = React.useRef<{ expense?: Expense | null; template?: FormState | null } | null>(null)
   const giftcardSelectionTouchedRef = React.useRef(false)
@@ -556,7 +559,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     setGiftcardStructured(next.category !== 'Giftcard' || Boolean(parsedGiftcard) || !next.description)
     if (next.paymentMethod) {
       const inferredPaymentType = classifyGiftcardPaymentMethod(next.paymentMethod, giftcards.cards)
-      const merchant = findMerchantForMethod(next.paymentMethod, giftcards.merchants, giftcards.cards) || ''
+      const merchant = findMerchantForMethod(next.paymentMethod, giftcards.merchants, giftcards.cards) || (inferredPaymentType === 'giftcard' ? savedGiftcardMerchant(next.paymentMethod) : '')
       const specificCard = selectedCardForMethod(next.paymentMethod, merchant, giftcards.cards)
       setPaymentType(inferredPaymentType)
       setSelectedMerchant(merchant)
@@ -744,6 +747,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
             allMerchants={giftcards.merchants}
             giftcardCards={giftcards.cards}
             giftcardError={giftcards.error}
+            giftcardLoading={giftcards.isLoading}
             onAdd={addSplitPayment}
             onRemove={removeSplitPayment}
             onCancel={() => setSplitPayments([])}
@@ -771,7 +775,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
             </div>
             {paymentType !== 'cash' && <div className="pt-1.5">
               {paymentType === 'giftcard'
-                ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} error={giftcards.error} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
+                ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} error={giftcards.error} loading={giftcards.isLoading} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
               : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} loading={managedCards.isLoading} />}
             </div>}
             {!giftcardPurchase && <button
@@ -797,6 +801,7 @@ function SplitPaymentEditor({
   allMerchants,
   giftcardCards,
   giftcardError,
+  giftcardLoading,
   onAdd,
   onRemove,
   onCancel,
@@ -810,6 +815,7 @@ function SplitPaymentEditor({
   allMerchants: MerchantRow[]
   giftcardCards: GiftcardRow[]
   giftcardError?: unknown
+  giftcardLoading: boolean
   onAdd: () => void
   onRemove: (id: string) => void
   onCancel: () => void
@@ -902,6 +908,7 @@ function SplitPaymentEditor({
                 selectedMerchant={payment.selectedMerchant}
                 selectedCard={payment.selectedGiftcardCard}
                 error={giftcardError}
+                loading={giftcardLoading}
                 onMerchantSelect={(merchant) => onChange(payment.id, { selectedMerchant: merchant, selectedGiftcardCard: 'auto', paymentMethod: merchant })}
                 onCardSelect={(card) => onChange(payment.id, { selectedGiftcardCard: card, paymentMethod: card === 'auto' ? payment.selectedMerchant : card })}
               />
@@ -925,15 +932,17 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     [managedCards.cards],
   )
   const source = returnExpense || original
+  const initialGiftcardMethod = classifyPaymentMethod(source?.paymentMethod || '') === 'giftcard'
+  const initialGiftcardMerchant = initialGiftcardMethod ? savedGiftcardMerchant(source?.paymentMethod || '') : ''
   const linkedOriginal = React.useMemo(() => original || (returnExpense ? findOriginalExpenseForReturn(returnExpense, expenses.data || []) : null), [original, returnExpense, expenses.data])
   const originalAmount = Math.abs(linkedOriginal?.amount || 0)
   const returnSummary = React.useMemo(() => linkedOriginal ? getReturnSummary(linkedOriginal, expenses.data || [], returnExpense?.rowIndex) : null, [linkedOriginal, expenses.data, returnExpense?.rowIndex])
   const maxReturnAmount = returnSummary ? returnSummary.remaining : originalAmount
   const [form, setForm] = React.useState<FormState>(emptyForm)
   const [fullRefund, setFullRefund] = React.useState(true)
-  const [paymentType, setPaymentType] = React.useState<PaymentMethodType>('card')
-  const [selectedMerchant, setSelectedMerchant] = React.useState('')
-  const [selectedGiftcardCard, setSelectedGiftcardCard] = React.useState<'auto' | string>('auto')
+  const [paymentType, setPaymentType] = React.useState<PaymentMethodType>(() => classifyPaymentMethod(source?.paymentMethod || ''))
+  const [selectedMerchant, setSelectedMerchant] = React.useState(initialGiftcardMerchant)
+  const [selectedGiftcardCard, setSelectedGiftcardCard] = React.useState<'auto' | string>(() => initialGiftcardMethod && !sameGiftcardName(source?.paymentMethod || '', initialGiftcardMerchant) ? source?.paymentMethod || 'auto' : 'auto')
   const [giftcardReturnMode, setGiftcardReturnMode] = React.useState<GiftcardReturnMode>('original')
   const [newGiftcardVendor, setNewGiftcardVendor] = React.useState('')
   const formId = React.useId()
@@ -954,7 +963,8 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     if (!open || !source) return
     const amount = Math.abs(returnExpense?.amount ?? maxReturnAmount)
     const paymentMethod = source.paymentMethod
-    const merchant = findMerchantForMethod(paymentMethod, giftcards.merchants, giftcards.cards) || ''
+    const inferredPaymentType = classifyGiftcardPaymentMethod(paymentMethod, giftcards.cards)
+    const merchant = findMerchantForMethod(paymentMethod, giftcards.merchants, giftcards.cards) || (inferredPaymentType === 'giftcard' && giftcards.isLoading ? savedGiftcardMerchant(paymentMethod) : '')
     const defaultStoreCreditVendor = merchant ? ensureGiftcardVendor(merchant) : ''
     setForm({
       date: returnExpense?.date || todayIso(),
@@ -968,12 +978,11 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     setFullRefund(Boolean(original && !returnExpense))
     setGiftcardReturnMode('original')
     setNewGiftcardVendor(defaultStoreCreditVendor)
-    const inferredPaymentType = classifyGiftcardPaymentMethod(paymentMethod, giftcards.cards)
     const specificCard = selectedCardForMethod(paymentMethod, merchant, giftcards.cards)
     setPaymentType(inferredPaymentType)
     setSelectedMerchant(merchant)
     setSelectedGiftcardCard(specificCard || 'auto')
-  }, [open, original, returnExpense, source, giftcards.cards, giftcards.merchants, maxReturnAmount])
+  }, [open, original, returnExpense, source, giftcards.cards, giftcards.merchants, giftcards.isLoading, maxReturnAmount])
 
   if (!source) return null
 
@@ -1129,7 +1138,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
         </div>
         {paymentType !== 'cash' && <div className="pt-1.5">
           {paymentType === 'giftcard'
-            ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} error={giftcards.error} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
+            ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} error={giftcards.error} loading={giftcards.isLoading} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
             : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} loading={managedCards.isLoading} />}
         </div>}
         {original && !returnExpense && <button type="button" onClick={() => chooseGiftcardReturnMode('new')} className="mt-2 w-full rounded-2xl border border-dashed border-coral/40 bg-coral/5 px-3 py-2 text-left text-xs font-bold text-coral transition hover:bg-coral/10">Create new giftcard / store credit instead</button>}
@@ -1199,26 +1208,28 @@ function GiftcardComposer({ parts, structured, vendors, sources, rawDescription,
   </div>
 }
 
-function GiftcardPaymentPicker({ merchants, cards, selectedMerchant, selectedCard, error, onMerchantSelect, onCardSelect }: { merchants: MerchantRow[]; cards: GiftcardRow[]; selectedMerchant: string; selectedCard: 'auto' | string; error?: unknown; onMerchantSelect: (merchant: string) => void; onCardSelect: (card: 'auto' | string) => void }) {
+function GiftcardPaymentPicker({ merchants, cards, selectedMerchant, selectedCard, error, loading, onMerchantSelect, onCardSelect }: { merchants: MerchantRow[]; cards: GiftcardRow[]; selectedMerchant: string; selectedCard: 'auto' | string; error?: unknown; loading: boolean; onMerchantSelect: (merchant: string) => void; onCardSelect: (card: 'auto' | string) => void }) {
   const orderedCards = React.useMemo(() => [...cards].sort((a, b) => Number(a.balance <= 0.005) - Number(b.balance <= 0.005) || normalizeDateCell(a.date).localeCompare(normalizeDateCell(b.date)) || a.rowIndex - b.rowIndex), [cards])
   const selectedIsRendered = selectedCard !== 'auto' && orderedCards.some((card) => giftcardMethodForCard(card) === selectedCard)
   const savedCard = selectedCard === 'auto' ? undefined : cardForGiftcardMethod(selectedCard, orderedCards)
   return <div className="grid gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 dark:bg-card/70 md:grid-cols-2">
     <label className="block min-w-0 space-y-1.5">
       <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Merchant</span>
-      <Select value={selectedMerchant} onChange={(event) => onMerchantSelect(event.target.value)}>
-        <option value="">Select merchant…</option>
+      <Select value={selectedMerchant} disabled={loading} onChange={(event) => onMerchantSelect(event.target.value)}>
+        <option value="">{loading ? 'Loading merchants…' : 'Select merchant…'}</option>
+        {loading && selectedMerchant && !merchants.some((merchant) => sameGiftcardName(merchant.merchant, selectedMerchant)) && <option value={selectedMerchant}>{selectedMerchant} · Loading balance…</option>}
         {merchants.map((merchant) => <option key={merchant.merchant} value={merchant.merchant}>{merchant.merchant} — {currency.format(merchant.balance)} left · {merchant.cardCount} card{merchant.cardCount === 1 ? '' : 's'}</option>)}
       </Select>
     </label>
-    {!merchants.length && <p className="rounded-2xl bg-accent/50 p-3 text-xs font-medium md:col-span-2">No active giftcards found.</p>}
+    {loading && <p className="rounded-2xl bg-accent/50 p-3 text-xs font-medium md:col-span-2">Loading giftcards…</p>}
+    {!loading && !error && !merchants.length && <p className="rounded-2xl bg-accent/50 p-3 text-xs font-medium md:col-span-2">No active giftcards found.</p>}
     {Boolean(error) && <p role="alert" className="rounded-2xl bg-destructive/10 p-3 text-xs font-medium text-destructive md:col-span-2">Could not load giftcards: {error instanceof Error ? error.message : String(error)}</p>}
     {orderedCards.some((card) => !card.id && orderedCards.filter((item) => sameGiftcardName(item.vendor, card.vendor) && normalizeDateCell(item.date) === normalizeDateCell(card.date)).length > 1) && <p role="alert" className="rounded-2xl bg-destructive/10 p-3 text-xs font-medium text-destructive md:col-span-2">Could not distinguish same-day giftcards. Refresh the page, then try again.</p>}
     {selectedMerchant && <label className="block min-w-0 space-y-1.5 transition-all duration-200 ease-out">
       <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Card</span>
-      <Select value={selectedCard} onChange={(event) => onCardSelect(event.target.value as 'auto' | string)}>
+      <Select value={selectedCard} disabled={loading} onChange={(event) => onCardSelect(event.target.value as 'auto' | string)}>
         <option value="auto">✨ Auto (FIFO from oldest)</option>
-        {selectedCard !== 'auto' && !selectedIsRendered && <option value={selectedCard} disabled>{savedCard ? `Saved selection: ${savedCard.vendor} · ${savedCard.date} · Face ${currency.format(savedCard.face || 0)}` : /\[gc:/i.test(selectedCard) ? 'Saved card is unavailable' : 'Saved legacy selection (not uniquely matched)'}</option>}
+        {selectedCard !== 'auto' && !selectedIsRendered && <option value={selectedCard} disabled>{loading ? `Loading saved selection · ${selectedCard.replace(/\s+\[gc:[a-z\d_-]+\]\s*$/i, '')}` : savedCard ? `Saved selection: ${savedCard.vendor} · ${savedCard.date} · Face ${currency.format(savedCard.face || 0)}` : /\[gc:/i.test(selectedCard) ? 'Saved card is unavailable' : 'Saved legacy selection (not uniquely matched)'}</option>}
         {orderedCards.map((card, index) => {
           const depleted = card.balance <= 0.005
           const method = giftcardMethodForCard(card)

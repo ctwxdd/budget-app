@@ -13,6 +13,7 @@ const {
   matchGiftcardSourcePurchases,
   newGiftcardPurchaseId,
   resolveGiftcardMethod,
+  savedGiftcardMerchant,
   sameGiftcardName,
 } = require('../../.tmp-test/src/lib/giftcards.js')
 
@@ -23,6 +24,12 @@ const card = (id, face, values = {}) => ({ id, card: `H&M GC ${face}`, vendor: '
 
 test('matches giftcard names without case sensitivity', () => {
   assert.equal(sameGiftcardName(' Costco GC ', 'costco gc'), true)
+})
+
+test('restores merchant from saved giftcard payment method formats', () => {
+  assert.equal(savedGiftcardMerchant('H&M GC (2026-08-19) [gc:abc123]'), 'H&M GC')
+  assert.equal(savedGiftcardMerchant('H&M GC (8/19/2026)'), 'H&M GC')
+  assert.equal(savedGiftcardMerchant('H&M GC $23.14 (Return: H&M (2026-07-02))'), 'H&M GC')
 })
 
 test('separate same-date card methods spend only the selected purchase', () => {
@@ -107,15 +114,15 @@ test('keeps normalized legacy/date and exact card aliases backward compatible', 
 
 test('links duplicate and face-optional purchases one-to-one to row metadata', () => {
   const purchase = (rowIndex, description, amount = 23.14) => expense(rowIndex, amount, 'Visa', { date: '8/19/2026', category: 'Giftcard', description })
-  const expenses = [purchase(14, 'H&M GC $23.14'), purchase(15, 'H&M GC $23.14'), purchase(16, 'Costco GC', 25)]
+  const expenses = [purchase(13, 'Target GC', 25), purchase(14, 'h&m gc $23.14'), purchase(15, 'H&M GC $23.14'), purchase(16, 'Costco GC', 25)]
   const cards = [
     { card: 'H&M GC $23.14', vendor: 'H&M GC', date: '2026-08-19', paid: 23.14, face: 23.14, rowIndex: 2 },
     { card: 'H&M GC $23.14', vendor: 'H&M GC', date: '8/19/2026', paid: 23.14, face: 23.14, rowIndex: 3 },
     { card: 'Costco GC', vendor: 'Costco GC', date: '2026-08-19', paid: 25, face: 25, rowIndex: 4 },
   ]
-  const sourced = matchGiftcardSourcePurchases(cards, expenses, new Map([[14, ['first']], [15, ['second']], [16, ['third']]]))
+  const sourced = matchGiftcardSourcePurchases(cards, expenses, new Map([[13, ['unrelated']], [14, ['first']], [15, ['second']], [16, ['third']]]))
   assert.deepEqual(sourced.map((item) => [item.sourceRowIndex, item.id]), [[14, 'first'], [15, 'second'], [16, 'third']])
-  assert.deepEqual(giftcardSourcePurchaseRowIndexes(expenses), [14, 15, 16])
+  assert.deepEqual(giftcardSourcePurchaseRowIndexes(expenses), [13, 14, 15, 16])
 })
 
 test('links exact Target purchase names without requiring a GC/Gift marker', () => {

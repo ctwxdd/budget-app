@@ -6,6 +6,7 @@ const {
   dateToIsoDate,
   daysBetweenIso,
   normalizeDateCell,
+  parseSheetDate,
 } = require('../../.tmp-test/src/lib/dates.js')
 const { displayDate } = require('../../.tmp-test/src/lib/format.js')
 
@@ -19,6 +20,13 @@ test('formats date objects from local calendar fields instead of UTC serializati
 test('normalizes slash-formatted Sheets dates to ISO date-only values', () => {
   assert.equal(normalizeDateCell('8/19/2026'), '2026-08-19')
   assert.equal(normalizeDateCell('8/21/2026'), '2026-08-21')
+})
+
+test('parses Sheet date formats with a single matching parser and preserves invalid-date fallback', () => {
+  assert.equal(parseSheetDate('2026-08-19'), '2026-08-19')
+  assert.equal(parseSheetDate('8/19/2026'), '2026-08-19')
+  assert.equal(parseSheetDate('Aug 19, 2026'), '2026-08-19')
+  assert.equal(parseSheetDate('not a date'), '')
 })
 
 test('displays legacy and ISO dates as YYYY-MM-DD and preserves invalid-date fallback', () => {

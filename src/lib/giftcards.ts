@@ -69,8 +69,20 @@ function sameGiftcardDescriptor(a: string, b: string) {
 export function allocateGiftcardLedger<T extends GiftcardIdentity>(cards: readonly T[], expenses: readonly Expense[]) {
   const sortedCards = cards.map((card, index) => ({ card, index, remaining: cents(card.face || 0), direct: 0, fifo: 0, poolUsed: 0 }))
     .sort((a, b) => normalizeDateCell(a.card.date).localeCompare(normalizeDateCell(b.card.date)) || (a.card.sourceRowIndex || a.card.rowIndex || a.index) - (b.card.sourceRowIndex || b.card.rowIndex || b.index) || String(a.card.id || '').localeCompare(String(b.card.id || '')))
+    .map((item, order) => ({ ...item, order }))
   const byId = new Map<string, typeof sortedCards[number]>()
-  for (const item of sortedCards) for (const id of [item.card.id, ...(item.card.aliases || [])]) if (id) byId.set(id, item)
+  const byName = new Map<string, typeof sortedCards>()
+  const byVendorDate = new Map<string, typeof sortedCards>()
+  const byVendor = new Map<string, typeof sortedCards[number]>()
+  for (const item of sortedCards) {
+    for (const id of [item.card.id, ...(item.card.aliases || [])]) if (id) byId.set(id, item)
+    const name = item.card.card.trim().toLocaleLowerCase()
+    byName.set(name, [...(byName.get(name) || []), item])
+    const vendorDate = `${item.card.vendor.trim().toLocaleLowerCase()}|${normalizeDateCell(item.card.date)}`
+    byVendorDate.set(vendorDate, [...(byVendorDate.get(vendorDate) || []), item])
+    const vendor = vendorKey(item.card.vendor)
+    if (!byVendor.has(vendor)) byVendor.set(vendor, item)
+  }
   const explicitTotals = new Map<typeof sortedCards[number], number>()
   const singleTotals = new Map<typeof sortedCards[number], number>()
   const directByGroup = new Map<string, { items: typeof sortedCards; total: number }>()
@@ -85,7 +97,15 @@ export function allocateGiftcardLedger<T extends GiftcardIdentity>(cards: readon
       if (target) explicitTotals.set(target, (explicitTotals.get(target) || 0) + cents(expense.amount))
       continue
     }
-    const directMatches = sortedCards.filter(({ card }) => sameGiftcardName(method, card.card) || matchesGiftcardMethod(method, card))
+    const dateMatches = (() => {
+      if (!method.endsWith(')')) return []
+      const dateStart = method.lastIndexOf(' (')
+      if (dateStart < 0) return []
+      const date = normalizeDateCell(method.slice(dateStart + 2, -1))
+      return date ? byVendorDate.get(`${method.slice(0, dateStart).trim().toLocaleLowerCase()}|${date}`) || [] : []
+    })()
+    const candidates = [...new Set([...(byName.get(method.toLocaleLowerCase()) || []), ...dateMatches])]
+    const directMatches = candidates.length < 2 ? candidates : candidates.sort((a, b) => a.order - b.order)
     if (directMatches.length) {
       if (directMatches.length === 1) {
         singleTotals.set(directMatches[0], (singleTotals.get(directMatches[0]) || 0) + cents(expense.amount))
@@ -97,7 +117,7 @@ export function allocateGiftcardLedger<T extends GiftcardIdentity>(cards: readon
       directByGroup.set(key, current)
       continue
     }
-    const vendor = sortedCards.find(({ card }) => vendorKey(method) === vendorKey(card.vendor))
+    const vendor = byVendor.get(vendorKey(method))
     if (vendor) poolByVendor.set(vendorKey(vendor.card.vendor), (poolByVendor.get(vendorKey(vendor.card.vendor)) || 0) + cents(expense.amount))
   }
 
@@ -202,11 +222,32 @@ export function matchGiftcardSourcePurchases<T extends GiftcardIdentity & { paid
   const available = [...expenses].filter((expense) => expense.rowIndex > 0 && expense.amount >= 0).sort((a, b) => a.rowIndex - b.rowIndex)
   const used = new Set<number>()
   const orderedCards = [...cards].sort((a, b) => a.rowIndex - b.rowIndex)
+  const byDate = new Map<string, Expense[]>()
+  const byExactDescriptorDate = new Map<string, Expense[]>()
+  const byPurchaseKey = new Map<string, Expense[]>()
+  const push = (map: Map<string, Expense[]>, key: string, expense: Expense) => {
+    const bucket = map.get(key)
+    if (bucket) bucket.push(expense)
+    else map.set(key, [expense])
+  }
+  for (const expense of available) {
+    const date = normalizeDateCell(expense.date)
+    const exactKey = `${expense.description.trim().toLocaleLowerCase()}|${date}`
+    push(byDate, date, expense)
+    push(byExactDescriptorDate, exactKey, expense)
+    if (expense.category.trim().toLocaleLowerCase() === 'giftcard') push(byPurchaseKey, purchaseKey(expense.date, expense.amount), expense)
+  }
+  const sameRawCardCounts = new Map<string, number>()
+  for (const card of orderedCards) {
+    const key = `${card.card}|${normalizeDateCell(card.date)}`
+    sameRawCardCounts.set(key, (sameRawCardCounts.get(key) || 0) + 1)
+  }
+  const firstUnused = (bucket: readonly Expense[] | undefined) => bucket?.find((expense) => !used.has(expense.rowIndex))
   return orderedCards.flatMap((card) => {
     const cardDate = normalizeDateCell(card.date)
-    const sameRawCardCount = orderedCards.filter((item) => item.card === card.card && normalizeDateCell(item.date) === cardDate).length
-    const groupedSources = available.filter((expense) => !used.has(expense.rowIndex) &&
-      expense.category.trim().toLocaleLowerCase() === 'giftcard' && expense.description === card.card && normalizeDateCell(expense.date) === cardDate)
+    const sameRawCardCount = sameRawCardCounts.get(`${card.card}|${cardDate}`) || 0
+    const groupedSources = (byDate.get(cardDate) || []).filter((expense) => !used.has(expense.rowIndex) &&
+      expense.category.trim().toLocaleLowerCase() === 'giftcard' && expense.description === card.card)
     if (groupedRows && sameRawCardCount === 1 && groupedSources.length > 1 &&
       cents(groupedSources.reduce((sum, expense) => sum + expense.amount, 0)) === cents(card.paid)) {
       const parsedFace = parseGiftcardDescription(card.card)?.face
@@ -218,15 +259,13 @@ export function matchGiftcardSourcePurchases<T extends GiftcardIdentity & { paid
       })
     }
     // Exact descriptor plus date is the stable identity for legacy return-funded rows.
-    let source = available.find((expense) => !used.has(expense.rowIndex) && sameGiftcardName(expense.description, card.card) && normalizeDateCell(expense.date) === cardDate)
-    if (!source) source = available.find((expense) => !used.has(expense.rowIndex) &&
-      sameGiftcardDescriptor(expense.description, card.card) && normalizeDateCell(expense.date) === cardDate)
-    if (!source) source = available.find((expense) => {
-      if (used.has(expense.rowIndex) || expense.category.trim().toLocaleLowerCase() !== 'giftcard' || purchaseKey(expense.date, expense.amount) !== purchaseKey(card.date, card.paid)) return false
+    let source = firstUnused(byExactDescriptorDate.get(`${card.card.trim().toLocaleLowerCase()}|${cardDate}`))
+    if (!source) source = firstUnused((byDate.get(cardDate) || []).filter((expense) => sameGiftcardDescriptor(expense.description, card.card)))
+    if (!source) source = firstUnused(byPurchaseKey.get(purchaseKey(card.date, card.paid))?.filter((expense) => {
       const parsed = parseGiftcardDescription(expense.description)
       if (parsed) return vendorKey(parsed.vendor) === vendorKey(card.vendor) && (!parsed.face || cents(parseCurrency(parsed.face)) === cents(card.face))
       return vendorKey(expense.description).startsWith(vendorKey(card.vendor))
-    })
+    }))
     if (source) used.add(source.rowIndex)
     const aliases = source ? [...new Set(idsByExpenseRow.get(source.rowIndex) || [])].sort() : []
     return [{ ...card, sourceRowIndex: source?.rowIndex, id: aliases[0], aliases }]
@@ -250,6 +289,18 @@ export function classifyPaymentMethod(name: string): PaymentMethodType {
   if (/\bGC\b|\bGift/i.test(name)) return 'giftcard'
   if (/cash|venmo|zelle|paypal|apple pay|google pay/i.test(name)) return 'cash'
   return 'card'
+}
+
+export function savedGiftcardMerchant(paymentMethod: string) {
+  const value = paymentMethod.trim().replace(/\s+\[gc:[a-z\d_-]+\]\s*$/i, '')
+  const parsed = parseGiftcardDescription(value)
+  if (parsed) return parsed.vendor
+  const dateStart = value.lastIndexOf(' (')
+  if (dateStart > 0 && value.endsWith(')')) {
+    const date = value.slice(dateStart + 2, -1).trim()
+    if (/^(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})$/.test(date) && !/[()]/.test(value.slice(0, dateStart))) return value.slice(0, dateStart).trim()
+  }
+  return value
 }
 
 export function classifyGiftcardPaymentMethod(name: string, cards: readonly GiftcardIdentity[]): PaymentMethodType {

@@ -1,9 +1,24 @@
+import { format, isValid, parse, parseISO } from 'date-fns'
+
 export function dateToIsoDate(date: Date) {
   if (Number.isNaN(date.getTime())) return ''
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+export function parseSheetDate(value: unknown) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const isoDate = parseISO(raw)
+  if (isValid(isoDate)) return format(isoDate, 'yyyy-MM-dd')
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(raw)) {
+    const slashDate = parse(raw, 'M/d/yyyy', new Date())
+    if (isValid(slashDate)) return format(slashDate, 'yyyy-MM-dd')
+  }
+  const nativeDate = new Date(raw)
+  return isValid(nativeDate) ? format(nativeDate, 'yyyy-MM-dd') : ''
 }
 
 export function todayIso() {

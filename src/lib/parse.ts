@@ -1,7 +1,6 @@
-import { format, isValid, parse, parseISO } from 'date-fns'
 import type { Expense } from './types'
 import { formatTags } from './tags'
-import { todayIso } from './dates'
+import { parseSheetDate, todayIso } from './dates'
 
 function parseDateCell(value: string, rowIndex?: number): string {
   const raw = String(value || '').trim()
@@ -10,13 +9,12 @@ function parseDateCell(value: string, rowIndex?: number): string {
     if (import.meta.env.DEV) console.warn(`Expense row ${rowIndex ?? '?'} has an empty date; defaulting to today.`)
     return fallback
   }
-  const candidates = [parseISO(raw), parse(raw, 'M/d/yyyy', new Date()), parse(raw, 'MM/dd/yyyy', new Date()), parse(raw, 'yyyy-MM-dd', new Date()), new Date(raw)]
-  const valid = candidates.find((date) => isValid(date))
-  if (!valid) {
+  const parsed = parseSheetDate(raw)
+  if (!parsed) {
     if (import.meta.env.DEV) console.warn(`Expense row ${rowIndex ?? '?'} date could not be parsed: "${raw}"; defaulting to today.`)
     return fallback
   }
-  return format(valid, 'yyyy-MM-dd')
+  return parsed
 }
 
 export function parseExpenseRows(values: string[][] = []): Expense[] {

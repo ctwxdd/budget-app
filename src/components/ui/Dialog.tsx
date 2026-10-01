@@ -20,6 +20,8 @@ const SWIPE_CLOSE_VELOCITY = 0.55
 
 export function Dialog({ open, onOpenChange, title, description, children, footer, className, mobileBottomSheet }: DialogProps) {
   const sheetRef = React.useRef<HTMLDivElement>(null)
+  const onOpenChangeRef = React.useRef(onOpenChange)
+  onOpenChangeRef.current = onOpenChange
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const dragStart = React.useRef<{ y: number; t: number } | null>(null)
   const touchStart = React.useRef<{ x: number; y: number; lastY: number; t: number; scrollable: boolean } | null>(null)
@@ -29,7 +31,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
 
   React.useEffect(() => {
     if (!open) return
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onOpenChange(false)
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onOpenChangeRef.current(false)
     const scrollY = window.scrollY
     const bodyStyle = document.body.style
     const original = {
@@ -59,7 +61,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
       delete document.documentElement.dataset.dialogOpen
       window.scrollTo(0, scrollY)
     }
-  }, [open, onOpenChange])
+  }, [open])
 
   React.useEffect(() => { if (open) { dragYRef.current = 0; setDragY(0); setIsDragging(false); dragStart.current = null } }, [open])
 
