@@ -52,3 +52,18 @@ test('searches row metadata using the Sheets metadata search API and creates met
     global.fetch = originalFetch
   }
 })
+
+test('accepts omitted default sheetId 0 but rejects missing or mismatched nonzero sheet IDs', async () => {
+  const originalFetch = global.fetch
+  setSheetsAuth({ getToken: async () => 'test-token' })
+  global.fetch = async () => new Response(JSON.stringify({ matchedDeveloperMetadata: [
+    { developerMetadata: { metadataId: 1, metadataKey: 'cgc', metadataValue: 'default', location: { dimensionRange: { dimension: 'ROWS', startIndex: 0, endIndex: 1 } } } },
+    { developerMetadata: { metadataId: 2, metadataKey: 'cgc', metadataValue: 'wrong-sheet', location: { dimensionRange: { sheetId: 8, dimension: 'ROWS', startIndex: 0, endIndex: 1 } } } },
+  ] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  try {
+    assert.deepEqual((await getRowDeveloperMetadata('sheet-id', 0, 'cgc')).map((item) => item.metadataValue), ['default'])
+    assert.deepEqual(await getRowDeveloperMetadata('sheet-id', 7, 'cgc'), [])
+  } finally {
+    global.fetch = originalFetch
+  }
+})

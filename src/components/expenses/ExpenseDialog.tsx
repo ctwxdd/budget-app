@@ -523,6 +523,8 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const [selectedMerchant, setSelectedMerchant] = React.useState('')
   const [selectedGiftcardCard, setSelectedGiftcardCard] = React.useState<'auto' | string>('auto')
   const [splitPayments, setSplitPayments] = React.useState<SplitPayment[]>([])
+  const initializedForRef = React.useRef<{ expense?: Expense | null; template?: FormState | null } | null>(null)
+  const giftcardSelectionTouchedRef = React.useRef(false)
   const formId = React.useId()
   // Only one suggestion popover can be open at a time so the Description
   // and Category dropdowns don't visually overlap.
@@ -530,7 +532,10 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const setMenu = (menu: 'description' | 'category') => (open: boolean) => setActiveMenu((current) => open ? menu : (current === menu ? null : current))
 
   React.useEffect(() => {
-    if (!open) return
+    if (!open) { initializedForRef.current = null; return }
+    if (initializedForRef.current && initializedForRef.current.expense === expense && initializedForRef.current.template === template) return
+    initializedForRef.current = { expense, template }
+    giftcardSelectionTouchedRef.current = false
     const next = expense
       ? { date: expense.date, amount: expense.amount, description: expense.description, category: expense.category, paymentMethod: expense.paymentMethod, reimbursement: expense.reimbursement, tags: expense.tags }
       : template
@@ -562,7 +567,18 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
       setSelectedGiftcardCard('auto')
     }
     setSplitPayments([])
-  }, [open, expense, template, expensesQuery.data, giftcards.cards, giftcards.merchants])
+  }, [open, expense, template])
+
+  React.useEffect(() => {
+    const paymentMethod = expense?.paymentMethod || template?.paymentMethod
+    if (!open || !paymentMethod || !giftcards.cards.length || giftcardSelectionTouchedRef.current) return
+    if (classifyGiftcardPaymentMethod(paymentMethod, giftcards.cards) !== 'giftcard') return
+    const merchant = findMerchantForMethod(paymentMethod, giftcards.merchants, giftcards.cards)
+    if (!merchant) return
+    setPaymentType('giftcard')
+    setSelectedMerchant(merchant)
+    setSelectedGiftcardCard(selectedCardForMethod(paymentMethod, merchant, giftcards.cards) || 'auto')
+  }, [open, expense, template, giftcards.cards, giftcards.merchants])
 
   const vendors = React.useMemo(() => [...giftcards.cards.reduce((names, card) => {
     if (card.vendor) names.set(card.vendor.toLocaleLowerCase(), card.vendor)
@@ -601,12 +617,14 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   }
 
   const selectGiftcardMerchant = (merchant: string) => {
+    giftcardSelectionTouchedRef.current = true
     setSelectedMerchant(merchant)
     setSelectedGiftcardCard('auto')
     setForm((current) => ({ ...current, paymentMethod: merchant }))
   }
 
   const selectGiftcardCard = (card: 'auto' | string) => {
+    giftcardSelectionTouchedRef.current = true
     setSelectedGiftcardCard(card)
     setForm((current) => ({ ...current, paymentMethod: card === 'auto' ? selectedMerchant : card }))
   }
@@ -735,6 +753,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
             <span className="block">{t('expense.paymentMethod', 'Payment method')}</span>
             <div className="grid grid-cols-3 gap-1 rounded-full bg-accent/50 p-0.5">
               {paymentTypes.map((item) => <button key={item.type} type="button" aria-label={t(paymentTypeKey[item.type], item.label)} className={cn('flex h-9 items-center justify-center gap-1 rounded-full px-2 text-[11px] leading-none transition md:h-8 md:px-3 md:text-xs', paymentType === item.type ? 'bg-card text-coral shadow-sm' : 'text-muted-foreground hover:bg-card/70')} onClick={() => {
+                giftcardSelectionTouchedRef.current = true
                 const previousType = paymentType
                 setPaymentType(item.type)
                 if (item.type === 'giftcard') {

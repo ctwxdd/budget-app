@@ -193,7 +193,7 @@ export async function getRowDeveloperMetadata(sheetId: string, sheetGid: number,
   })
   return (response.matchedDeveloperMetadata || []).flatMap((match) => match.developerMetadata ? [match.developerMetadata] : []).filter((item) => {
     const range = item.location?.dimensionRange
-    return item.metadataKey === metadataKey && range?.dimension === 'ROWS' && range.sheetId === sheetGid && Number.isInteger(range.startIndex)
+    return item.metadataKey === metadataKey && range?.dimension === 'ROWS' && (range.sheetId === sheetGid || (sheetGid === 0 && range.sheetId === undefined)) && Number.isInteger(range.startIndex)
   })
 }
 

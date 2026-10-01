@@ -111,7 +111,7 @@ export function useGiftcards() {
         throw error
       }
     },
-    enabled: Boolean(spreadsheetId) && expensesQuery.isFetchedAfterMount,
+    enabled: Boolean(spreadsheetId) && expensesQuery.isFetched && !expensesQuery.isError && !expensesQuery.isFetching,
     placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === spreadsheetId ? previous : undefined,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -135,12 +135,12 @@ export function useGiftcards() {
       return { ...merchant, active: existing?.manualActive ?? merchant.balance > 0.005 }
     })
   }, [cards, query.data?.merchants])
-  const waitingForFreshExpenses = Boolean(spreadsheetId) && !expensesQuery.isFetchedAfterMount && !expensesQuery.error
+  const waitingForFreshExpenses = Boolean(spreadsheetId) && (!expensesQuery.isFetched || expensesQuery.isError || expensesQuery.isFetching)
   return {
-    cards: waitingForFreshExpenses ? emptyCards : cards,
-    merchants: waitingForFreshExpenses ? emptyMerchants : calculatedMerchants.length ? calculatedMerchants : query.data?.merchants || emptyMerchants,
+    cards: waitingForFreshExpenses && !query.data ? emptyCards : cards,
+    merchants: waitingForFreshExpenses && !query.data ? emptyMerchants : calculatedMerchants.length ? calculatedMerchants : query.data?.merchants || emptyMerchants,
     tabMissing: waitingForFreshExpenses ? false : query.data?.tabMissing || false,
-    isLoading: query.isLoading || expensesQuery.isLoading || waitingForFreshExpenses,
+    isLoading: (query.isLoading || expensesQuery.isLoading || waitingForFreshExpenses) && !query.data,
     error: query.error || expensesQuery.error,
   }
 }

@@ -55,7 +55,7 @@ export function useExpenses(options: { requireFresh?: boolean } = {}) {
     initialData: cached?.data,
     initialDataUpdatedAt: cached?.savedAt,
     staleTime: LOCAL_CACHE_AGE,
-    refetchOnMount: options.requireFresh ? 'always' : undefined,
+    refetchOnMount: options.requireFresh ? (query) => query.state.dataUpdateCount === 0 ? 'always' : true : undefined,
     refetchOnWindowFocus: false,
     retry: (failureCount, error) => isRateLimitError(error) ? failureCount < 2 : failureCount < 1,
     retryDelay: (attempt, error) => isRateLimitError(error) ? Math.min(4000, 1200 * (attempt + 1)) : 1000,
