@@ -7,6 +7,7 @@ const {
   daysBetweenIso,
   normalizeDateCell,
 } = require('../../.tmp-test/src/lib/dates.js')
+const { displayDate } = require('../../.tmp-test/src/lib/format.js')
 
 test('formats date objects from local calendar fields instead of UTC serialization', () => {
   const localLateNight = new Date(2026, 5, 30, 23, 30)
@@ -18,6 +19,12 @@ test('formats date objects from local calendar fields instead of UTC serializati
 test('normalizes slash-formatted Sheets dates to ISO date-only values', () => {
   assert.equal(normalizeDateCell('8/19/2026'), '2026-08-19')
   assert.equal(normalizeDateCell('8/21/2026'), '2026-08-21')
+})
+
+test('displays legacy and ISO dates as YYYY-MM-DD and preserves invalid-date fallback', () => {
+  assert.equal(displayDate('2026-08-19'), '2026-08-19')
+  assert.equal(displayDate('8/21/2026'), '2026-08-21')
+  assert.equal(displayDate('not a date'), 'Unknown date')
 })
 
 test('adds months and counts days using local date-only values', () => {

@@ -2,6 +2,7 @@ import { addMonths, endOfMonth, endOfYear, format, isValid, isWithinInterval, pa
 import type * as React from 'react'
 import * as Icons from 'lucide-react'
 import type { DatePreset, Expense } from './types'
+import { normalizeDateCell } from './dates'
 
 export const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 export const chartPalette = ['#FF8E72', '#FFB199', '#34D399', '#7DD3FC', '#C4B5FD', '#FCD34D', '#F472B6', '#9BC7A8']
@@ -102,8 +103,8 @@ function safeParseISO(date: string) {
 }
 
 export function displayDate(date: string) {
-  const parsed = safeParseISO(date)
-  return parsed ? format(parsed, 'MMM d, yyyy') : 'Unknown date'
+  const parsed = safeParseISO(normalizeDateCell(date))
+  return parsed ? format(parsed, 'yyyy-MM-dd') : 'Unknown date'
 }
 
 export function monthKey(date: string) {

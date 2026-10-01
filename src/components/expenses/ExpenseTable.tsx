@@ -87,8 +87,8 @@ function DateRangePicker({ start, end, onChange }: { start: string; end: string;
   for (let day = calendarStart; day <= calendarEnd; day = addDays(day, 1)) days.push(day)
   const label = startDate
     ? endDate
-      ? `${format(startDate, 'MMM d, yyyy')} – ${format(endDate, 'MMM d, yyyy')}`
-      : `${format(startDate, 'MMM d, yyyy')} – ${t('filters.selectEnd', 'Select end')}`
+      ? `${displayDate(start)} – ${displayDate(end)}`
+      : `${displayDate(start)} – ${t('filters.selectEnd', 'Select end')}`
     : t('filters.selectRange', 'Select date range')
 
   const selectDay = (day: Date) => {
