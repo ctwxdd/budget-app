@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as React from 'react'
 import { addRowDeveloperMetadata, getRowDeveloperMetadata, getSheet, getSheets, getSheetMeta, isRateLimitError, rowDeveloperMetadataByRow } from '../lib/sheets'
 import { allocateGiftcardLedger, giftcardActiveColumnIsComputed, giftcardRowsAreGrouped, giftcardRowsMissingMetadata, matchGiftcardSourcePurchases, newGiftcardPurchaseId, parseCurrency } from '../lib/giftcards'
+import { normalizeDateCell } from '../lib/dates'
 import { useExpenses, useSheetId } from './useExpenses'
 
 export type GiftcardRow = {
@@ -46,7 +47,7 @@ function parseCards(rows: string[][] = []): GiftcardRow[] {
       const [card = '', date = '', paid = '', face = '', vendor = '', direct = '', pool = '', cumBefore = '', fifo = '', balance = ''] = row
       return {
         card: String(card || '').trim(),
-        date: String(date || '').trim(),
+        date: normalizeDateCell(date),
         paid: parseCurrency(paid),
         face: parseCurrency(face),
         vendor: String(vendor || '').trim(),

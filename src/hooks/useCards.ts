@@ -76,7 +76,9 @@ function parseCards(rows: string[][] = []): CardRow[] {
 export function useCards() {
   const sheetId = useSheetId()
   const cacheKey = `cards.v5.${sheetId}`
-  const cached = readLocalCache<CardsData>(cacheKey, LOCAL_CACHE_AGE)
+  // Keep expired card options visible while the query refreshes; initialDataUpdatedAt
+  // still makes React Query refetch them immediately when older than the TTL.
+  const cached = readLocalCache<CardsData>(cacheKey, Number.POSITIVE_INFINITY)
   const query = useQuery<CardsData>({
     queryKey: ['cards', 'v5', sheetId],
     queryFn: async () => {

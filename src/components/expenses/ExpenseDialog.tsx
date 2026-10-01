@@ -748,6 +748,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
             onRemove={removeSplitPayment}
             onCancel={() => setSplitPayments([])}
             onChange={updateSplitPayment}
+            loadingCards={managedCards.isLoading}
           />
           : <>
             <span className="block">{t('expense.paymentMethod', 'Payment method')}</span>
@@ -771,7 +772,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
             {paymentType !== 'cash' && <div className="pt-1.5">
               {paymentType === 'giftcard'
                 ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} error={giftcards.error} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
-                : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} />}
+              : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} loading={managedCards.isLoading} />}
             </div>}
             {!giftcardPurchase && <button
               type="button"
@@ -800,6 +801,7 @@ function SplitPaymentEditor({
   onRemove,
   onCancel,
   onChange,
+  loadingCards,
 }: {
   total: number
   payments: SplitPayment[]
@@ -812,6 +814,7 @@ function SplitPaymentEditor({
   onRemove: (id: string) => void
   onCancel: () => void
   onChange: (id: string, patch: Partial<SplitPayment>) => void
+  loadingCards: boolean
 }) {
   const totalCents = cents(total)
   const splitCents = payments.reduce((sum, payment) => sum + cents(Math.abs(payment.amount)), 0)
@@ -902,7 +905,7 @@ function SplitPaymentEditor({
                 onMerchantSelect={(merchant) => onChange(payment.id, { selectedMerchant: merchant, selectedGiftcardCard: 'auto', paymentMethod: merchant })}
                 onCardSelect={(card) => onChange(payment.id, { selectedGiftcardCard: card, paymentMethod: card === 'auto' ? payment.selectedMerchant : card })}
               />
-              : <CardPaymentPicker value={payment.paymentMethod} onChange={(paymentMethod) => onChange(payment.id, { paymentMethod })} cards={cards} />}
+              : <CardPaymentPicker value={payment.paymentMethod} onChange={(paymentMethod) => onChange(payment.id, { paymentMethod })} cards={cards} loading={loadingCards} />}
           </div>}
         </div>
       })}
@@ -1127,7 +1130,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
         {paymentType !== 'cash' && <div className="pt-1.5">
           {paymentType === 'giftcard'
             ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} error={giftcards.error} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
-            : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} />}
+            : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} loading={managedCards.isLoading} />}
         </div>}
         {original && !returnExpense && <button type="button" onClick={() => chooseGiftcardReturnMode('new')} className="mt-2 w-full rounded-2xl border border-dashed border-coral/40 bg-coral/5 px-3 py-2 text-left text-xs font-bold text-coral transition hover:bg-coral/10">Create new giftcard / store credit instead</button>}
       </div>}
@@ -1267,7 +1270,7 @@ function normalizeSearch(value: string) {
   return value.trim().toLocaleLowerCase()
 }
 
-function CardPaymentPicker({ value, onChange, cards }: { value: string; onChange: (value: string) => void; cards: CardRow[] }) {
+function CardPaymentPicker({ value, onChange, cards, loading = false }: { value: string; onChange: (value: string) => void; cards: CardRow[]; loading?: boolean }) {
   const [focused, setFocused] = React.useState(false)
   const [query, setQuery] = React.useState('')
   const [highlight, setHighlight] = React.useState(0)
@@ -1384,6 +1387,7 @@ function CardPaymentPicker({ value, onChange, cards }: { value: string; onChange
         </div>
       </FadeScroll>}
     </div>
-    {!cards.length && <p className="rounded-2xl bg-accent/50 p-2 text-xs font-medium">Add cards in the Cards tab for faster picking.</p>}
+    {loading && !cards.length && <p className="px-1 text-xs font-medium text-muted-foreground">Loading cards…</p>}
+    {!cards.length && !loading && <p className="rounded-2xl bg-accent/50 p-2 text-xs font-medium">Add cards in the Cards tab for faster picking.</p>}
   </div>
 }
