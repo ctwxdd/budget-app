@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { getSheets, isRateLimitError } from '../lib/sheets'
-import { parseCurrency } from '../lib/giftcards'
-import { readLocalCache, writeLocalCache } from '../lib/localCache'
-import { useSheetId } from './useExpenses'
+import * as React from 'react'
+import { addRowDeveloperMetadata, getRowDeveloperMetadata, getSheet, getSheets, getSheetMeta, isRateLimitError, rowDeveloperMetadataByRow } from '../lib/sheets'
+import { allocateGiftcardLedger, giftcardActiveColumnIsComputed, giftcardRowsMissingMetadata, giftcardSourcePurchaseRowIndexes, matchGiftcardSourcePurchases, newGiftcardPurchaseId, parseCurrency } from '../lib/giftcards'
+import { useExpenses, useSheetId } from './useExpenses'
 
 export type GiftcardRow = {
   card: string
@@ -15,6 +15,10 @@ export type GiftcardRow = {
   cumBefore: number
   fifo: number
   balance: number
+  rowIndex: number
+  sourceRowIndex?: number
+  id?: string
+  aliases?: string[]
 }
 
 export type MerchantRow = {
@@ -24,29 +28,21 @@ export type MerchantRow = {
   spent: number
   balance: number
   active: boolean
+  manualActive?: boolean
 }
 
 type GiftcardsData = { cards: GiftcardRow[]; merchants: MerchantRow[]; tabMissing: boolean }
 const emptyCards: GiftcardRow[] = []
 const emptyMerchants: MerchantRow[] = []
-const LOCAL_CACHE_AGE = 5 * 60 * 1000
 
 function isMissingGiftcardTab(error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
   return /Unable to parse range|Cannot find range|not found/i.test(message) && /Giftcard/i.test(message)
 }
 
-function parseBoolean(value: unknown, fallback: boolean) {
-  const text = String(value ?? '').trim()
-  if (!text) return fallback
-  if (/^(true|yes|y|active|1)$/i.test(text)) return true
-  if (/^(false|no|n|inactive|0)$/i.test(text)) return false
-  return fallback
-}
-
 function parseCards(rows: string[][] = []): GiftcardRow[] {
   return rows
-    .map((row) => {
+    .map((row, index) => {
       const [card = '', date = '', paid = '', face = '', vendor = '', direct = '', pool = '', cumBefore = '', fifo = '', balance = ''] = row
       return {
         card: String(card || '').trim(),
@@ -59,58 +55,85 @@ function parseCards(rows: string[][] = []): GiftcardRow[] {
         cumBefore: parseCurrency(cumBefore),
         fifo: parseCurrency(fifo),
         balance: parseCurrency(balance),
+        rowIndex: index + 2,
       }
     })
     .filter((row) => row.card || row.vendor || row.face || row.balance)
 }
 
-function parseMerchants(rows: string[][] = []): MerchantRow[] {
-  return rows
-    .map((row) => {
-      const [merchant = '', cardCount = '', purchased = '', spent = '', balance = '', active = ''] = row
-      const parsedBalance = parseCurrency(balance)
-      return {
-        merchant: String(merchant || '').trim(),
-        cardCount: Math.round(parseCurrency(cardCount)),
-        purchased: parseCurrency(purchased),
-        spent: parseCurrency(spent),
-        balance: parsedBalance,
-        active: parseBoolean(active, parsedBalance > 0),
-      }
-    })
-    .filter((row) => row.merchant || row.cardCount || row.purchased || row.balance)
+function parseMerchants(rows: string[][] = [], activeFormulas: string[][] = []): MerchantRow[] {
+  const computedSpill = giftcardActiveColumnIsComputed(activeFormulas)
+  return rows.map((row, index) => {
+    const [merchant = '', cardCount = '', purchased = '', spent = '', balance = '', active = ''] = row
+    const parsedBalance = parseCurrency(balance)
+    const formula = activeFormulas[index]?.[0] || ''
+    const text = String(active).trim()
+    const manualActive = computedSpill || formula.startsWith('=') ? undefined : /^(true|yes|y|active|1)$/i.test(text) ? true : /^(false|no|n|inactive|0)$/i.test(text) ? false : undefined
+    return { merchant: String(merchant || '').trim(), cardCount: Math.round(parseCurrency(cardCount)), purchased: parseCurrency(purchased), spent: parseCurrency(spent), balance: parsedBalance, active: manualActive ?? parsedBalance > 0, manualActive }
+  }).filter((row) => row.merchant || row.cardCount || row.purchased || row.balance)
 }
 
 export function useGiftcards() {
   const spreadsheetId = useSheetId()
-  const cacheKey = `giftcards.${spreadsheetId}`
-  const cached = readLocalCache<GiftcardsData>(cacheKey, LOCAL_CACHE_AGE)
+  const expensesQuery = useExpenses()
+  const expenses = expensesQuery.data || []
+  const purchaseRows = React.useMemo(() => giftcardSourcePurchaseRowIndexes(expenses), [expenses])
+  const purchaseSignature = React.useMemo(() => JSON.stringify(expenses.filter((expense) => purchaseRows.includes(expense.rowIndex)).map(({ rowIndex, date, amount, description }) => [rowIndex, date, amount, description])), [expenses, purchaseRows])
   const query = useQuery<GiftcardsData>({
-    queryKey: ['giftcards', spreadsheetId],
+    queryKey: ['giftcards', spreadsheetId, purchaseSignature],
     queryFn: async () => {
       try {
-        const [cards = {}, merchants = {}] = await getSheets(spreadsheetId, ['Giftcard!A2:J1000', 'Giftcard!L2:Q1000'])
-        const data = { cards: parseCards(cards.values || []), merchants: parseMerchants(merchants.values || []), tabMissing: false }
-        writeLocalCache(cacheKey, data)
+        const [[cards = {}, merchants = {}], meta, activeFormulas] = await Promise.all([
+          getSheets(spreadsheetId, ['Giftcard!A2:J1000', 'Giftcard!L2:Q1000']),
+          getSheetMeta(spreadsheetId),
+          getSheet(spreadsheetId, 'Giftcard!Q2:Q1000', 'FORMULA'),
+        ])
+        const rawCards = parseCards(cards.values || [])
+        const sheetGid = meta.sheets.find((sheet) => sheet.title === 'Expense')?.sheetId
+        if (sheetGid === undefined) throw new Error('Could not find an Expense tab in this spreadsheet.')
+        let metadata = await getRowDeveloperMetadata(spreadsheetId, sheetGid, 'cgc')
+        const idsByExpenseRow = rowDeveloperMetadataByRow(metadata)
+        const missingRows = giftcardRowsMissingMetadata(purchaseRows, idsByExpenseRow)
+        if (missingRows.length) {
+          await addRowDeveloperMetadata(spreadsheetId, missingRows.map((rowIndex) => ({ sheetGid, rowIndex, key: 'cgc', value: newGiftcardPurchaseId() })))
+          metadata = await getRowDeveloperMetadata(spreadsheetId, sheetGid, 'cgc')
+        }
+        const sourcedCards = matchGiftcardSourcePurchases(rawCards, expenses, rowDeveloperMetadataByRow(metadata))
+        const data = { cards: sourcedCards, merchants: parseMerchants(merchants.values || [], activeFormulas.values || []), tabMissing: false }
         return data
       } catch (error) {
         if (isMissingGiftcardTab(error)) return { cards: [], merchants: [], tabMissing: true }
         throw error
       }
     },
-    enabled: Boolean(spreadsheetId),
-    initialData: cached?.data,
-    initialDataUpdatedAt: cached?.savedAt,
-    staleTime: LOCAL_CACHE_AGE,
+    enabled: Boolean(spreadsheetId) && expensesQuery.data !== undefined,
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: (failureCount, error) => isRateLimitError(error) ? failureCount < 2 : failureCount < 1,
   })
 
+  const cards = React.useMemo(() => allocateGiftcardLedger(query.data?.cards || emptyCards, expenses), [query.data?.cards, expenses])
+  const calculatedMerchants = React.useMemo(() => {
+    const totals = new Map<string, MerchantRow>()
+    for (const card of cards) {
+      const key = card.vendor.trim().toLocaleLowerCase()
+      const merchant = totals.get(key) || { merchant: card.vendor, cardCount: 0, purchased: 0, spent: 0, balance: 0, active: false }
+      merchant.cardCount += 1
+      merchant.purchased += card.face
+      merchant.spent += card.direct + card.fifo
+      merchant.balance += card.balance
+      totals.set(key, merchant)
+    }
+    return [...totals.values()].map((merchant) => {
+      const existing = query.data?.merchants.find((item) => item.merchant.trim().toLocaleLowerCase() === merchant.merchant.trim().toLocaleLowerCase())
+      return { ...merchant, active: existing?.manualActive ?? merchant.balance > 0.005 }
+    })
+  }, [cards, query.data?.merchants])
   return {
-    cards: query.data?.cards || emptyCards,
-    merchants: query.data?.merchants || emptyMerchants,
+    cards,
+    merchants: calculatedMerchants.length ? calculatedMerchants : query.data?.merchants || emptyMerchants,
     tabMissing: query.data?.tabMissing || false,
-    isLoading: query.isLoading,
-    error: query.error,
+    isLoading: query.isLoading || expensesQuery.isLoading,
+    error: query.error || expensesQuery.error,
   }
 }

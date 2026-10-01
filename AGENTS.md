@@ -27,6 +27,7 @@ Start with [CODEMAP.md](CODEMAP.md), choose the owning lane, then read only its 
 - Google Sheets is the data source of truth. Route Sheets API calls through `src/lib/sheets.ts`; keep query state, cache invalidation, and optimistic updates in existing hooks.
 - Treat sheet ranges, column meanings, and `rowIndex` conversion as data contracts. Expense column G is reserved and tags belong in H. Follow the exact ranges in the existing card and benefit writers; preserve columns and formulas they do not own.
 - Never test mutations against the user's real budget sheet; use a disposable copy. Keep money, date, row parsing, returns, and card/giftcard benefit calculations compatible with existing sheet values.
+- Giftcard purchase IDs belong in row-bound Google Sheets DeveloperMetadata on the source Expense row; do not add marker columns or overwrite Giftcard formulas. Metadata follows source row inserts, moves, and deletes.
 - Before changing shared behavior, search all callers and trace the UI → hook → helper/API path. Prefer the current owner over duplicate state or downstream guards.
 
 ## Keep context small

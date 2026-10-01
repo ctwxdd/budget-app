@@ -9,6 +9,7 @@ import { useCards } from '../../hooks/useCards'
 import type { CardRow } from '../../hooks/useCards'
 import { appendNoteToDescription, cardForGiftcardMethod, classifyGiftcardPaymentMethod, classifyPaymentMethod, composeGiftcardDescription, giftcardMethodForCard, parseGiftcardDescription, resolveGiftcardMethod, sameGiftcardName, splitDescriptionNote, type GiftcardDescriptionParts, type PaymentMethodType } from '../../lib/giftcards'
 import { currency } from '../../lib/format'
+import { normalizeDateCell } from '../../lib/dates'
 import { findOriginalExpenseForReturn, getReturnSummary } from '../../lib/returns'
 import { cn } from '../../lib/utils'
 import { useToast } from '../ui/Toast'
@@ -581,7 +582,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     const selected = giftcards.merchants.find((merchant) => sameGiftcardName(merchant.merchant, selectedMerchant))
     return selected && !activeMerchants.some((merchant) => sameGiftcardName(merchant.merchant, selected.merchant)) ? [selected, ...activeMerchants] : activeMerchants
   }, [activeMerchants, giftcards.merchants, selectedMerchant])
-  const selectedCards = React.useMemo(() => giftcards.cards.filter((card) => sameGiftcardName(card.vendor, selectedMerchant)).sort((a, b) => a.date.localeCompare(b.date)), [giftcards.cards, selectedMerchant])
+  const selectedCards = React.useMemo(() => giftcards.cards.filter((card) => sameGiftcardName(card.vendor, selectedMerchant)).sort((a, b) => normalizeDateCell(a.date).localeCompare(normalizeDateCell(b.date)) || a.rowIndex - b.rowIndex), [giftcards.cards, selectedMerchant])
   const giftcardPurchase = form.category === 'Giftcard'
   const splitEnabled = !giftcardPurchase && splitPayments.length > 0
   const zeroCostGiftcardEntry = giftcardPurchase && Boolean(expense) && Math.abs(Number(expense?.amount) || 0) < 0.005
@@ -724,6 +725,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
             merchants={activeMerchants}
             allMerchants={giftcards.merchants}
             giftcardCards={giftcards.cards}
+            giftcardError={giftcards.error}
             onAdd={addSplitPayment}
             onRemove={removeSplitPayment}
             onCancel={() => setSplitPayments([])}
@@ -749,7 +751,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
             </div>
             {paymentType !== 'cash' && <div className="pt-1.5">
               {paymentType === 'giftcard'
-                ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
+                ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} error={giftcards.error} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
                 : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} />}
             </div>}
             {!giftcardPurchase && <button
@@ -774,6 +776,7 @@ function SplitPaymentEditor({
   merchants,
   allMerchants,
   giftcardCards,
+  giftcardError,
   onAdd,
   onRemove,
   onCancel,
@@ -785,6 +788,7 @@ function SplitPaymentEditor({
   merchants: MerchantRow[]
   allMerchants: MerchantRow[]
   giftcardCards: GiftcardRow[]
+  giftcardError?: unknown
   onAdd: () => void
   onRemove: (id: string) => void
   onCancel: () => void
@@ -834,7 +838,7 @@ function SplitPaymentEditor({
     </div>
     <div className="space-y-2">
       {payments.map((payment, index) => {
-        const selectedCards = giftcardCards.filter((card) => sameGiftcardName(card.vendor, payment.selectedMerchant)).sort((a, b) => a.date.localeCompare(b.date))
+        const selectedCards = giftcardCards.filter((card) => sameGiftcardName(card.vendor, payment.selectedMerchant)).sort((a, b) => normalizeDateCell(a.date).localeCompare(normalizeDateCell(b.date)) || a.rowIndex - b.rowIndex)
         const isBalancingPayment = index === payments.length - 1 && payments.length > 1
         return <div key={payment.id} className="space-y-3 rounded-3xl border border-border/70 bg-card/80 p-3 shadow-sm">
           <div className="flex items-center justify-between gap-3">
@@ -875,6 +879,7 @@ function SplitPaymentEditor({
                 cards={selectedCards}
                 selectedMerchant={payment.selectedMerchant}
                 selectedCard={payment.selectedGiftcardCard}
+                error={giftcardError}
                 onMerchantSelect={(merchant) => onChange(payment.id, { selectedMerchant: merchant, selectedGiftcardCard: 'auto', paymentMethod: merchant })}
                 onCardSelect={(card) => onChange(payment.id, { selectedGiftcardCard: card, paymentMethod: card === 'auto' ? payment.selectedMerchant : card })}
               />
@@ -955,7 +960,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     const selected = giftcards.merchants.find((merchant) => sameGiftcardName(merchant.merchant, selectedMerchant))
     return selected && !active.some((merchant) => sameGiftcardName(merchant.merchant, selected.merchant)) ? [selected, ...active] : active
   })()
-  const selectedCards = giftcards.cards.filter((card) => sameGiftcardName(card.vendor, selectedMerchant)).sort((a, b) => a.date.localeCompare(b.date))
+  const selectedCards = giftcards.cards.filter((card) => sameGiftcardName(card.vendor, selectedMerchant)).sort((a, b) => normalizeDateCell(a.date).localeCompare(normalizeDateCell(b.date)) || a.rowIndex - b.rowIndex)
 
   const selectGiftcardMerchant = (merchant: string) => {
     setSelectedMerchant(merchant)
@@ -1102,7 +1107,7 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
         </div>
         {paymentType !== 'cash' && <div className="pt-1.5">
           {paymentType === 'giftcard'
-            ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
+            ? <GiftcardPaymentPicker merchants={merchantOptions} cards={selectedCards} selectedMerchant={selectedMerchant} selectedCard={selectedGiftcardCard} error={giftcards.error} onMerchantSelect={selectGiftcardMerchant} onCardSelect={selectGiftcardCard} />
             : <CardPaymentPicker value={form.paymentMethod} onChange={(paymentMethod) => setForm({ ...form, paymentMethod })} cards={sortedCardOptions} />}
         </div>}
         {original && !returnExpense && <button type="button" onClick={() => chooseGiftcardReturnMode('new')} className="mt-2 w-full rounded-2xl border border-dashed border-coral/40 bg-coral/5 px-3 py-2 text-left text-xs font-bold text-coral transition hover:bg-coral/10">Create new giftcard / store credit instead</button>}
@@ -1172,9 +1177,10 @@ function GiftcardComposer({ parts, structured, vendors, sources, rawDescription,
   </div>
 }
 
-function GiftcardPaymentPicker({ merchants, cards, selectedMerchant, selectedCard, onMerchantSelect, onCardSelect }: { merchants: MerchantRow[]; cards: GiftcardRow[]; selectedMerchant: string; selectedCard: 'auto' | string; onMerchantSelect: (merchant: string) => void; onCardSelect: (card: 'auto' | string) => void }) {
-  const orderedCards = React.useMemo(() => [...cards].sort((a, b) => Number(a.balance <= 0.005) - Number(b.balance <= 0.005) || a.date.localeCompare(b.date)), [cards])
-  const selectedIdentityCount = selectedCard === 'auto' ? 0 : orderedCards.filter((card) => sameGiftcardName(selectedCard, giftcardMethodForCard(card))).length
+function GiftcardPaymentPicker({ merchants, cards, selectedMerchant, selectedCard, error, onMerchantSelect, onCardSelect }: { merchants: MerchantRow[]; cards: GiftcardRow[]; selectedMerchant: string; selectedCard: 'auto' | string; error?: unknown; onMerchantSelect: (merchant: string) => void; onCardSelect: (card: 'auto' | string) => void }) {
+  const orderedCards = React.useMemo(() => [...cards].sort((a, b) => Number(a.balance <= 0.005) - Number(b.balance <= 0.005) || normalizeDateCell(a.date).localeCompare(normalizeDateCell(b.date)) || a.rowIndex - b.rowIndex), [cards])
+  const selectedIsRendered = selectedCard !== 'auto' && orderedCards.some((card) => giftcardMethodForCard(card) === selectedCard)
+  const savedCard = selectedCard === 'auto' ? undefined : cardForGiftcardMethod(selectedCard, orderedCards)
   return <div className="grid gap-3 rounded-3xl border border-border/70 bg-white/70 p-3 dark:bg-card/70 md:grid-cols-2">
     <label className="block min-w-0 space-y-1.5">
       <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Merchant</span>
@@ -1184,16 +1190,21 @@ function GiftcardPaymentPicker({ merchants, cards, selectedMerchant, selectedCar
       </Select>
     </label>
     {!merchants.length && <p className="rounded-2xl bg-accent/50 p-3 text-xs font-medium md:col-span-2">No active giftcards found.</p>}
+    {Boolean(error) && <p role="alert" className="rounded-2xl bg-destructive/10 p-3 text-xs font-medium text-destructive md:col-span-2">Could not load giftcard identities: {error instanceof Error ? error.message : String(error)}</p>}
+    {orderedCards.some((card) => !card.id && orderedCards.filter((item) => sameGiftcardName(item.vendor, card.vendor) && normalizeDateCell(item.date) === normalizeDateCell(card.date)).length > 1) && <p role="alert" className="rounded-2xl bg-destructive/10 p-3 text-xs font-medium text-destructive md:col-span-2">Some same-day cards could not be linked to their purchase rows, so separate-card tracking is unavailable. Check the Giftcard purchase description, date, paid amount, and face value.</p>}
     {selectedMerchant && <label className="block min-w-0 space-y-1.5 transition-all duration-200 ease-out">
       <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Card</span>
       <Select value={selectedCard} onChange={(event) => onCardSelect(event.target.value as 'auto' | string)}>
         <option value="auto">✨ Auto (FIFO from oldest)</option>
-        {selectedCard !== 'auto' && (selectedIdentityCount === 0 || selectedIdentityCount > 1) && <option value={selectedCard} disabled>{selectedIdentityCount > 1 ? 'Saved selection (multiple cards share this vendor/date)' : 'Saved selection (older format)'}</option>}
+        {selectedCard !== 'auto' && !selectedIsRendered && <option value={selectedCard} disabled>{savedCard ? `Saved selection: ${savedCard.vendor} · ${savedCard.date} · Face ${currency.format(savedCard.face || 0)}` : /\[gc:/i.test(selectedCard) ? 'Saved card is unavailable' : 'Saved legacy selection (not uniquely matched)'}</option>}
         {orderedCards.map((card, index) => {
           const depleted = card.balance <= 0.005
           const method = giftcardMethodForCard(card)
-          const sharedIdentity = orderedCards.filter((item) => sameGiftcardName(method, giftcardMethodForCard(item))).length > 1
-          return <option key={`${method}-${card.date}-${card.paid}-${index}`} value={method} disabled={depleted || sharedIdentity}>{card.date} — Paid {currency.format(card.paid)} / Face {currency.format(card.face)} — {currency.format(card.balance)} left{sharedIdentity ? ' — same vendor/date cannot be tracked separately' : ''}</option>
+          const samePurchaseDay = orderedCards.filter((item) => sameGiftcardName(item.vendor, card.vendor) && normalizeDateCell(item.date) === normalizeDateCell(card.date)).sort((a, b) => (a.sourceRowIndex || a.rowIndex) - (b.sourceRowIndex || b.rowIndex))
+          const duplicateNumber = samePurchaseDay.findIndex((item) => item.id === card.id && item.rowIndex === card.rowIndex) + 1
+          const duplicateLabel = samePurchaseDay.length > 1 ? ` · Card ${duplicateNumber} of ${samePurchaseDay.length}` : ''
+          const cannotLinkDuplicate = !card.id && samePurchaseDay.length > 1
+          return <option key={`${method}-${card.date}-${card.paid}-${index}`} value={method} disabled={cannotLinkDuplicate || (depleted && selectedCard !== method)}>{card.date} — Paid {currency.format(card.paid)} / Face {currency.format(card.face)} — {currency.format(card.balance)} left{duplicateLabel}{cannotLinkDuplicate ? ' · Link purchase row' : ''}</option>
         })}
       </Select>
     </label>}
@@ -1206,6 +1217,8 @@ function findCardForMethod(paymentMethod: string, cards: GiftcardRow[]) {
 
 function selectedCardForMethod(paymentMethod: string, merchant: string, cards: GiftcardRow[]) {
   if (!merchant || sameGiftcardName(paymentMethod, merchant)) return ''
+  if (/\[gc:[a-z\d_-]+\]\s*$/i.test(paymentMethod)) return paymentMethod
+  if (cardForGiftcardMethod(paymentMethod, cards)) return paymentMethod
   return resolveGiftcardMethod(paymentMethod, cards)
 }
 

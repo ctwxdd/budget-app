@@ -7,7 +7,8 @@ import { SkeletonCards } from '../components/layout/Skeletons'
 import { ExpenseDialog, type FormState } from '../components/expenses/ExpenseDialog'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../hooks/useGiftcards'
 import { useExpenses } from '../hooks/useExpenses'
-import { parseGiftcardDescription, sameGiftcardName } from '../lib/giftcards'
+import { giftcardMethodForCard, parseGiftcardDescription, sameGiftcardName } from '../lib/giftcards'
+import { normalizeDateCell } from '../lib/dates'
 import { currency, displayDate } from '../lib/format'
 import { todayIso } from '../lib/dates'
 import type { Expense } from '../lib/types'
@@ -17,14 +18,15 @@ type GiftcardsView = 'cards' | 'list'
 const VIEW_KEY = 'giftcards-view'
 
 function cardKey(card: GiftcardRow) {
-  return `${card.card}::${card.date}::${card.paid}::${card.face}::${card.cumBefore}`
+  return `${card.id || card.sourceRowIndex || card.rowIndex}::${card.card}::${card.date}::${card.paid}::${card.face}`
 }
 
 function findPurchaseExpense(card: GiftcardRow, expenses: Expense[]): Expense | null {
+  if (card.sourceRowIndex) return expenses.find((expense) => expense.rowIndex === card.sourceRowIndex) || null
   const matches = expenses.filter((expense) => {
     if (expense.category !== 'Giftcard') return false
     if (Math.abs(expense.amount - card.paid) > 0.005) return false
-    if (expense.date !== card.date) return false
+    if (normalizeDateCell(expense.date) !== normalizeDateCell(card.date)) return false
     const parsed = parseGiftcardDescription(expense.description)
     if (!parsed) return false
     if (!sameGiftcardName(parsed.vendor, card.vendor)) return false
@@ -71,7 +73,7 @@ function GiftcardsContent() {
       amount: 0,
       description: '',
       category: '',
-      paymentMethod: card.vendor,
+      paymentMethod: giftcardMethodForCard(card),
       reimbursement: '',
       tags: '',
     })
@@ -142,7 +144,7 @@ function GiftcardsContent() {
     {!merchantRows.length ? <EmptyState title="No giftcards yet" text="Giftcard purchases and balances will appear here after the Giftcard tab formulas produce rows." /> : view === 'list' ? <GiftcardList merchants={visibleMerchantRows} cards={cards} showInactive={showInactive} {...cardProps} /> : !visibleMerchantRows.length ? <EmptyState title={search ? 'No matches' : 'No active merchants'} text={search ? `Nothing matches "${search}".` : 'Use Show depleted to include merchants with no remaining balance.'} /> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {visibleMerchantRows.map((merchant) => {
         const open = expanded.includes(merchant.merchant)
-        const merchantCards = cards.filter((card) => sameGiftcardName(card.vendor, merchant.merchant) && (showInactive || card.balance > 0.005)).sort((a, b) => a.date.localeCompare(b.date))
+        const merchantCards = cards.filter((card) => sameGiftcardName(card.vendor, merchant.merchant) && (showInactive || card.balance > 0.005)).sort((a, b) => normalizeDateCell(a.date).localeCompare(normalizeDateCell(b.date)) || a.rowIndex - b.rowIndex)
         return <Card key={merchant.merchant} className={cn('overflow-hidden rounded-2xl transition', !merchant.active && 'opacity-70')}>
           <button className="w-full text-left" onClick={() => setExpanded((current) => current.includes(merchant.merchant) ? current.filter((name) => name !== merchant.merchant) : [...current, merchant.merchant])}>
             <CardHeader className="p-3 pb-2 md:p-4 md:pb-2">
@@ -211,7 +213,7 @@ function GiftcardList({ merchants, cards, showInactive, selectedKey, onSelect, o
   return <Card className="overflow-hidden rounded-2xl">
     {merchants.map((merchant) => {
       const isOpen = open.includes(merchant.merchant)
-      const merchantCards = cards.filter((card) => sameGiftcardName(card.vendor, merchant.merchant) && (showInactive || card.balance > 0.005)).sort((a, b) => a.date.localeCompare(b.date))
+      const merchantCards = cards.filter((card) => sameGiftcardName(card.vendor, merchant.merchant) && (showInactive || card.balance > 0.005)).sort((a, b) => normalizeDateCell(a.date).localeCompare(normalizeDateCell(b.date)) || a.rowIndex - b.rowIndex)
       return <div key={merchant.merchant} className="border-b border-border/50 last:border-b-0">
         <button type="button" className={cn('grid w-full grid-cols-[auto_minmax(0,1fr)_8rem] items-center gap-3 px-3 py-2.5 text-left transition hover:bg-accent/40 md:grid-cols-[auto_minmax(0,1fr)_10rem_6.5rem] md:px-4', !merchant.active && 'opacity-70')} onClick={() => toggle(merchant.merchant)}>
           <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', isOpen && 'rotate-180')} />

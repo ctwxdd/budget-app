@@ -65,8 +65,10 @@ async function sheetsFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
 
 const base = (sheetId: string) => `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`
 
-export async function getSheet(sheetId: string, range: string): Promise<{ values: string[][] }> {
-  return sheetsFetch(`${base(sheetId)}/values/${encodeURIComponent(range)}`)
+export async function getSheet(sheetId: string, range: string, valueRenderOption?: 'FORMULA' | 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE'): Promise<{ values: string[][] }> {
+  const params = new URLSearchParams()
+  if (valueRenderOption) params.set('valueRenderOption', valueRenderOption)
+  return sheetsFetch(`${base(sheetId)}/values/${encodeURIComponent(range)}${params.size ? `?${params}` : ''}`)
 }
 
 export async function getSheets(sheetId: string, ranges: string[]): Promise<Array<{ values?: string[][] }>> {
@@ -164,6 +166,52 @@ export async function clearRange(sheetId: string, range: string) {
 export async function getSheetMeta(sheetId: string): Promise<SheetMeta> {
   const response = await sheetsFetch<{ properties?: { title?: string }; sheets: { properties: { title: string; sheetId: number } }[] }>(`${base(sheetId)}?fields=properties.title,sheets.properties(title,sheetId)`)
   return { title: response.properties?.title || '', sheets: response.sheets.map((sheet) => ({ title: sheet.properties.title, sheetId: sheet.properties.sheetId })) }
+}
+
+export type RowDeveloperMetadata = {
+  metadataId: number
+  metadataKey: string
+  metadataValue: string
+  location?: { dimensionRange?: { sheetId?: number; startIndex?: number; endIndex?: number; dimension?: string } }
+}
+
+export function rowDeveloperMetadataByRow(metadata: readonly RowDeveloperMetadata[]) {
+  const rows = new Map<number, string[]>()
+  for (const item of metadata) {
+    const range = item.location?.dimensionRange
+    if (range?.dimension !== 'ROWS' || !Number.isInteger(range.startIndex) || !item.metadataValue) continue
+    const rowIndex = range.startIndex! + 1
+    rows.set(rowIndex, [...(rows.get(rowIndex) || []), item.metadataValue])
+  }
+  return rows
+}
+
+export async function getRowDeveloperMetadata(sheetId: string, sheetGid: number, metadataKey: string): Promise<RowDeveloperMetadata[]> {
+  const response = await sheetsFetch<{ matchedDeveloperMetadata?: Array<{ developerMetadata?: RowDeveloperMetadata }> }>(`${base(sheetId)}/developerMetadata:search`, {
+    method: 'POST',
+    body: JSON.stringify({ dataFilters: [{ developerMetadataLookup: { metadataKey, visibility: 'DOCUMENT' } }] }),
+  })
+  return (response.matchedDeveloperMetadata || []).flatMap((match) => match.developerMetadata ? [match.developerMetadata] : []).filter((item) => {
+    const range = item.location?.dimensionRange
+    return item.metadataKey === metadataKey && range?.dimension === 'ROWS' && range.sheetId === sheetGid && Number.isInteger(range.startIndex)
+  })
+}
+
+export async function addRowDeveloperMetadata(sheetId: string, rows: Array<{ sheetGid: number; rowIndex: number; key: string; value: string }>): Promise<void> {
+  if (!rows.length) return
+  await sheetsFetch(`${base(sheetId)}:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({ requests: rows.map(({ sheetGid, rowIndex, key, value }) => ({
+      createDeveloperMetadata: {
+        developerMetadata: {
+          metadataKey: key,
+          metadataValue: value,
+          visibility: 'DOCUMENT',
+          location: { dimensionRange: { sheetId: sheetGid, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } },
+        },
+      },
+    })) }),
+  })
 }
 
 export async function deleteRow(sheetId: string, sheetGid: number, rowIndex: number) {

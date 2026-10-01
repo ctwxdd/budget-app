@@ -31,6 +31,7 @@ Shared date, expense, return, tag, giftcard, and benefit calculations live in `s
 | Date normalization and ranges | `tests/unit/dates.test.cjs` |
 | Sheets row/API helpers | `tests/unit/sheets.test.cjs` |
 | Expense filters | `tests/unit/expenseFilters.test.cjs` |
+| Giftcard identity and balance allocation | `tests/unit/giftcards.test.cjs` |
 | Return matching and totals | `tests/unit/returns.test.cjs` |
 | Benefit usage and credits | `tests/unit/cardBenefits.test.cjs` |
 
