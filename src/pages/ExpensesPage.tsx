@@ -9,6 +9,7 @@ import { QueryError } from '../components/layout/QueryError'
 import { Button, ConfirmDialog } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { useBatchDeleteExpenses, useExpenses } from '../hooks/useExpenses'
+import { useGiftcards } from '../hooks/useGiftcards'
 import type { Expense } from '../lib/types'
 import { todayIso } from '../lib/dates'
 import { applyExpenseFilters, defaultFilters, type ExpenseFilters } from '../lib/expenseFilters'
@@ -44,6 +45,7 @@ export function ExpensesPage() {
     }
   }, [drilldownCategory, drilldownPayment, drilldownTag, searchParams])
   const { data = [], isLoading, error, refetch } = useExpenses()
+  useGiftcards()
   const [filters, setFilters] = React.useState(initialFilters)
   const [editing, setEditing] = React.useState<Expense | null>(null)
   const [editingReturn, setEditingReturn] = React.useState<Expense | null>(null)

@@ -6,6 +6,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle } from '../components/
 import { SkeletonCards } from '../components/layout/Skeletons'
 import { QueryError } from '../components/layout/QueryError'
 import { useExpenses } from '../hooks/useExpenses'
+import { useGiftcards } from '../hooks/useGiftcards'
 import { useLanguage } from '../hooks/useLanguage'
 import { categoryColor, categoryIcon, currency, displayDate, filterByDateRange, getPresetRange, groupTotals, sumExpenses } from '../lib/format'
 import type { Expense } from '../lib/types'
@@ -14,6 +15,7 @@ import { compareExpenses } from '../lib/expenseFilters'
 export function OverviewPage() {
   const navigate = useNavigate()
   const { data = [], isLoading, error, refetch } = useExpenses()
+  useGiftcards()
   const { t } = useLanguage()
   const outlet = useOutletContext<{ openExpenseDialog: () => void }>()
   const [editing, setEditing] = React.useState<Expense | null>(null)
