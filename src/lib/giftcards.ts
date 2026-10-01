@@ -1,3 +1,5 @@
+import { normalizeDateCell } from './dates'
+
 export type PaymentMethodType = 'giftcard' | 'cash' | 'card'
 
 export type GiftcardDescriptionParts = {
@@ -16,10 +18,34 @@ export function legacyGiftcardMethod(card: GiftcardIdentity) {
   return `${card.vendor} (${card.date})`
 }
 
-export function giftcardMethodForCard(card: GiftcardIdentity, cards: readonly GiftcardIdentity[]) {
-  const sameDate = cards.filter((item) => sameGiftcardName(item.vendor, card.vendor) && item.date === card.date)
-  const identifiers = new Set(sameDate.map((item) => item.card.toLocaleLowerCase()))
-  return sameDate.length > 1 && sameDate.every((item) => item.card.trim()) && identifiers.size === sameDate.length ? card.card : legacyGiftcardMethod(card)
+function matchesGiftcardMethod(method: string, card: GiftcardIdentity) {
+  const prefix = `${card.vendor} (`
+  const value = method.trim()
+  if (value.slice(0, prefix.length).toLocaleLowerCase() !== prefix.toLocaleLowerCase() || !value.endsWith(')')) return false
+  const methodDate = normalizeDateCell(value.slice(prefix.length, -1))
+  const cardDate = normalizeDateCell(card.date)
+  return Boolean(methodDate && cardDate && methodDate === cardDate)
+}
+
+export function giftcardMethodForCard(card: GiftcardIdentity) {
+  return `${card.vendor} (${normalizeDateCell(card.date)})`
+}
+
+export function cardForGiftcardMethod(method: string, cards: readonly GiftcardIdentity[]) {
+  const matches = cards.filter((card) => sameGiftcardName(method, giftcardMethodForCard(card)) || matchesGiftcardMethod(method, card) || sameGiftcardName(method, card.card))
+  return matches.length === 1 ? matches[0] : undefined
+}
+
+export function resolveGiftcardMethod(method: string, cards: readonly GiftcardIdentity[]) {
+  const canonicalMatch = cards.find((card) => sameGiftcardName(method, giftcardMethodForCard(card)))
+  if (canonicalMatch) return giftcardMethodForCard(canonicalMatch)
+  const legacyMatches = cards.filter((card) => matchesGiftcardMethod(method, card))
+  if (legacyMatches.length === 1) return giftcardMethodForCard(legacyMatches[0])
+  const descriptionMatches = cards.filter((card) => sameGiftcardName(method, card.card))
+  if (descriptionMatches.length !== 1) return method
+  const matchedCard = descriptionMatches[0]
+  const identityMatches = cards.filter((card) => sameGiftcardName(card.vendor, matchedCard.vendor) && normalizeDateCell(card.date) === normalizeDateCell(matchedCard.date))
+  return identityMatches.length === 1 ? giftcardMethodForCard(matchedCard) : method
 }
 
 export function parseCurrency(value: unknown) {
@@ -32,6 +58,17 @@ export function classifyPaymentMethod(name: string): PaymentMethodType {
   if (/\bGC\b|\bGift/i.test(name)) return 'giftcard'
   if (/cash|venmo|zelle|paypal|apple pay|google pay/i.test(name)) return 'cash'
   return 'card'
+}
+
+export function classifyGiftcardPaymentMethod(name: string, cards: readonly GiftcardIdentity[]): PaymentMethodType {
+  return Boolean(name.trim()) && cards.some((card) =>
+    sameGiftcardName(name, card.vendor) ||
+    sameGiftcardName(name, giftcardMethodForCard(card)) ||
+    matchesGiftcardMethod(name, card) ||
+    sameGiftcardName(name, card.card)
+  )
+    ? 'giftcard'
+    : classifyPaymentMethod(name)
 }
 
 export function splitDescriptionNote(description: string) {
