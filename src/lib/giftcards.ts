@@ -6,6 +6,22 @@ export type GiftcardDescriptionParts = {
   source: string
 }
 
+export type GiftcardIdentity = { card: string; vendor: string; date: string }
+
+export function sameGiftcardName(a: string, b: string) {
+  return a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase()
+}
+
+export function legacyGiftcardMethod(card: GiftcardIdentity) {
+  return `${card.vendor} (${card.date})`
+}
+
+export function giftcardMethodForCard(card: GiftcardIdentity, cards: readonly GiftcardIdentity[]) {
+  const sameDate = cards.filter((item) => sameGiftcardName(item.vendor, card.vendor) && item.date === card.date)
+  const identifiers = new Set(sameDate.map((item) => item.card.toLocaleLowerCase()))
+  return sameDate.length > 1 && sameDate.every((item) => item.card.trim()) && identifiers.size === sameDate.length ? card.card : legacyGiftcardMethod(card)
+}
+
 export function parseCurrency(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
   const parsed = Number.parseFloat(String(value || '').replace(/[$,]/g, ''))

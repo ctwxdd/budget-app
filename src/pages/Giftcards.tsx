@@ -7,7 +7,7 @@ import { SkeletonCards } from '../components/layout/Skeletons'
 import { ExpenseDialog, type FormState } from '../components/expenses/ExpenseDialog'
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../hooks/useGiftcards'
 import { useExpenses } from '../hooks/useExpenses'
-import { parseGiftcardDescription } from '../lib/giftcards'
+import { parseGiftcardDescription, sameGiftcardName } from '../lib/giftcards'
 import { currency, displayDate } from '../lib/format'
 import { todayIso } from '../lib/dates'
 import type { Expense } from '../lib/types'
@@ -17,7 +17,7 @@ type GiftcardsView = 'cards' | 'list'
 const VIEW_KEY = 'giftcards-view'
 
 function cardKey(card: GiftcardRow) {
-  return `${card.card}::${card.date}::${card.paid}`
+  return `${card.card}::${card.date}::${card.paid}::${card.face}::${card.cumBefore}`
 }
 
 function findPurchaseExpense(card: GiftcardRow, expenses: Expense[]): Expense | null {
@@ -27,7 +27,7 @@ function findPurchaseExpense(card: GiftcardRow, expenses: Expense[]): Expense | 
     if (expense.date !== card.date) return false
     const parsed = parseGiftcardDescription(expense.description)
     if (!parsed) return false
-    if (parsed.vendor !== card.vendor) return false
+    if (!sameGiftcardName(parsed.vendor, card.vendor)) return false
     if (card.face > 0 && parsed.face) {
       const parsedFace = Number(parsed.face)
       if (Number.isFinite(parsedFace) && Math.abs(parsedFace - card.face) > 0.005) return false
@@ -105,7 +105,7 @@ function GiftcardsContent() {
     if (!showInactive && !merchant.active && merchant.balance <= 0.005) return false
     if (!searchQuery) return true
     if (merchant.merchant.toLocaleLowerCase().includes(searchQuery)) return true
-    return cards.some((card) => card.vendor === merchant.merchant && [card.card, card.date].some((value) => value.toLocaleLowerCase().includes(searchQuery)))
+    return cards.some((card) => sameGiftcardName(card.vendor, merchant.merchant) && [card.card, card.date].some((value) => value.toLocaleLowerCase().includes(searchQuery)))
   })
   const kpis = [
     { label: 'Total balance', emoji: '💰', value: currency.format(totalBalance), tint: 'from-mint/15 to-sage/15' },
@@ -142,7 +142,7 @@ function GiftcardsContent() {
     {!merchantRows.length ? <EmptyState title="No giftcards yet" text="Giftcard purchases and balances will appear here after the Giftcard tab formulas produce rows." /> : view === 'list' ? <GiftcardList merchants={visibleMerchantRows} cards={cards} showInactive={showInactive} {...cardProps} /> : !visibleMerchantRows.length ? <EmptyState title={search ? 'No matches' : 'No active merchants'} text={search ? `Nothing matches "${search}".` : 'Use Show depleted to include merchants with no remaining balance.'} /> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {visibleMerchantRows.map((merchant) => {
         const open = expanded.includes(merchant.merchant)
-        const merchantCards = cards.filter((card) => card.vendor === merchant.merchant && (showInactive || card.balance > 0.005)).sort((a, b) => a.date.localeCompare(b.date))
+        const merchantCards = cards.filter((card) => sameGiftcardName(card.vendor, merchant.merchant) && (showInactive || card.balance > 0.005)).sort((a, b) => a.date.localeCompare(b.date))
         return <Card key={merchant.merchant} className={cn('overflow-hidden rounded-2xl transition', !merchant.active && 'opacity-70')}>
           <button className="w-full text-left" onClick={() => setExpanded((current) => current.includes(merchant.merchant) ? current.filter((name) => name !== merchant.merchant) : [...current, merchant.merchant])}>
             <CardHeader className="p-3 pb-2 md:p-4 md:pb-2">
@@ -211,7 +211,7 @@ function GiftcardList({ merchants, cards, showInactive, selectedKey, onSelect, o
   return <Card className="overflow-hidden rounded-2xl">
     {merchants.map((merchant) => {
       const isOpen = open.includes(merchant.merchant)
-      const merchantCards = cards.filter((card) => card.vendor === merchant.merchant && (showInactive || card.balance > 0.005)).sort((a, b) => a.date.localeCompare(b.date))
+      const merchantCards = cards.filter((card) => sameGiftcardName(card.vendor, merchant.merchant) && (showInactive || card.balance > 0.005)).sort((a, b) => a.date.localeCompare(b.date))
       return <div key={merchant.merchant} className="border-b border-border/50 last:border-b-0">
         <button type="button" className={cn('grid w-full grid-cols-[auto_minmax(0,1fr)_8rem] items-center gap-3 px-3 py-2.5 text-left transition hover:bg-accent/40 md:grid-cols-[auto_minmax(0,1fr)_10rem_6.5rem] md:px-4', !merchant.active && 'opacity-70')} onClick={() => toggle(merchant.merchant)}>
           <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', isOpen && 'rotate-180')} />

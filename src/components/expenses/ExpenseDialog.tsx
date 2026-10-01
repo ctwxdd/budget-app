@@ -7,7 +7,7 @@ import { useAddExpense, useCategories, useExpenses, useTags, useUpdateExpense } 
 import { useGiftcards, type GiftcardRow, type MerchantRow } from '../../hooks/useGiftcards'
 import { useCards } from '../../hooks/useCards'
 import type { CardRow } from '../../hooks/useCards'
-import { appendNoteToDescription, classifyPaymentMethod, composeGiftcardDescription, parseGiftcardDescription, splitDescriptionNote, type GiftcardDescriptionParts, type PaymentMethodType } from '../../lib/giftcards'
+import { appendNoteToDescription, classifyPaymentMethod, composeGiftcardDescription, giftcardMethodForCard, legacyGiftcardMethod, parseGiftcardDescription, sameGiftcardName, splitDescriptionNote, type GiftcardDescriptionParts, type PaymentMethodType } from '../../lib/giftcards'
 import { currency } from '../../lib/format'
 import { findOriginalExpenseForReturn, getReturnSummary } from '../../lib/returns'
 import { cn } from '../../lib/utils'
@@ -550,8 +550,8 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
     setGiftcardStructured(next.category !== 'Giftcard' || Boolean(parsedGiftcard) || !next.description)
     if (next.paymentMethod) {
       const inferredPaymentType = classifyPaymentMethod(next.paymentMethod)
-      const merchant = findMerchantForMethod(next.paymentMethod, giftcards.merchants) || ''
-      const specificCard = merchant && next.paymentMethod !== merchant ? next.paymentMethod : ''
+      const merchant = findMerchantForMethod(next.paymentMethod, giftcards.merchants, giftcards.cards) || ''
+      const specificCard = selectedCardForMethod(next.paymentMethod, merchant, giftcards.cards)
       setPaymentType(inferredPaymentType)
       setSelectedMerchant(merchant)
       setSelectedGiftcardCard(specificCard || 'auto')
@@ -561,9 +561,12 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
       setSelectedGiftcardCard('auto')
     }
     setSplitPayments([])
-  }, [open, expense, template, expensesQuery.data, giftcards.merchants])
+  }, [open, expense, template, expensesQuery.data, giftcards.cards, giftcards.merchants])
 
-  const vendors = React.useMemo(() => Array.from(new Set(giftcards.cards.map((card) => card.vendor).filter(Boolean))).sort(), [giftcards.cards])
+  const vendors = React.useMemo(() => [...giftcards.cards.reduce((names, card) => {
+    if (card.vendor) names.set(card.vendor.toLocaleLowerCase(), card.vendor)
+    return names
+  }, new Map<string, string>()).values()].sort(), [giftcards.cards])
   const giftcardSources = React.useMemo(() => {
     const set = new Set<string>()
     for (const item of expensesQuery.data || []) {
@@ -575,10 +578,10 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   }, [expensesQuery.data])
   const activeMerchants = React.useMemo(() => [...giftcards.merchants].filter((merchant) => merchant.active && merchant.balance > 0.005).sort((a, b) => b.balance - a.balance || a.merchant.localeCompare(b.merchant)), [giftcards.merchants])
   const merchantOptions = React.useMemo(() => {
-    const selected = giftcards.merchants.find((merchant) => merchant.merchant === selectedMerchant)
-    return selected && !activeMerchants.some((merchant) => merchant.merchant === selected.merchant) ? [selected, ...activeMerchants] : activeMerchants
+    const selected = giftcards.merchants.find((merchant) => sameGiftcardName(merchant.merchant, selectedMerchant))
+    return selected && !activeMerchants.some((merchant) => sameGiftcardName(merchant.merchant, selected.merchant)) ? [selected, ...activeMerchants] : activeMerchants
   }, [activeMerchants, giftcards.merchants, selectedMerchant])
-  const selectedCards = React.useMemo(() => giftcards.cards.filter((card) => card.vendor === selectedMerchant).sort((a, b) => a.date.localeCompare(b.date)), [giftcards.cards, selectedMerchant])
+  const selectedCards = React.useMemo(() => giftcards.cards.filter((card) => sameGiftcardName(card.vendor, selectedMerchant)).sort((a, b) => a.date.localeCompare(b.date)), [giftcards.cards, selectedMerchant])
   const giftcardPurchase = form.category === 'Giftcard'
   const splitEnabled = !giftcardPurchase && splitPayments.length > 0
   const zeroCostGiftcardEntry = giftcardPurchase && Boolean(expense) && Math.abs(Number(expense?.amount) || 0) < 0.005
@@ -618,7 +621,7 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
 
   const startSplitPayments = () => {
     setSplitPayments([
-      newSplitPayment(form.amount || 0, { paymentType, paymentMethod: form.paymentMethod, selectedMerchant, selectedGiftcardCard }),
+      newSplitPayment(form.amount || 0, { paymentType, paymentMethod: paymentType === 'giftcard' ? (selectedGiftcardCard === 'auto' ? selectedMerchant : selectedGiftcardCard) : form.paymentMethod, selectedMerchant, selectedGiftcardCard }),
       newSplitPayment(0),
     ])
   }
@@ -635,15 +638,16 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     const amount = Math.abs(Number(form.amount))
+    const paymentMethod = paymentType === 'giftcard' ? (selectedGiftcardCard === 'auto' ? selectedMerchant : selectedGiftcardCard) : form.paymentMethod
     if (!Number.isFinite(amount) || (amount === 0 && !zeroCostGiftcardEntry)) return toast({ title: t('expense.amountRequired', 'Amount is required.'), variant: 'destructive' })
-    if (!splitEnabled && !form.paymentMethod.trim()) return toast({ title: t('expense.paymentRequired', 'Payment method is required.'), variant: 'destructive' })
+    if (!splitEnabled && !paymentMethod.trim()) return toast({ title: t('expense.paymentRequired', 'Payment method is required.'), variant: 'destructive' })
     if (giftcardPurchase && amount <= 0 && !zeroCostGiftcardEntry) return toast({ title: 'Giftcard purchase cost must be greater than zero.', variant: 'destructive' })
     if (giftcardPurchase && giftcardStructured && !giftcardParts.vendor.trim()) return toast({ title: 'Vendor is required for giftcard purchases.', variant: 'destructive' })
     if (!(giftcardPurchase && giftcardStructured) && !form.description.trim()) return toast({ title: t('expense.descriptionRequired', 'Description is required.'), variant: 'destructive' })
     const description = giftcardPurchase && giftcardStructured
-      ? composeGiftcardDescription(giftcardParts, note)
+      ? composeGiftcardDescription({ ...giftcardParts, vendor: vendors.find((vendor) => sameGiftcardName(vendor, giftcardParts.vendor)) || giftcardParts.vendor }, note)
       : appendNoteToDescription(form.description, note)
-    const basePayload = { date: form.date, amount, description, category: form.category, paymentMethod: form.paymentMethod, reimbursement: form.reimbursement, tags: formatTags(form.tags) }
+    const basePayload = { date: form.date, amount, description, category: form.category, paymentMethod, reimbursement: form.reimbursement, tags: formatTags(form.tags) }
     let payloads = [basePayload]
     if (splitEnabled) {
       if (splitPayments.length < 2) return toast({ title: 'Add at least two payment methods.', variant: 'destructive' })
@@ -732,8 +736,8 @@ export function ExpenseDialog({ open, onOpenChange, expense, template }: { open:
                 const previousType = paymentType
                 setPaymentType(item.type)
                 if (item.type === 'giftcard') {
-                  const merchant = findMerchantForMethod(form.paymentMethod, giftcards.merchants) || selectedMerchant
-                  const specificCard = merchant && form.paymentMethod !== merchant ? form.paymentMethod : ''
+                  const merchant = findMerchantForMethod(form.paymentMethod, giftcards.merchants, giftcards.cards) || selectedMerchant
+                  const specificCard = selectedCardForMethod(form.paymentMethod, merchant, giftcards.cards)
                   setSelectedMerchant(merchant)
                   setSelectedGiftcardCard(specificCard || 'auto')
                 } else if (item.type === 'cash') {
@@ -803,16 +807,16 @@ function SplitPaymentEditor({
       return
     }
     if (paymentType === 'giftcard') {
-      const merchant = findMerchantForMethod(payment.paymentMethod, allMerchants) || payment.selectedMerchant
-      const specificCard = merchant && payment.paymentMethod !== merchant ? payment.paymentMethod : ''
+      const merchant = findMerchantForMethod(payment.paymentMethod, allMerchants, giftcardCards) || payment.selectedMerchant
+      const specificCard = selectedCardForMethod(payment.paymentMethod, merchant, giftcardCards)
       onChange(payment.id, { paymentType, paymentMethod: merchant, selectedMerchant: merchant, selectedGiftcardCard: specificCard || 'auto' })
       return
     }
     onChange(payment.id, { paymentType, paymentMethod: classifyPaymentMethod(payment.paymentMethod) === 'card' ? payment.paymentMethod : '', selectedMerchant: '', selectedGiftcardCard: 'auto' })
   }
   const merchantOptionsFor = (selectedMerchant: string) => {
-    const selected = allMerchants.find((merchant) => merchant.merchant === selectedMerchant)
-    return selected && !merchants.some((merchant) => merchant.merchant === selected.merchant) ? [selected, ...merchants] : merchants
+    const selected = allMerchants.find((merchant) => sameGiftcardName(merchant.merchant, selectedMerchant))
+    return selected && !merchants.some((merchant) => sameGiftcardName(merchant.merchant, selected.merchant)) ? [selected, ...merchants] : merchants
   }
 
   return <div className="space-y-3 rounded-3xl border border-border/70 bg-accent/25 p-3">
@@ -830,7 +834,7 @@ function SplitPaymentEditor({
     </div>
     <div className="space-y-2">
       {payments.map((payment, index) => {
-        const selectedCards = giftcardCards.filter((card) => card.vendor === payment.selectedMerchant).sort((a, b) => a.date.localeCompare(b.date))
+        const selectedCards = giftcardCards.filter((card) => sameGiftcardName(card.vendor, payment.selectedMerchant)).sort((a, b) => a.date.localeCompare(b.date))
         const isBalancingPayment = index === payments.length - 1 && payments.length > 1
         return <div key={payment.id} className="space-y-3 rounded-3xl border border-border/70 bg-card/80 p-3 shadow-sm">
           <div className="flex items-center justify-between gap-3">
@@ -906,22 +910,25 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
   const [giftcardReturnMode, setGiftcardReturnMode] = React.useState<GiftcardReturnMode>('original')
   const [newGiftcardVendor, setNewGiftcardVendor] = React.useState('')
   const formId = React.useId()
-  const originalGiftcardMerchant = original ? findMerchantForMethod(original.paymentMethod, giftcards.merchants) : ''
-  const giftcardVendorOptions = React.useMemo(() => Array.from(new Set([
+  const originalGiftcardMerchant = original ? findMerchantForMethod(original.paymentMethod, giftcards.merchants, giftcards.cards) : ''
+  const giftcardVendorOptions = React.useMemo(() => [...[
     ...giftcards.merchants.map((merchant) => ensureGiftcardVendor(merchant.merchant)),
     ...giftcards.cards.map((card) => ensureGiftcardVendor(card.vendor)),
-  ].filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })), [giftcards.cards, giftcards.merchants])
+  ].filter(Boolean).reduce((names, vendor) => {
+    names.set(vendor.toLocaleLowerCase(), vendor)
+    return names
+  }, new Map<string, string>()).values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })), [giftcards.cards, giftcards.merchants])
   const originalIsGiftcard = Boolean(original && (
     classifyPaymentMethod(original.paymentMethod) === 'giftcard' ||
     originalGiftcardMerchant ||
-    giftcards.cards.some((card) => original.paymentMethod === methodForCard(card) || original.paymentMethod === card.vendor)
+    giftcards.cards.some((card) => sameGiftcardName(original.paymentMethod, giftcardMethodForCard(card, giftcards.cards)) || sameGiftcardName(original.paymentMethod, legacyGiftcardMethod(card)) || sameGiftcardName(original.paymentMethod, card.vendor))
   ))
 
   React.useEffect(() => {
     if (!open || !source) return
     const amount = Math.abs(returnExpense?.amount ?? maxReturnAmount)
     const paymentMethod = source.paymentMethod
-    const merchant = findMerchantForMethod(paymentMethod, giftcards.merchants) || ''
+    const merchant = findMerchantForMethod(paymentMethod, giftcards.merchants, giftcards.cards) || ''
     const defaultStoreCreditVendor = merchant ? ensureGiftcardVendor(merchant) : ''
     setForm({
       date: returnExpense?.date || todayIso(),
@@ -936,20 +943,20 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     setGiftcardReturnMode('original')
     setNewGiftcardVendor(defaultStoreCreditVendor)
     const inferredPaymentType = classifyPaymentMethod(paymentMethod)
-    const specificCard = merchant && paymentMethod !== merchant ? paymentMethod : ''
+    const specificCard = selectedCardForMethod(paymentMethod, merchant, giftcards.cards)
     setPaymentType(inferredPaymentType)
     setSelectedMerchant(merchant)
     setSelectedGiftcardCard(specificCard || 'auto')
-  }, [open, original, returnExpense, source, giftcards.merchants, maxReturnAmount])
+  }, [open, original, returnExpense, source, giftcards.cards, giftcards.merchants, maxReturnAmount])
 
   if (!source) return null
 
   const merchantOptions = (() => {
     const active = [...giftcards.merchants].filter((merchant) => merchant.active && merchant.balance > 0.005).sort((a, b) => b.balance - a.balance || a.merchant.localeCompare(b.merchant))
-    const selected = giftcards.merchants.find((merchant) => merchant.merchant === selectedMerchant)
-    return selected && !active.some((merchant) => merchant.merchant === selected.merchant) ? [selected, ...active] : active
+    const selected = giftcards.merchants.find((merchant) => sameGiftcardName(merchant.merchant, selectedMerchant))
+    return selected && !active.some((merchant) => sameGiftcardName(merchant.merchant, selected.merchant)) ? [selected, ...active] : active
   })()
-  const selectedCards = giftcards.cards.filter((card) => card.vendor === selectedMerchant).sort((a, b) => a.date.localeCompare(b.date))
+  const selectedCards = giftcards.cards.filter((card) => sameGiftcardName(card.vendor, selectedMerchant)).sort((a, b) => a.date.localeCompare(b.date))
 
   const selectGiftcardMerchant = (merchant: string) => {
     setSelectedMerchant(merchant)
@@ -979,8 +986,8 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
       const inferredPaymentType = classifyPaymentMethod(original.paymentMethod)
       setPaymentType(inferredPaymentType)
       setForm((current) => ({ ...current, paymentMethod: original.paymentMethod }))
-      const merchant = findMerchantForMethod(original.paymentMethod, giftcards.merchants) || ''
-      const specificCard = merchant && original.paymentMethod !== merchant ? original.paymentMethod : ''
+      const merchant = findMerchantForMethod(original.paymentMethod, giftcards.merchants, giftcards.cards) || ''
+      const specificCard = selectedCardForMethod(original.paymentMethod, merchant, giftcards.cards)
       setSelectedMerchant(merchant)
       setSelectedGiftcardCard(specificCard || 'auto')
     } else {
@@ -997,10 +1004,11 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
     if (!Number.isFinite(amount) || (amount === 0 && !zeroAmountReturnEdit)) return toast({ title: 'Return amount is required.', variant: 'destructive' })
     if (maxReturnAmount > 0 && amount - maxReturnAmount > 0.005) return toast({ title: 'Return amount is more than the remaining purchase.', description: `Only ${currency.format(maxReturnAmount)} remains after other returns.`, variant: 'destructive' })
     const creatingNewGiftcard = giftcardReturnMode === 'new' && !returnExpense
-    const refundPaymentMethod = creatingNewGiftcard ? (original?.paymentMethod || form.paymentMethod) : form.paymentMethod
+    const selectedPaymentMethod = paymentType === 'giftcard' ? (selectedGiftcardCard === 'auto' ? selectedMerchant : selectedGiftcardCard) : form.paymentMethod
+    const refundPaymentMethod = creatingNewGiftcard ? (original?.paymentMethod || form.paymentMethod) : selectedPaymentMethod
     const payload = { date: form.date, amount: -amount, description: form.description, category: form.category, paymentMethod: refundPaymentMethod, reimbursement: '', tags: formatTags(form.tags) }
     const giftcardVendorInput = newGiftcardVendor.trim()
-    const giftcardVendor = ensureGiftcardVendor(giftcardVendorInput)
+    const giftcardVendor = ensureGiftcardVendor(giftcardVendorOptions.find((vendor) => sameGiftcardName(vendor, giftcardVendorInput)) || giftcardVendorInput)
     try {
       if (returnExpense) await updateExpense.mutateAsync({ ...payload, rowIndex: returnExpense.rowIndex })
       else if (creatingNewGiftcard) {
@@ -1082,8 +1090,8 @@ export function ReturnDialog({ open, onOpenChange, original, returnExpense }: { 
             const previousType = paymentType
             setPaymentType(item.type)
             if (item.type === 'giftcard') {
-              const merchant = findMerchantForMethod(form.paymentMethod, giftcards.merchants) || selectedMerchant
-              const specificCard = merchant && form.paymentMethod !== merchant ? form.paymentMethod : ''
+              const merchant = findMerchantForMethod(form.paymentMethod, giftcards.merchants, giftcards.cards) || selectedMerchant
+              const specificCard = selectedCardForMethod(form.paymentMethod, merchant, giftcards.cards)
               setSelectedMerchant(merchant)
               setSelectedGiftcardCard(specificCard || 'auto')
             } else if (item.type === 'cash') {
@@ -1180,18 +1188,27 @@ function GiftcardPaymentPicker({ merchants, cards, selectedMerchant, selectedCar
       <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Card</span>
       <Select value={selectedCard} onChange={(event) => onCardSelect(event.target.value as 'auto' | string)}>
         <option value="auto">✨ Auto (FIFO from oldest)</option>
-        {orderedCards.map((card) => {
+        {selectedCard !== 'auto' && !orderedCards.some((card) => sameGiftcardName(selectedCard, giftcardMethodForCard(card, orderedCards))) && <option value={selectedCard} disabled>Saved selection (older format)</option>}
+        {orderedCards.map((card, index) => {
           const depleted = card.balance <= 0.005
-          const method = methodForCard(card)
-          return <option key={`${card.card}-${card.date}`} value={method} disabled={depleted}>{card.date} — Paid {currency.format(card.paid)} / Face {currency.format(card.face)} — {currency.format(card.balance)} left</option>
+          const method = giftcardMethodForCard(card, orderedCards)
+          return <option key={`${method}-${card.date}-${card.paid}-${index}`} value={method} disabled={depleted}>{card.date} — Paid {currency.format(card.paid)} / Face {currency.format(card.face)} — {currency.format(card.balance)} left</option>
         })}
       </Select>
     </label>}
   </div>
 }
 
-function methodForCard(card: GiftcardRow) {
-  return `${card.vendor} (${card.date})`
+function findCardForMethod(paymentMethod: string, cards: GiftcardRow[]) {
+  return cards.find((card) => sameGiftcardName(paymentMethod, giftcardMethodForCard(card, cards)))
+}
+
+function selectedCardForMethod(paymentMethod: string, merchant: string, cards: GiftcardRow[]) {
+  if (!merchant || sameGiftcardName(paymentMethod, merchant)) return ''
+  const card = findCardForMethod(paymentMethod, cards)
+  if (card) return giftcardMethodForCard(card, cards)
+  const legacyMatches = cards.filter((item) => sameGiftcardName(paymentMethod, legacyGiftcardMethod(item)))
+  return legacyMatches.length === 1 ? giftcardMethodForCard(legacyMatches[0], cards) : paymentMethod
 }
 
 function ensureGiftcardVendor(value: string) {
@@ -1200,8 +1217,14 @@ function ensureGiftcardVendor(value: string) {
   return classifyPaymentMethod(vendor) === 'giftcard' ? vendor : `${vendor} GC`
 }
 
-function findMerchantForMethod(paymentMethod: string, merchants: MerchantRow[]) {
-  return [...merchants].sort((a, b) => b.merchant.length - a.merchant.length).find((merchant) => paymentMethod === merchant.merchant || paymentMethod.startsWith(`${merchant.merchant} (`) || paymentMethod.startsWith(`${merchant.merchant} #`))?.merchant
+function findMerchantForMethod(paymentMethod: string, merchants: MerchantRow[], cards: GiftcardRow[] = []) {
+  const card = findCardForMethod(paymentMethod, cards)
+  if (card) return card.vendor
+  const method = paymentMethod.trim().toLocaleLowerCase()
+  return [...merchants].sort((a, b) => b.merchant.length - a.merchant.length).find((merchant) => {
+    const name = merchant.merchant.toLocaleLowerCase()
+    return method === name || method.startsWith(`${name} (`) || method.startsWith(`${name} #`)
+  })?.merchant
 }
 
 function describeCard(card: CardRow) {
